@@ -101,6 +101,45 @@ npm run sync:android
 
 Release checklist reference: see [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
 
+
+### iOS native build (Capacitor) with generated Firebase public config
+
+The iOS build now generates `src/generated/appConfig.ts` from `ios/App/App/GoogleService-Info.plist` automatically, so native builds always receive a real Firebase `appId`/`projectId` without manually exporting `VITE_*` variables.
+
+```sh
+npm ci
+# Ensure ios/App/App/GoogleService-Info.plist is the real Firebase iOS plist
+npm run ios:sync
+open ios/App/App.xcworkspace
+```
+
+Notes:
+- `npm run build` (CI/web) still works without native files/secrets.
+- `npm run build:native:ios`/`npm run ios:sync` enforce native Firebase config and fail fast if the iOS plist is missing.
+
+### Cloud Functions deploy (OpenAI + USDA via secrets only)
+
+Client code calls only Firebase Functions. OpenAI and USDA keys must stay server-side in Functions secrets.
+
+```sh
+# one-time / rotate secrets
+firebase functions:secrets:set OPENAI_API_KEY
+firebase functions:secrets:set USDA_FDC_API_KEY
+
+# deploy functions
+npm --prefix functions ci
+npm --prefix functions run build
+firebase deploy --only functions
+```
+
+Verify health + CORS quickly:
+
+```sh
+curl -i https://us-central1-<project-id>.cloudfunctions.net/health
+```
+
+Expected response includes `{"ok":true}` and allows Capacitor origins (`capacitor://localhost`, `ionic://localhost`).
+
 ### iOS Runbook (web-only Firebase)
 
 MyBodyScan uses Firebase via the Web SDK inside the WebView. Native Firebase

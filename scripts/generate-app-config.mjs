@@ -35,6 +35,8 @@ const mode =
 const isNative =
   mode === "native" ||
   process.env.MBS_NATIVE === "1" ||
+  process.env.MBS_PLATFORM === "ios" ||
+  process.env.MBS_PLATFORM === "android" ||
   process.env.CAPACITOR_NATIVE === "1" ||
   process.env.CAPACITOR_PLATFORM != null ||
   process.env.MBS_NATIVE_RELEASE === "1" ||
