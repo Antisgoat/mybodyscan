@@ -64,7 +64,7 @@ export function getFunctionsBaseUrl(): string {
   if (functionsUrl) {
     return normalizeUrlBase(functionsUrl);
   }
-  return urlJoin(getFunctionsOrigin(), "/api");
+  return getFunctionsOrigin();
 }
 
 export function urlJoin(base: string, path: string): string {

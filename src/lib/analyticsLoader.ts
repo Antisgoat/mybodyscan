@@ -66,6 +66,9 @@ export function loadAnalyticsScripts(options?: { isNativeBuild?: boolean }): voi
     tag.src = src;
     tag.async = true;
     tag.defer = true;
+    tag.onerror = () => {
+      debugLog("script blocked/failed", { src, native: nativeBuild });
+    };
     document.head.appendChild(tag);
     debugLog("script loaded", { src, native: nativeBuild });
   }

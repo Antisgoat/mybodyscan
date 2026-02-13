@@ -3,7 +3,7 @@ import { isDemo } from "./demoFlag";
 import { DEMO_NUTRITION_HISTORY, DEMO_NUTRITION_LOG } from "./demoContent";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { scrubUndefined } from "@/lib/scrubUndefined";
-import { fnJson } from "@/lib/fnCall";
+import { callRequestFunction } from "@/lib/backend/callBackend";
 
 export interface MealServingSelection {
   qty?: number;
@@ -106,9 +106,9 @@ export function computeCalories({
 async function callFn(path: string, body?: any, method: "GET" | "POST" = "POST") {
   const tzOffsetMins =
     typeof Intl !== "undefined" ? new Date().getTimezoneOffset() : 0;
-  return fnJson(path, {
+  const name = path.replace(/^\/+/, "");
+  return callRequestFunction(name, body || {}, {
     method,
-    body: method === "POST" ? body || {} : undefined,
     headers: { "x-tz-offset-mins": String(tzOffsetMins) },
   });
 }
