@@ -66,6 +66,47 @@ const app = express();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(allowCorsAndOptionalAppCheck);
+
+async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: string) {
+  try {
+    const protocol = req.get("x-forwarded-proto") || "https";
+    const host = req.get("host");
+    if (!host) {
+      res.status(500).json({ error: "missing_host" });
+      return;
+    }
+    const target = `${protocol}://${host}/${fnName}`;
+    const response = await fetch(target, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: req.get("authorization") || "",
+        "x-firebase-appcheck": req.get("x-firebase-appcheck") || "",
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+    const text = await response.text();
+    res.status(response.status);
+    res.setHeader("content-type", "application/json");
+    res.send(text || "{}");
+  } catch (error: any) {
+    res.status(502).json({ error: "legacy_route_forward_failed", message: error?.message || "forward_failed" });
+  }
+}
+
+app.post("/api/getPlan", async (req: Request, res: Response) => {
+  await forwardLegacyFunctionRoute(req, res, "getPlan");
+});
+app.post("/api/getWorkouts", async (req: Request, res: Response) => {
+  await forwardLegacyFunctionRoute(req, res, "getWorkouts");
+});
+app.post("/api/applyCatalogPlan", async (req: Request, res: Response) => {
+  await forwardLegacyFunctionRoute(req, res, "applyCatalogPlan");
+});
+app.get("/api/health", async (_req: Request, res: Response) => {
+  res.status(200).json({ ok: true, gateway: "api", ts: new Date().toISOString() });
+});
+
 app.use("/api/billing", billingRouter);
 app.use("/api/coach", coachRouter);
 app.use("/api/nutrition", nutritionRouter);

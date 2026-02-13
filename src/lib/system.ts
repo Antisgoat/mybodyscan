@@ -1,5 +1,6 @@
 import { apiFetch, apiFetchJson } from "@/lib/apiFetch";
 import { getCurrentUser } from "@/auth/mbs-auth";
+import { fetchJson } from "@/lib/backend/fetchJson";
 
 type BootstrapResponse = {
   ok: boolean;
@@ -62,5 +63,10 @@ export async function bootstrapSystem(): Promise<BootstrapResponse | null> {
 }
 
 export async function fetchSystemHealth(): Promise<any | null> {
-  return apiFetchJson("/system/health");
+  try {
+    return await fetchJson("/systemHealth", { method: "GET" }, 3500);
+  } catch {
+    const health = await fetchJson<{ ok?: boolean }>("/health", { method: "GET" }, 3500);
+    return { functionsReachable: health?.ok === true };
+  }
 }

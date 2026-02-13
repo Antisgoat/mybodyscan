@@ -12,7 +12,7 @@ import {
 import { isDemoActive } from "./demoFlag";
 import { track } from "./analytics";
 import { DEMO_WORKOUT_PLAN } from "./demoContent";
-import { fnJson } from "@/lib/fnCall";
+import { callRequestFunction } from "@/lib/backend/callBackend";
 import {
   buildCustomPlanTitleFromPrefs,
   generateCustomPlanDaysFromLibrary,
@@ -143,7 +143,8 @@ function isRetryableActivationError(error: unknown): boolean {
 }
 
 async function callFn(path: string, body?: any) {
-  return fnJson(path, { method: "POST", body: body || {} });
+  const name = path.replace(/^\/+/, "");
+  return callRequestFunction(name, body || {}, { method: "POST" });
 }
 
 async function fetchPlanFromFirestore() {
