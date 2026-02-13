@@ -3,7 +3,7 @@ import { APP_CONFIG } from "@/generated/appConfig";
 const envSource: Record<string, string | number | boolean | undefined> =
   ((import.meta as any)?.env ?? {}) as Record<string, string | number | boolean | undefined>;
 
-let missingProjectLogged = false;
+const DEFAULT_PROJECT_ID = "mybodyscan-f3daf";
 
 function readEnv(key: string): string {
   const value = envSource[key];
@@ -29,16 +29,6 @@ function normalizeUrlBase(raw: string): string {
 }
 
 export function getFunctionsOrigin(): string {
-  const configuredUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (configuredUrl) {
-    const parsed = normalizeUrlBase(configuredUrl);
-    try {
-      return new URL(parsed).origin;
-    } catch {
-      return parsed;
-    }
-  }
-
   const configuredOrigin = readEnv("VITE_FUNCTIONS_ORIGIN");
   if (configuredOrigin) {
     const parsed = normalizeUrlBase(configuredOrigin);
@@ -49,23 +39,22 @@ export function getFunctionsOrigin(): string {
     }
   }
 
+  const configuredUrl = readEnv("VITE_FUNCTIONS_URL");
+  if (configuredUrl) {
+    const parsed = normalizeUrlBase(configuredUrl);
+    try {
+      return new URL(parsed).origin;
+    } catch {
+      return parsed;
+    }
+  }
+
   const projectId =
     String(APP_CONFIG?.firebase?.projectId || "").trim() ||
     readEnv("VITE_FIREBASE_PROJECT_ID") ||
-    readEnv("FIREBASE_PROJECT_ID");
+    readEnv("FIREBASE_PROJECT_ID") ||
+    DEFAULT_PROJECT_ID;
   const region = readEnv("VITE_FUNCTIONS_REGION") || "us-central1";
-
-  if (!projectId) {
-    const message =
-      "Cloud Functions origin is not configured (missing Firebase projectId).";
-    if (!missingProjectLogged) {
-      missingProjectLogged = true;
-      console.error("functions_origin_missing_project", {
-        hint: "Set VITE_FIREBASE_PROJECT_ID or APP_CONFIG.firebase.projectId.",
-      });
-    }
-    throw new Error(message);
-  }
 
   return `https://${region}-${projectId}.cloudfunctions.net`;
 }

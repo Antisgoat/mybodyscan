@@ -17,6 +17,8 @@ const ALLOW = [
   "https://mybodyscan-f3daf.firebaseapp.com",
   "http://localhost",
   "http://127.0.0.1",
+  "https://localhost",
+  "https://127.0.0.1",
   "http://localhost:5173",
   "http://localhost:3000",
   "http://127.0.0.1:5173",

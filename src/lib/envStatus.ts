@@ -1,3 +1,4 @@
+import { APP_CONFIG } from "@/generated/appConfig";
 import { describeStripeEnvironment } from "@/lib/env";
 import { firebaseConfigMissingKeys } from "@/lib/firebase";
 
@@ -64,7 +65,9 @@ export function computeFeatureStatuses(
   remoteHealth?: RemoteHealth
 ): FeatureStatusSummary {
   const projectId =
-    readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
+    String(APP_CONFIG.firebase.projectId || "").trim() ||
+    readEnv("VITE_FIREBASE_PROJECT_ID") ||
+    readEnv("FIREBASE_PROJECT_ID");
   const scanStartUrl = readEnv("VITE_SCAN_START_URL");
   const scanEngineConfigured = remoteHealth?.scanEngineConfigured;
   const stripeKey =
