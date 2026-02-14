@@ -1,6 +1,7 @@
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
 import { ensureAppCheck } from "@/lib/appCheck";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { functions } from "@/lib/firebase";
 
 export type CoachChatContext = {
@@ -65,6 +66,13 @@ const callable = httpsCallable<CoachChatRequest, CoachChatCallableResponse>(
   functions,
   "coachChat"
 );
+
+function correlationId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {}
+  return `corr-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function extractDebugId(error: FirebaseError): string | undefined {
   const serverResponse = error.customData?.serverResponse;
@@ -147,6 +155,25 @@ export async function coachChatApi(
           : undefined,
     };
   } catch (error) {
-    throw normalizeError(error);
+    try {
+      const data = await apiFetchJson<CoachChatCallableResponse>("/coach/chat", {
+        method: "POST",
+        headers: { "X-Correlation-Id": correlationId() },
+        body: JSON.stringify(payload),
+      });
+      const replyText = typeof data?.reply === "string" ? data.reply.trim() : "";
+      if (!replyText) throw new Error("Coach did not send a reply. Please try again.");
+      return {
+        replyText,
+        planSummary: data?.meta?.metadata?.recommendedSplit ?? null,
+        metadata: data?.meta?.metadata,
+        suggestions: normalizeSuggestions(data?.suggestions),
+        debugId: data?.meta?.debugId,
+        threadId: typeof data?.threadId === "string" ? data.threadId : undefined,
+        assistantMessageId: typeof data?.assistantMessageId === "string" ? data.assistantMessageId : undefined,
+      };
+    } catch (httpError) {
+      throw normalizeError(httpError ?? error);
+    }
   }
 }

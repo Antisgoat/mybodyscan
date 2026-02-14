@@ -6,6 +6,7 @@ import {
   getFunctionsRegion,
   urlJoin,
 } from "@/lib/config/functionsOrigin";
+import { getApiBaseUrl } from "@/lib/api/baseUrl";
 
 export type Env = {
   VITE_FIREBASE_API_KEY: string;
@@ -106,7 +107,7 @@ export function describeStripeEnvironment():
 }
 
 export function fnUrl(path: string): string {
-  return urlJoin(getFunctionsBaseUrl(), path);
+  return urlJoin(getApiBaseUrl(), path);
 }
 
 export const functionsRegion = getFunctionsRegion();

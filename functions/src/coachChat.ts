@@ -22,6 +22,7 @@ import {
 } from "./lib/entitlements.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { hasOpenAI } from "./lib/env.js";
 
 export interface CoachChatRequest {
   /** Optional thread support (ChatGPT-style). */
@@ -720,7 +721,7 @@ function toHttpsError(error: unknown, debugId: string): HttpsError {
     if (error.code === "openai_missing_key") {
       return new HttpsError(
         "failed-precondition",
-        "Coach is not configured. Please try again later.",
+        "Server not configured",
         {
           debugId,
           reason: error.code,
@@ -807,6 +808,14 @@ export const coachChat = onCall<CoachChatRequest>(
       throw new HttpsError("unauthenticated", "Authentication required");
     }
 
+    if (!hasOpenAI()) {
+      throw new HttpsError("failed-precondition", "Server not configured", {
+        debugId: requestId,
+        reason: "openai_missing_key",
+      });
+    }
+
+    
     // Entitlement gate: Unlimited credits OR active subscription.
     // Keep this server-side so a misconfigured client can't bypass it.
     try {
@@ -902,6 +911,14 @@ export async function coachChatHandler(
   }
 
   const payload = normalizePayload(req.body);
+  if (!hasOpenAI()) {
+    res.status(412).json({
+      code: "failed-precondition",
+      message: "Server not configured",
+      debugId: req.get("x-correlation-id")?.trim() || req.get("x-request-id")?.trim() || randomUUID(),
+    });
+    return;
+  }
   if (!payload.message) {
     res.status(400).json({
       code: "invalid-argument",

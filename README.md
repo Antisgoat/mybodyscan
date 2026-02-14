@@ -604,3 +604,48 @@ Notes:
 - `ios:reset` cleans native/web artifacts, rebuilds the native bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
 - If you only need a fresh sync without deleting Pods, run `npm run ios:sync` instead.
 - Use `npm run ios:clean` to wipe iOS build artifacts and DerivedData before re-running the reset flow.
+
+## API gateway + iOS/native verification (Plans, Coach, Meals)
+
+### Required secrets (server only)
+
+Never put these in the client bundle:
+
+```sh
+firebase functions:secrets:set OPENAI_API_KEY
+firebase functions:secrets:set USDA_FDC_API_KEY
+```
+
+### Deploy functions + hosting rewrites
+
+```sh
+npm --prefix functions ci
+npm --prefix functions run build
+firebase deploy --only functions,hosting --project mybodyscan-f3daf
+```
+
+`firebase.json` must include the catch-all API rewrite:
+
+- `/api/**` -> function `api` (region `us-central1`)
+
+### Verify gateway endpoints
+
+```sh
+BASE="https://us-central1-mybodyscan-f3daf.cloudfunctions.net/api"
+TOKEN="<firebase-id-token>"
+CID="manual-verify-$(date +%s)"
+
+curl -sS -X POST "$BASE/health" -H "X-Correlation-Id: $CID"
+curl -sS -X POST "$BASE/getPlan" -H "Authorization: Bearer $TOKEN" -H "X-Correlation-Id: $CID" -H "Content-Type: application/json" -d '{}'
+curl -sS -X POST "$BASE/getWorkouts" -H "Authorization: Bearer $TOKEN" -H "X-Correlation-Id: $CID" -H "Content-Type: application/json" -d '{}'
+curl -sS -X POST "$BASE/applyCatalogPlan" -H "Authorization: Bearer $TOKEN" -H "X-Correlation-Id: $CID" -H "Content-Type: application/json" -d '{"programId":"starter","days":[{"day":"Mon","exercises":[{"name":"Squat","sets":3,"reps":"10"}]}]}'
+curl -sS -X POST "$BASE/nutrition/search" -H "Authorization: Bearer $TOKEN" -H "X-Correlation-Id: $CID" -H "Content-Type: application/json" -d '{"query":"Chicken breast"}'
+curl -sS -X POST "$BASE/coach/chat" -H "Authorization: Bearer $TOKEN" -H "X-Correlation-Id: $CID" -H "Content-Type: application/json" -d '{"message":"Give me a short nutrition tip"}'
+```
+
+### Native (Capacitor iOS) expected flow
+
+- Plans tab loads current plan/workouts via `https://us-central1-mybodyscan-f3daf.cloudfunctions.net/api`.
+- Starter Program applies via `/applyCatalogPlan`.
+- Coach uses callable first, then HTTP fallback (`/coach/chat`) when needed.
+- Meals search uses callable first, then HTTP fallback (`/nutrition/search`) while preserving correlation ids.

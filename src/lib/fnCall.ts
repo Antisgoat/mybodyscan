@@ -16,11 +16,14 @@ async function parseJsonOrText(response: Response): Promise<unknown> {
   try {
     return JSON.parse(text);
   } catch {
-    return text;
+    return { __nonJson: true, raw: text.slice(0, 500) };
   }
 }
 
 function messageFromPayload(payload: unknown, status: number): string {
+  if (payload && typeof payload === "object" && (payload as any).__nonJson) {
+    return `Server returned non-JSON response (ref ${status})`;
+  }
   if (typeof payload === "string") {
     const trimmed = payload.trim();
     return trimmed.length ? trimmed : `fn_error_${status}`;
@@ -61,6 +64,15 @@ function parseNativePayload(data: unknown): unknown {
   return data;
 }
 
+function nextCorrelationId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+  } catch {}
+  return `corr-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export async function fnJson<T = unknown>(
   path: string,
   options: {
@@ -76,10 +88,13 @@ export async function fnJson<T = unknown>(
   await ensureAppCheck();
   const appCheckHeaders = await getAppCheckTokenHeader();
 
+  const correlationId = nextCorrelationId();
+
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...(options.method === "POST" ? { "Content-Type": "application/json" } : {}),
     Authorization: `Bearer ${idToken}`,
+    "X-Correlation-Id": correlationId,
     ...(options.headers ?? {}),
   };
   Object.entries(appCheckHeaders).forEach(([k, v]) => {
