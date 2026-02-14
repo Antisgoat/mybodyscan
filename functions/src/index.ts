@@ -3,6 +3,7 @@
 
 import expressModule from "express";
 import type { Request, Response } from "express";
+import { randomUUID } from "node:crypto";
 import { onRequest } from "firebase-functions/v2/https";
 import { billingRouter } from "./billing.js";
 import { coachRouter } from "./coach.js";
@@ -63,8 +64,39 @@ export {
 
 const express = expressModule as any;
 const app = express();
+const apiRouter = express.Router();
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
+
+const allowedOrigins = new Set([
+  "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
+  "capacitor://localhost",
+  "http://localhost",
+]);
+
+function buildError(code: string, message: string, ref = randomUUID().slice(0, 8)) {
+  return { ok: false as const, error: { code, message, ref } };
+}
+
+function applyGatewayCors(req: Request, res: Response) {
+  const origin = req.get("origin") || "";
+  if (allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+}
+
+app.use((req: Request, res: Response, next: () => void) => {
+  applyGatewayCors(req, res);
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
 app.use(allowCorsAndOptionalAppCheck);
 
 async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: string) {
@@ -72,7 +104,8 @@ async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: s
     const protocol = req.get("x-forwarded-proto") || "https";
     const host = req.get("host");
     if (!host) {
-      res.status(500).json({ error: "missing_host" });
+      const payload = buildError("missing_host", "Missing host header");
+      res.status(500).json(payload);
       return;
     }
     const target = `${protocol}://${host}/${fnName}`;
@@ -86,31 +119,49 @@ async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: s
       body: JSON.stringify(req.body ?? {}),
     });
     const text = await response.text();
-    res.status(response.status);
-    res.setHeader("content-type", "application/json");
-    res.send(text || "{}");
+    let body: any = {};
+    try {
+      body = text ? JSON.parse(text) : {};
+    } catch {
+      body = buildError("upstream_invalid_json", "Upstream returned invalid JSON");
+    }
+    if (response.ok) {
+      res.status(response.status).json({ ok: true, data: body });
+      return;
+    }
+    const ref = randomUUID().slice(0, 8);
+    console.error("api_gateway_forward_failed", { fnName, status: response.status, ref, body });
+    res
+      .status(response.status)
+      .json(buildError(`upstream_${response.status}`, body?.message || body?.error || "Request failed", ref));
   } catch (error: any) {
-    res.status(502).json({ error: "legacy_route_forward_failed", message: error?.message || "forward_failed" });
+    const ref = randomUUID().slice(0, 8);
+    console.error("legacy_route_forward_failed", { fnName, ref, message: error?.message });
+    res.status(502).json(buildError("legacy_route_forward_failed", error?.message || "forward_failed", ref));
   }
 }
 
-app.post("/api/getPlan", async (req: Request, res: Response) => {
+apiRouter.post("/getPlan", async (req: Request, res: Response) => {
   await forwardLegacyFunctionRoute(req, res, "getPlan");
 });
-app.post("/api/getWorkouts", async (req: Request, res: Response) => {
+apiRouter.post("/getWorkouts", async (req: Request, res: Response) => {
   await forwardLegacyFunctionRoute(req, res, "getWorkouts");
 });
-app.post("/api/applyCatalogPlan", async (req: Request, res: Response) => {
+apiRouter.post("/applyCatalogPlan", async (req: Request, res: Response) => {
   await forwardLegacyFunctionRoute(req, res, "applyCatalogPlan");
 });
-app.get("/api/health", async (_req: Request, res: Response) => {
+apiRouter.get("/health", async (_req: Request, res: Response) => {
   res.status(200).json({ ok: true, gateway: "api", ts: new Date().toISOString() });
 });
 
-app.use("/api/billing", billingRouter);
-app.use("/api/coach", coachRouter);
-app.use("/api/nutrition", nutritionRouter);
-app.use("/api/system", systemRouter);
+apiRouter.use("/billing", billingRouter);
+apiRouter.use("/coach", coachRouter);
+apiRouter.use("/nutrition", nutritionRouter);
+apiRouter.use("/system", systemRouter);
 
+app.use("/", apiRouter);
+app.use("/api", apiRouter);
+
+export const apiAppForTest = app;
 export const api = onRequest({ region: "us-central1" }, app);
 export { deleteScan } from "./http/deleteScan.js";

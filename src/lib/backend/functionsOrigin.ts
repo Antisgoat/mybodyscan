@@ -1,4 +1,5 @@
 import { APP_CONFIG } from "@/generated/appConfig";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 const envSource: Record<string, string | number | boolean | undefined> =
   ((import.meta as any)?.env ?? {}) as Record<string, string | number | boolean | undefined>;
@@ -29,11 +30,17 @@ function normalizeUrlBase(raw: string): string {
 }
 
 export function getFunctionsOrigin(): string {
+  const native = isCapacitorNative();
+  if (!native) {
+    return "";
+  }
+
   const configuredOrigin = readEnv("VITE_FUNCTIONS_ORIGIN");
   if (configuredOrigin) {
     const parsed = normalizeUrlBase(configuredOrigin);
     try {
-      return new URL(parsed).origin;
+      const url = new URL(parsed);
+      return url.origin;
     } catch {
       return parsed;
     }
@@ -43,7 +50,8 @@ export function getFunctionsOrigin(): string {
   if (configuredUrl) {
     const parsed = normalizeUrlBase(configuredUrl);
     try {
-      return new URL(parsed).origin;
+      const url = new URL(parsed);
+      return url.origin;
     } catch {
       return parsed;
     }
@@ -60,6 +68,7 @@ export function getFunctionsOrigin(): string {
 }
 
 export function getFunctionsBaseUrl(): string {
+  if (!isCapacitorNative()) return "/api";
   const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
   if (functionsUrl) {
     return normalizeUrlBase(functionsUrl);

@@ -466,6 +466,23 @@ function parseMetadataLine(source: string): {
   return { replyText: replyText || source.trim(), metadata };
 }
 
+
+function deterministicCoachFallback(payload: CoachChatRequest, requestId: string): CoachChatResponsePayload {
+  const goal = (payload.goalType || "general").toLowerCase();
+  const experience = (payload.activityLevel || "beginner").toLowerCase();
+  const cardioDays = goal.includes("fat") ? 4 : goal.includes("muscle") ? 2 : 3;
+  const liftDays = goal.includes("muscle") ? 4 : 3;
+  const reply = `AI is temporarily unavailable; here is a standard plan: ${liftDays} lifting days + ${cardioDays} cardio days this week. Keep sessions 30-45 minutes, prioritize compound movements, and hit protein at each meal. (${experience} track)`;
+  return {
+    reply,
+    suggestions: ["Open workouts", "Review nutrition targets"],
+    meta: {
+      debugId: requestId,
+      model: "fallback-rules-v1",
+    },
+  };
+}
+
 function buildSuggestions(metadata?: CoachChatMetadata): string[] | undefined {
   if (!metadata) return undefined;
   const suggestions = new Set<string>();
@@ -875,7 +892,11 @@ export const coachChat = onCall<CoachChatRequest>(
         uid: request.auth?.uid ?? null,
         message: (error as Error)?.message,
       });
-      throw toHttpsError(error, requestId);
+      const mapped = toHttpsError(error, requestId);
+      if (mapped.code === "failed-precondition" || mapped.code === "unavailable") {
+        return deterministicCoachFallback(payload, requestId);
+      }
+      throw mapped;
     }
   }
 );
@@ -944,6 +965,10 @@ export async function coachChatHandler(
     res.status(200).json(response);
   } catch (error) {
     const mapped = toHttpsError(error, requestId);
+    if (mapped.code === "failed-precondition" || mapped.code === "unavailable") {
+      res.status(200).json(deterministicCoachFallback(payload, requestId));
+      return;
+    }
     const mappedDetails = getHttpsErrorDetails(mapped) ?? {};
     const debugId = mappedDetails?.debugId ?? requestId;
     res.status(httpStatusFromHttpsError(mapped)).json({
