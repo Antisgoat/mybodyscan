@@ -716,7 +716,7 @@ export default function CustomizeProgram() {
                                     Swap (search)
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent className="max-w-lg">
+                                <DialogContent className="max-w-lg" aria-describedby={undefined}>
                                   <DialogHeader>
                                     <DialogTitle>Swap exercise</DialogTitle>
                                   </DialogHeader>

@@ -247,7 +247,7 @@ export default function CoachTrackerNew() {
                     Add Meal
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent aria-describedby={undefined}>
                   <DialogHeader>
                     <DialogTitle>Add Meal</DialogTitle>
                   </DialogHeader>

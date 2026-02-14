@@ -1304,7 +1304,7 @@ export default function Meals() {
       <BottomNav />
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-w-xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>
               {editorItem ? `Log ${editorItem.name}` : "Log food"}
@@ -1326,7 +1326,7 @@ export default function Meals() {
       </Dialog>
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-3xl" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Add to {MEAL_LABELS[addMealType]}</DialogTitle>
           </DialogHeader>
@@ -1342,7 +1342,7 @@ export default function Meals() {
       </Dialog>
 
       <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg" aria-describedby={undefined}>
           <DialogHeader>
             <DialogTitle>Quick add</DialogTitle>
           </DialogHeader>
