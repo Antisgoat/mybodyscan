@@ -49,6 +49,13 @@ const nutritionSearchCallable = httpsCallable<
   NutritionSearchResponse
 >(functions, "nutritionSearch");
 
+function correlationId(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {}
+  return `corr-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // Legacy/test helper: normalize raw nutrition items (USDA/OFF/etc) into the lightweight FoodItem shape.
 // This is intentionally tolerant of missing fields and is safe to use in UI mapping.
 export function normalizeFoodItem(raw: unknown): FoodItem {
@@ -85,6 +92,14 @@ function normalizeNutritionError(error: unknown): Error {
   }
   if (error instanceof Error) return error;
   return new Error("Unable to load nutrition results right now.");
+}
+
+async function nutritionSearchHttp(body: NutritionSearchRequest): Promise<NutritionSearchResponse> {
+  return apiFetchJson<NutritionSearchResponse>("/nutrition/search", {
+    method: "POST",
+    headers: { "X-Correlation-Id": correlationId() },
+    body: JSON.stringify(body),
+  });
 }
 
 export async function nutritionSearch(
@@ -133,7 +148,15 @@ export async function nutritionSearch(
       debugId: payload.debugId ?? null,
     };
   } catch (error) {
-    throw normalizeNutritionError(error);
+    try {
+      const payload = await nutritionSearchHttp(body);
+      const normalized = Array.isArray(payload?.results)
+        ? payload.results.map(sanitizeFoodItem).filter(Boolean)
+        : [];
+      return { ...payload, results: normalized } as NutritionSearchResponse;
+    } catch (httpError) {
+      throw normalizeNutritionError(httpError ?? error);
+    }
   }
 }
 

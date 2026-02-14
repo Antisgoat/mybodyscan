@@ -12,6 +12,12 @@ function normalizeUrl(input: RequestInfo): RequestInfo {
 
 export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
   const headers = new Headers(init.headers || {});
+  if (!headers.has("X-Correlation-Id")) {
+    const id = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `corr-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    headers.set("X-Correlation-Id", id);
+  }
   if (
     !headers.has("Content-Type") &&
     init.body &&
@@ -71,9 +77,16 @@ export async function apiFetchJson<T = any>(
 ): Promise<T> {
   const response = await apiFetch(input, init);
   const contentType = response.headers.get("Content-Type") || "";
+  const text = await response.text().catch(() => "");
   const payload = contentType.includes("application/json")
-    ? await response.json().catch(() => ({}))
-    : await response.text().catch(() => "");
+    ? (() => {
+        try {
+          return text ? JSON.parse(text) : {};
+        } catch {
+          return { code: "non_json_response", message: "Server returned invalid JSON", raw: text.slice(0, 500) };
+        }
+      })()
+    : { code: "non_json_response", message: "Server returned non-JSON", raw: text.slice(0, 500) };
 
   if (!response.ok) {
     const message =

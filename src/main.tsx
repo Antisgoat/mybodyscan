@@ -11,6 +11,7 @@ import { assertEnv } from "@/lib/env";
 import { BootGate } from "@/components/BootGate";
 import { isCapacitorNative } from "@/lib/platform/isNative";
 import { loadAnalyticsScripts } from "@/lib/analyticsLoader";
+import { logNativeApiDebug } from "@/lib/api/baseUrl";
 import {
   createNativePolicyBlockedError,
   isAllowedNativeNetworkUrl,
@@ -257,6 +258,7 @@ installNativeDiagnosticsListeners();
 installBootErrorListeners();
 installNativeCspPolicy();
 installNativeNetworkGuard();
+logNativeApiDebug();
 
 function installScriptCreationDiagnostics() {
   if (typeof document === "undefined" || typeof window === "undefined") return;
