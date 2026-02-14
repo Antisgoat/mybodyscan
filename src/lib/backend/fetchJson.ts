@@ -1,4 +1,5 @@
 import { getFunctionsOrigin, urlJoin } from "@/lib/backend/functionsOrigin";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 export type BackendError = Error & {
   status: number;
@@ -6,6 +7,10 @@ export type BackendError = Error & {
   payload?: unknown;
   origin: string;
 };
+
+function withApiPrefix(endpoint: string): string {
+  return endpoint.startsWith("/api/") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+}
 
 export async function fetchJson<T>(
   endpoint: string,
@@ -46,6 +51,13 @@ export async function fetchJson<T>(
       : {};
 
     if (!response.ok) {
+      if (
+        response.status === 404 &&
+        isCapacitorNative() &&
+        !endpoint.startsWith("/api/")
+      ) {
+        return fetchJson<T>(withApiPrefix(endpoint), init, timeoutMs);
+      }
       const error = new Error(
         (payload as any)?.message ||
           (payload as any)?.error ||
@@ -55,6 +67,9 @@ export async function fetchJson<T>(
       error.correlationId = correlationId;
       error.payload = payload;
       error.origin = origin;
+      if (import.meta.env.DEV) {
+        console.warn("backend_fetch_failed", { endpoint, status: error.status, correlationId });
+      }
       throw error;
     }
 

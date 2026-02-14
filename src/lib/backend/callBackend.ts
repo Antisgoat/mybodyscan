@@ -23,7 +23,7 @@ export async function callRequestFunction<TRes = unknown>(
   await ensureAppCheck();
   const token = await requireIdToken();
   const appCheck = await getAppCheckTokenHeader();
-  return fetchJson<TRes>(`/${name}`, {
+  return fetchJson<TRes>(`/api/${name}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -35,6 +35,6 @@ export async function callRequestFunction<TRes = unknown>(
 }
 
 export async function backendHealthCheck(timeoutMs = 2500): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>("/health", { method: "GET" }, timeoutMs);
+  return fetchJson<{ ok: boolean }>("/api/health", { method: "GET" }, timeoutMs);
 }
 
