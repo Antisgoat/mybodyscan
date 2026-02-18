@@ -10,6 +10,7 @@ import { apiFetchJson } from "@/lib/apiFetch";
 import { sanitizeFoodItem, type FoodItem } from "@/lib/nutrition/sanitize";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 export type NutritionSearchRequest = {
   query: string;
@@ -49,8 +50,6 @@ const nutritionSearchCallable = httpsCallable<
   NutritionSearchResponse
 >(functions, "nutritionSearch");
 
-// Legacy/test helper: normalize raw nutrition items (USDA/OFF/etc) into the lightweight FoodItem shape.
-// This is intentionally tolerant of missing fields and is safe to use in UI mapping.
 export function normalizeFoodItem(raw: unknown): FoodItem {
   return sanitizeFoodItem(raw);
 }
@@ -65,6 +64,26 @@ function extractDebugId(error: FirebaseError): string | undefined {
 }
 
 function normalizeNutritionError(error: unknown): Error {
+  const maybe = error as any;
+  if (typeof maybe?.status === "number") {
+    const status = Number(maybe.status) || 0;
+    const payload = maybe?.payload;
+    const backendCode =
+      typeof payload?.error?.code === "string"
+        ? payload.error.code
+        : typeof payload?.code === "string"
+          ? payload.code
+          : undefined;
+    const err = new Error(
+      status === 0
+        ? "Backend unavailable right now. Please check your network and try again."
+        : `Nutrition service error${backendCode ? ` (${backendCode})` : ""}. Please try again.`
+    );
+    (err as Error & { code?: string; status?: number }).code =
+      backendCode || `http_${status}`;
+    (err as Error & { code?: string; status?: number }).status = status;
+    return err;
+  }
   if (error instanceof FirebaseError) {
     const code = error.code ?? "";
     let message = "Unable to load nutrition results right now.";
@@ -87,6 +106,31 @@ function normalizeNutritionError(error: unknown): Error {
   return new Error("Unable to load nutrition results right now.");
 }
 
+function normalizeResponse(payload: NutritionSearchResponse): NutritionSearchResponse {
+  const normalized = Array.isArray(payload?.results)
+    ? payload.results.map(sanitizeFoodItem).filter(Boolean)
+    : [];
+
+  if (!payload || payload.status === "upstream_error") {
+    return {
+      status: "upstream_error",
+      results: normalized,
+      message:
+        payload?.message ??
+        "Food database temporarily unavailable; please try again later.",
+      debugId: payload?.debugId ?? null,
+    };
+  }
+
+  return {
+    status: "ok",
+    results: normalized,
+    source: payload.source ?? null,
+    message: payload.message ?? null,
+    debugId: payload.debugId ?? null,
+  };
+}
+
 export async function nutritionSearch(
   term: string,
   init?: {
@@ -107,32 +151,37 @@ export async function nutritionSearch(
 
   await ensureAppCheck();
 
+  const callHttp = async () => {
+    const payload = await apiFetchJson<NutritionSearchResponse>(
+      "/nutrition/search",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      }
+    );
+    return normalizeResponse(payload);
+  };
+
   try {
+    if (isCapacitorNative()) {
+      return await callHttp();
+    }
     const result = await nutritionSearchCallable(body);
     const payload = (result?.data ?? result) as NutritionSearchResponse;
-    const normalized = Array.isArray(payload?.results)
-      ? payload.results.map(sanitizeFoodItem).filter(Boolean)
-      : [];
-
-    if (!payload || payload.status === "upstream_error") {
-      return {
-        status: "upstream_error",
-        results: normalized,
-        message:
-          payload?.message ??
-          "Food database temporarily unavailable; please try again later.",
-        debugId: payload?.debugId ?? null,
-      };
+    return normalizeResponse(payload);
+  } catch (error: any) {
+    const code = String(error?.code || "");
+    if (
+      code.includes("functions/internal") ||
+      code.includes("functions/unavailable") ||
+      code.includes("functions/unknown")
+    ) {
+      try {
+        return await callHttp();
+      } catch (httpError) {
+        throw normalizeNutritionError(httpError);
+      }
     }
-
-    return {
-      status: "ok",
-      results: normalized,
-      source: payload.source ?? null,
-      message: payload.message ?? null,
-      debugId: payload.debugId ?? null,
-    };
-  } catch (error) {
     throw normalizeNutritionError(error);
   }
 }

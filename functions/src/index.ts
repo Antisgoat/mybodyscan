@@ -2,7 +2,7 @@
 // Export only Cloud Function handlers - no middleware/util exports, no wildcard exports
 
 import expressModule from "express";
-import type { Request, Response } from "express";
+import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { onRequest } from "firebase-functions/v2/https";
 import { billingRouter } from "./billing.js";
@@ -71,8 +71,11 @@ app.use(express.urlencoded({ extended: false }));
 const allowedOrigins = new Set([
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",
+  "https://mybodyscan.app",
+  "https://www.mybodyscan.app",
   "capacitor://localhost",
   "http://localhost",
+  "http://localhost:5173",
 ]);
 
 function buildError(code: string, message: string, ref = randomUUID().slice(0, 8)) {
@@ -92,10 +95,16 @@ function applyGatewayCors(req: Request, res: Response) {
 app.use((req: Request, res: Response, next: () => void) => {
   applyGatewayCors(req, res);
   if (req.method === "OPTIONS") {
-    res.status(204).end();
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.status(204).send("");
     return;
   }
   next();
+});
+app.options("*", (req: Request, res: Response) => {
+  applyGatewayCors(req, res);
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.status(204).send("");
 });
 app.use(allowCorsAndOptionalAppCheck);
 
@@ -141,17 +150,34 @@ async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: s
   }
 }
 
-apiRouter.post("/getPlan", async (req: Request, res: Response) => {
-  await forwardLegacyFunctionRoute(req, res, "getPlan");
+function registerLegacyPostRoute(path: string, fnName: string) {
+  apiRouter.post(path, async (req: Request, res: Response) => {
+    await forwardLegacyFunctionRoute(req, res, fnName);
+  });
+}
+
+[
+  "getPlan",
+  "getWorkouts",
+  "applyCatalogPlan",
+  "generateWorkoutPlan",
+  "applyCustomPlan",
+  "updateWorkoutPlan",
+  "setWorkoutPlanStatus",
+  "markExerciseDone",
+  "logWorkoutExercise",
+  "addMeal",
+  "deleteMeal",
+].forEach((name) => registerLegacyPostRoute(`/${name}`, name));
+
+apiRouter.post("/coachChat", async (req: Request, res: Response) => {
+  await forwardLegacyFunctionRoute(req, res, "coachChat");
 });
-apiRouter.post("/getWorkouts", async (req: Request, res: Response) => {
-  await forwardLegacyFunctionRoute(req, res, "getWorkouts");
-});
-apiRouter.post("/applyCatalogPlan", async (req: Request, res: Response) => {
-  await forwardLegacyFunctionRoute(req, res, "applyCatalogPlan");
-});
+
 apiRouter.get("/health", async (_req: Request, res: Response) => {
-  res.status(200).json({ ok: true, gateway: "api", ts: new Date().toISOString() });
+  res
+    .status(200)
+    .json({ ok: true, service: "api", time: new Date().toISOString() });
 });
 
 apiRouter.use("/billing", billingRouter);
@@ -161,6 +187,33 @@ apiRouter.use("/system", systemRouter);
 
 app.use("/", apiRouter);
 app.use("/api", apiRouter);
+
+app.use((req: Request, res: Response) => {
+  res.status(404).json({
+    ok: false,
+    error: {
+      code: "not_found",
+      message: "Route not found",
+      path: req.url,
+      method: req.method,
+    },
+  });
+});
+
+app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
+  const ref = randomUUID().slice(0, 8);
+  const message =
+    error instanceof Error && error.message
+      ? error.message
+      : "Unexpected server error";
+  console.error("api_gateway_unhandled_error", {
+    ref,
+    path: req.url,
+    method: req.method,
+    message,
+  });
+  res.status(500).json(buildError("internal", message, ref));
+});
 
 export const apiAppForTest = app;
 export const api = onRequest({ region: "us-central1" }, app);

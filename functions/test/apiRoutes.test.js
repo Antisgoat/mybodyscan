@@ -12,15 +12,15 @@ function postJson(base, path) {
   });
 }
 
-test('api router supports /getPlan and /api/getPlan', async () => {
+test('api router returns json for legacy workout endpoints on / and /api aliases', async () => {
   const originalFetch = global.fetch;
   global.fetch = async (url, init) => {
     const u = String(url);
-    if (u.startsWith("http://127.0.0.1:")) {
+    if (u.startsWith('http://127.0.0.1:')) {
       return originalFetch(url, init);
     }
     const fnName = u.split('/').pop();
-    return new Response(JSON.stringify({ fnName }), {
+    return new Response(JSON.stringify({ ok: true, fnName }), {
       status: 200,
       headers: { 'content-type': 'application/json' },
     });
@@ -32,7 +32,14 @@ test('api router supports /getPlan and /api/getPlan', async () => {
   const base = `http://127.0.0.1:${address.port}`;
 
   try {
-    for (const path of ['/getPlan', '/api/getPlan', '/applyCatalogPlan', '/api/applyCatalogPlan']) {
+    for (const path of [
+      '/getPlan',
+      '/api/getPlan',
+      '/getWorkouts',
+      '/api/getWorkouts',
+      '/applyCatalogPlan',
+      '/api/applyCatalogPlan',
+    ]) {
       const res = await postJson(base, path);
       assert.equal(res.status, 200);
       assert.match(res.headers.get('content-type') || '', /application\/json/);

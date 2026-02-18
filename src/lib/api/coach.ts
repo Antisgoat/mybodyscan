@@ -1,7 +1,9 @@
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
+import { apiFetchJson } from "@/lib/apiFetch";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 export type CoachChatContext = {
   todayCalories?: number;
@@ -76,6 +78,27 @@ function extractDebugId(error: FirebaseError): string | undefined {
 }
 
 function normalizeError(error: unknown): Error {
+  const maybe = error as any;
+  if (typeof maybe?.status === "number") {
+    const status = Number(maybe.status) || 0;
+    const payload = maybe?.payload;
+    const backendCode =
+      typeof payload?.error?.code === "string"
+        ? payload.error.code
+        : typeof payload?.code === "string"
+          ? payload.code
+          : undefined;
+    const err = new Error(
+      status === 0
+        ? "Coach is offline right now. Check your connection and try again."
+        : `Coach unavailable${backendCode ? ` (${backendCode})` : ""}. Please try again shortly.`
+    );
+    (err as Error & { code?: string; status?: number }).code =
+      backendCode || `http_${status}`;
+    (err as Error & { code?: string; status?: number }).status = status;
+    return err;
+  }
+
   if (error instanceof FirebaseError) {
     const code = error.code ?? "";
     let message =
@@ -116,37 +139,62 @@ function normalizeSuggestions(value: unknown): string[] | undefined {
   return cleaned.length ? cleaned : undefined;
 }
 
+function mapCoachPayload(data: any): CoachChatResponse {
+  const replyText =
+    typeof data?.reply === "string" && data.reply.trim().length
+      ? data.reply.trim()
+      : "";
+  if (!replyText) {
+    throw new Error("Coach did not send a reply. Please try again.");
+  }
+  const metadata = data?.meta?.metadata;
+  return {
+    replyText,
+    planSummary: metadata?.recommendedSplit ?? null,
+    metadata,
+    suggestions: normalizeSuggestions(data?.suggestions),
+    debugId: data?.meta?.debugId ?? data?.debugId,
+    threadId: typeof data?.threadId === "string" ? data.threadId : undefined,
+    assistantMessageId:
+      typeof data?.assistantMessageId === "string"
+        ? data.assistantMessageId
+        : undefined,
+  };
+}
+
 export async function coachChatApi(
   payload: CoachChatRequest
 ): Promise<CoachChatResponse> {
   await ensureAppCheck();
+
+  const callHttp = async () => {
+    const data = await apiFetchJson<any>("/coach/chat", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return mapCoachPayload(data);
+  };
+
   try {
+    if (isCapacitorNative()) {
+      return await callHttp();
+    }
     const result = await callable(payload);
     const data = (result?.data ?? result) as CoachChatCallableResponse;
-    const replyText =
-      typeof data?.reply === "string" && data.reply.trim().length
-        ? data.reply.trim()
-        : "";
-    if (!replyText) {
-      throw new Error("Coach did not send a reply. Please try again.");
+    return mapCoachPayload(data);
+  } catch (error: any) {
+    const code = String(error?.code || "");
+    if (
+      code.includes("functions/internal") ||
+      code.includes("functions/unavailable") ||
+      code.includes("functions/unknown")
+    ) {
+      try {
+        return await callHttp();
+      } catch (httpError) {
+        throw normalizeError(httpError);
+      }
     }
-    const metadata = data?.meta?.metadata;
-    const planSummary = metadata?.recommendedSplit ?? null;
-    const suggestions = normalizeSuggestions(data?.suggestions);
-    const debugId = data?.meta?.debugId;
-    return {
-      replyText,
-      planSummary,
-      metadata,
-      suggestions,
-      debugId,
-      threadId: typeof data?.threadId === "string" ? data.threadId : undefined,
-      assistantMessageId:
-        typeof data?.assistantMessageId === "string"
-          ? data.assistantMessageId
-          : undefined,
-    };
-  } catch (error) {
     throw normalizeError(error);
   }
 }
