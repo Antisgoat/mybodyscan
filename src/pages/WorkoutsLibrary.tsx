@@ -18,15 +18,17 @@ export default function WorkoutsLibrary() {
   const {
     health: systemHealth,
     error: systemHealthError,
+    serviceError,
     functionsOrigin,
     lastErrorStatus,
+    refresh: refreshSystemHealth,
   } = useSystemHealth();
   const { workoutsConfigured } = computeFeatureStatuses(
     systemHealth ?? undefined
   );
   const workoutsOfflineMessage = workoutsConfigured
     ? null
-    : `Backend unavailable (Cloud Functions). origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
+    : `Service temporarily unavailable. Tap to retry. origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
 
   useEffect(() => {
     if (!workoutsConfigured) {
@@ -85,14 +87,26 @@ export default function WorkoutsLibrary() {
         </div>
         {systemHealthError ? (
           <Alert variant="destructive">
-            <AlertTitle>System health unavailable</AlertTitle>
-            <AlertDescription>{systemHealthError}</AlertDescription>
+            <AlertTitle>Backend health unavailable</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <div>{systemHealthError}</div>
+              <button className="underline" onClick={() => void refreshSystemHealth()}>Retry</button>
+            </AlertDescription>
           </Alert>
         ) : null}
         {workoutsOfflineMessage ? (
           <Alert variant="destructive">
-            <AlertTitle>Workouts offline</AlertTitle>
-            <AlertDescription>{workoutsOfflineMessage}</AlertDescription>
+            <AlertTitle>Workouts unavailable</AlertTitle>
+            <AlertDescription className="space-y-2">
+              <div>{workoutsOfflineMessage}</div>
+              <button className="underline" onClick={() => void refreshSystemHealth()}>Retry</button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {serviceError ? (
+          <Alert>
+            <AlertTitle>Workout service warning</AlertTitle>
+            <AlertDescription>{serviceError}</AlertDescription>
           </Alert>
         ) : null}
 

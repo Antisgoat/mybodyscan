@@ -1,5 +1,4 @@
-import { getFunctionsOrigin, urlJoin } from "@/lib/backend/functionsOrigin";
-import { isCapacitorNative } from "@/lib/platform/isNative";
+import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
 
 export type BackendError = Error & {
   status: number;
@@ -8,17 +7,12 @@ export type BackendError = Error & {
   origin: string;
 };
 
-function withApiPrefix(endpoint: string): string {
-  return endpoint.startsWith("/api/") ? endpoint : `/api${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
-}
-
 export async function fetchJson<T>(
   endpoint: string,
   init: RequestInit = {},
   timeoutMs = 15000
 ): Promise<T> {
-  const origin = getFunctionsOrigin();
-  const url = urlJoin(origin, endpoint);
+  const url = resolveEndpoint(endpoint);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -51,13 +45,6 @@ export async function fetchJson<T>(
       : {};
 
     if (!response.ok) {
-      if (
-        response.status === 404 &&
-        isCapacitorNative() &&
-        !endpoint.startsWith("/api/")
-      ) {
-        return fetchJson<T>(withApiPrefix(endpoint), init, timeoutMs);
-      }
       const error = new Error(
         (payload as any)?.message ||
           (payload as any)?.error ||
@@ -66,7 +53,7 @@ export async function fetchJson<T>(
       error.status = response.status;
       error.correlationId = correlationId;
       error.payload = payload;
-      error.origin = origin;
+      error.origin = url;
       if (import.meta.env.DEV) {
         console.warn("backend_fetch_failed", { endpoint, status: error.status, correlationId });
       }
@@ -78,13 +65,13 @@ export async function fetchJson<T>(
     if (cause?.name === "AbortError") {
       const error = new Error("Request timed out") as BackendError;
       error.status = 0;
-      error.origin = origin;
+      error.origin = url;
       throw error;
     }
     if (typeof cause?.status === "number") throw cause;
     const error = new Error(cause?.message || "network_error") as BackendError;
     error.status = 0;
-    error.origin = origin;
+    error.origin = url;
     throw error;
   } finally {
     clearTimeout(timer);

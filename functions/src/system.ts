@@ -10,6 +10,9 @@ const allow = [
   "https://mybodyscanapp.com",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
+  "http://localhost",
+  "http://localhost:5173",
+  "capacitor://localhost",
 ];
 function cors(req: any, res: any) {
   const origin = req.headers.origin || "";

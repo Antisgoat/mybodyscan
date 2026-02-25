@@ -800,6 +800,9 @@ async function runNutritionSearchCore(
   }
 
   const apiKey = getUsdaApiKey();
+  if (!apiKey && input.sourcePreference === "usda-first") {
+    throw new HttpError(501, "nutrition_missing_usda_key", "Missing USDA_API_KEY");
+  }
   const errors: HttpError[] = [];
 
   const usdaResult = apiKey
@@ -880,6 +883,15 @@ function handleError(res: Response, error: unknown, requestId: string): void {
         message: error.message || "Unauthorized",
         debugId: requestId,
         reason: "unauthorized",
+      });
+      return;
+    }
+    if (error.status === 501) {
+      res.status(503).json({
+        code: error.code || "nutrition_missing_usda_key",
+        message: error.message || "Missing USDA_API_KEY",
+        debugId: requestId,
+        reason: "nutrition_not_configured",
       });
       return;
     }
