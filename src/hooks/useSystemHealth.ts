@@ -34,12 +34,17 @@ type HookState = {
   health: SystemHealthSnapshot | null;
   loading: boolean;
   error: string | null;
+  serviceError: string | null;
   functionsOrigin: string;
   lastErrorStatus: number | null;
+  lastHealthStatus: number | null;
+  lastRequestId: string | null;
 };
 
 let cachedHealth: SystemHealthSnapshot | null = null;
-let inflight: Promise<SystemHealthSnapshot | null> | null = null;
+type SystemHealthLoad = { snapshot: SystemHealthSnapshot | null; serviceError: string | null; requestId: string | null };
+
+let inflight: Promise<SystemHealthLoad> | null = null;
 
 function safeFunctionsOrigin(): string {
   try {
@@ -49,29 +54,41 @@ function safeFunctionsOrigin(): string {
   }
 }
 
-async function loadSystemHealth(): Promise<SystemHealthSnapshot | null> {
-  const [healthResult, reachableResult] = await Promise.allSettled([
-    inflight ??
-      fetchSystemHealth().catch((error) => {
-        throw error instanceof Error ? error : new Error(String(error));
-      }),
-    fetchJson<{ ok?: boolean }>("/health", { method: "GET" }, 2500),
-  ]);
-
-  if (healthResult.status !== "fulfilled") {
-    throw healthResult.reason;
+async function loadSystemHealth(): Promise<SystemHealthLoad> {
+  const healthCheck = await fetchJson<{ ok?: boolean }>("/health", { method: "GET" }, 2500);
+  if (!healthCheck?.ok) {
+    throw new Error("health_check_failed");
   }
 
-  const snapshot =
-    healthResult.value && typeof healthResult.value === "object"
-      ? (healthResult.value as SystemHealthSnapshot)
-      : ({} as SystemHealthSnapshot);
-
-  snapshot.functionsReachable =
-    reachableResult.status === "fulfilled" && reachableResult.value?.ok === true;
-
-  cachedHealth = snapshot;
-  return snapshot;
+  try {
+    const system = await (
+      inflight ??
+      fetchSystemHealth().catch((error) => {
+        throw error instanceof Error ? error : new Error(String(error));
+      })
+    );
+    const snapshot =
+      system && typeof system === "object"
+        ? (system as SystemHealthSnapshot)
+        : ({} as SystemHealthSnapshot);
+    snapshot.functionsReachable = true;
+    cachedHealth = snapshot;
+    return { snapshot, serviceError: null, requestId: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const anyError = error as BackendError;
+    const payload = anyError?.payload as Record<string, unknown> | undefined;
+    const requestId =
+      typeof payload?.debugId === "string"
+        ? payload.debugId
+        : typeof payload?.ref === "string"
+          ? payload.ref
+          : null;
+    const fallback = cachedHealth ?? { functionsReachable: true };
+    const snapshot = { ...fallback, functionsReachable: true } as SystemHealthSnapshot;
+    cachedHealth = snapshot;
+    return { snapshot, serviceError: message, requestId };
+  }
 }
 
 export function useSystemHealth() {
@@ -79,21 +96,27 @@ export function useSystemHealth() {
     health: cachedHealth,
     loading: !cachedHealth,
     error: null,
+    serviceError: null,
     functionsOrigin: safeFunctionsOrigin(),
     lastErrorStatus: null,
+    lastHealthStatus: null,
+    lastRequestId: null,
   }));
 
   const refresh = useCallback(async () => {
     try {
-      setState((prev) => ({ ...prev, loading: true, error: null, lastErrorStatus: null }));
+      setState((prev) => ({ ...prev, loading: true, error: null, serviceError: null, lastErrorStatus: null }));
       inflight = loadSystemHealth();
-      const snapshot = await inflight;
+      const { snapshot, serviceError, requestId } = await inflight;
       setState((prev) => ({
         ...prev,
         health: snapshot,
         loading: false,
         error: null,
+        serviceError,
         functionsOrigin: safeFunctionsOrigin(),
+        lastHealthStatus: 200,
+        lastRequestId: requestId,
       }));
     } catch (error) {
       const typed = error as BackendError;
@@ -103,8 +126,10 @@ export function useSystemHealth() {
         health: cachedHealth,
         loading: false,
         error: message,
+        serviceError: null,
         functionsOrigin: typed?.origin || safeFunctionsOrigin(),
         lastErrorStatus: typeof typed?.status === "number" ? typed.status : 0,
+        lastHealthStatus: typeof typed?.status === "number" ? typed.status : 0,
       }));
     } finally {
       inflight = null;
@@ -121,15 +146,18 @@ export function useSystemHealth() {
     (async () => {
       try {
         inflight = loadSystemHealth();
-        const snapshot = await inflight;
+        const { snapshot, serviceError, requestId } = await inflight;
         if (!active) return;
         setState((prev) => ({
           ...prev,
           health: snapshot,
           loading: false,
           error: null,
+          serviceError,
           functionsOrigin: safeFunctionsOrigin(),
           lastErrorStatus: null,
+          lastHealthStatus: 200,
+          lastRequestId: requestId,
         }));
       } catch (error) {
         if (!active) return;
@@ -140,8 +168,10 @@ export function useSystemHealth() {
           health: null,
           loading: false,
           error: message,
+          serviceError: null,
           functionsOrigin: typed?.origin || safeFunctionsOrigin(),
           lastErrorStatus: typeof typed?.status === "number" ? typed.status : 0,
+          lastHealthStatus: typeof typed?.status === "number" ? typed.status : 0,
         }));
       } finally {
         inflight = null;

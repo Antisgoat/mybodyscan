@@ -7,6 +7,7 @@ import { getIdToken, useAuthUser } from "@/auth/mbs-auth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";
+import { useSystemHealth } from "@/hooks/useSystemHealth";
 
 export default function Diagnostics() {
   const [tokenLen, setTokenLen] = useState<number>(0);
@@ -30,6 +31,15 @@ export default function Diagnostics() {
     host.toLowerCase() !== authDomain.toLowerCase();
   const iosSafari = isIOSSafari();
   const nativeCapacitor = isNativeCapacitor();
+  const {
+    health: systemHealth,
+    error: healthError,
+    serviceError,
+    functionsOrigin,
+    lastHealthStatus,
+    lastRequestId,
+    refresh: refreshHealth,
+  } = useSystemHealth();
 
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +132,15 @@ export default function Diagnostics() {
               appCheckSiteKeyPresent: health?.appCheckSiteKeyPresent ?? false,
             },
             providers: envFlags,
+            backend: {
+              functionsOrigin,
+              healthStatus: lastHealthStatus,
+              healthError: healthError || null,
+              serviceError: serviceError || null,
+              requestId: lastRequestId,
+              systemHealthConfigured: Boolean(systemHealth),
+            },
+
           },
           null,
           2
@@ -149,6 +168,23 @@ export default function Diagnostics() {
         </div>
       </div>
       {err && <div style={{ color: "#b00020" }}>Error: {err}</div>}
+      <div style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={() => {
+            void refreshHealth();
+          }}
+          style={{
+            border: "1px solid #cbd5e1",
+            borderRadius: 6,
+            padding: "6px 10px",
+            background: "white",
+            cursor: "pointer",
+          }}
+        >
+          Retry backend health
+        </button>
+      </div>
     </div>
   );
 }

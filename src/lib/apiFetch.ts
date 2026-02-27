@@ -1,13 +1,13 @@
 import { getAppCheckTokenHeader } from "@/lib/appCheck";
 import { getIdToken } from "@/auth/mbs-auth";
 import { assertNoForbiddenStorageRestUrl } from "@/lib/storage/restGuards";
+import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
 
 function normalizeUrl(input: RequestInfo): RequestInfo {
   if (typeof input !== "string") return input;
   if (input.startsWith("http://") || input.startsWith("https://")) return input;
-  if (input.startsWith("/api")) return input;
-  if (input.startsWith("/")) return `/api${input}`;
-  return `/api/${input}`;
+  if (input.startsWith("/")) return resolveEndpoint(input.startsWith("/api") ? input : `/api${input}`);
+  return resolveEndpoint(`/api/${input}`);
 }
 
 export async function apiFetch(input: RequestInfo, init: RequestInit = {}) {
@@ -76,10 +76,14 @@ export async function apiFetchJson<T = any>(
     : await response.text().catch(() => "");
 
   if (!response.ok) {
+    const htmlString = typeof payload === "string" ? payload : "";
+    const cannotPostMatch = htmlString.match(/Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+([^<\n]+)/i);
     const message =
       typeof payload === "string"
-        ? payload
-        : payload?.error || `HTTP ${response.status}`;
+        ? cannotPostMatch
+          ? `Function route mismatch: ${cannotPostMatch[0]}`
+          : payload
+        : payload?.error || payload?.message || `HTTP ${response.status}`;
     const url =
       typeof input === "string"
         ? normalizeUrl(input)
