@@ -27,6 +27,10 @@ vi.mock("@/hooks/useLatestScanForUser", () => ({
 vi.mock("@/lib/demoFlag", () => ({ isDemo: () => true }));
 
 vi.mock("@/lib/demoDataset", () => ({
+  demoMeals: {
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    meals: [],
+  },
   demoLatestScan: {
     id: "demo-scan-missing-ts",
     status: "complete",
@@ -59,4 +63,3 @@ describe("Results (demo timestamps)", () => {
     expect(screen.getByText(/Results/i)).toBeTruthy();
   });
 });
-
