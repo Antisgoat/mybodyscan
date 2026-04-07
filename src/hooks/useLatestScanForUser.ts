@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  doc,
   onSnapshot,
   query,
   orderBy,
@@ -27,7 +28,7 @@ type ScanData = {
   [key: string]: any;
 };
 
-export function useLatestScanForUser() {
+export function useLatestScanForUser(scanId?: string) {
   const [scan, setScan] = useState<ScanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +62,27 @@ export function useLatestScanForUser() {
       return;
     }
 
+    if (scanId) {
+      const scanRef = doc(db, "users", user.uid, "scans", scanId);
+      const unsubscribe = onSnapshot(
+        scanRef,
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            setScan(null);
+          } else {
+            setScan({ id: snapshot.id, ...snapshot.data() } as ScanData);
+          }
+          setLoading(false);
+        },
+        (err) => {
+          console.error("Error fetching scan:", err);
+          setError(err.message);
+          setLoading(false);
+        }
+      );
+      return () => unsubscribe();
+    }
+
     const scansQuery = query(
       collection(db, "users", user.uid, "scans"),
       orderBy("createdAt", "desc"),
@@ -73,8 +95,8 @@ export function useLatestScanForUser() {
         if (snapshot.empty) {
           setScan(null);
         } else {
-          const doc = snapshot.docs[0];
-          setScan({ id: doc.id, ...doc.data() } as ScanData);
+          const row = snapshot.docs[0];
+          setScan({ id: row.id, ...row.data() } as ScanData);
         }
         setLoading(false);
       },
@@ -86,7 +108,7 @@ export function useLatestScanForUser() {
     );
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, scanId]);
 
   return { scan, loading, error, user };
 }

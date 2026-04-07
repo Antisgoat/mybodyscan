@@ -61,6 +61,17 @@ export interface NutritionHistoryDay {
   };
 }
 
+export function normalizeDailyTotals(raw: any): NutritionHistoryDay["totals"] {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return {
+    calories: Number(source.calories ?? source.totalCalories ?? source.kcal) || 0,
+    protein: Number(source.protein ?? source.totalProtein ?? source.protein_g) || 0,
+    carbs: Number(source.carbs ?? source.totalCarbs ?? source.carbs_g) || 0,
+    fat: Number(source.fat ?? source.totalFat ?? source.fat_g) || 0,
+    alcohol: Number(source.alcohol ?? source.alcohol_g) || 0,
+  };
+}
+
 function round(value: number, decimals = 0) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
@@ -164,12 +175,6 @@ export async function getNutritionHistory(
   const list = Array.isArray(response?.days) ? response.days : [];
   return list.map((day: any) => ({
     date: day.date,
-    totals: {
-      calories: Number(day?.totals?.calories) || 0,
-      protein: Number(day?.totals?.protein) || 0,
-      carbs: Number(day?.totals?.carbs) || 0,
-      fat: Number(day?.totals?.fat) || 0,
-      alcohol: Number(day?.totals?.alcohol) || 0,
-    },
+    totals: normalizeDailyTotals(day?.totals),
   }));
 }

@@ -19,6 +19,7 @@ import CapturePicker from "./pages/CapturePicker";
 import PhotoCapture from "./pages/PhotoCapture";
 import Processing from "./pages/Processing";
 import Results from "./pages/Results";
+import TransformationPreviewPage from "./pages/TransformationPreview";
 import HistoryPage from "./pages/History";
 import Settings from "./pages/Settings";
 import SettingsAccountPrivacyPage from "@/pages/SettingsAccountPrivacy";
@@ -800,6 +801,20 @@ const App = () => (
                 <AuthedLayout>
                   <Suspense fallback={<PageSkeleton />}>
                     <Results />
+                  </Suspense>
+                </AuthedLayout>
+              </PersonalizationGate>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/results/:scanId/transformation-preview"
+          element={
+            <ProtectedRoute>
+              <PersonalizationGate>
+                <AuthedLayout>
+                  <Suspense fallback={<PageSkeleton />}>
+                    <TransformationPreviewPage />
                   </Suspense>
                 </AuthedLayout>
               </PersonalizationGate>

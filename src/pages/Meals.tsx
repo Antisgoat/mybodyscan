@@ -29,6 +29,7 @@ import {
   deleteMeal,
   getDailyLog,
   getNutritionHistory,
+  normalizeDailyTotals,
   type MealEntry,
   type NutritionHistoryDay,
 } from "@/lib/nutritionBackend";
@@ -201,16 +202,13 @@ export default function Meals() {
           setLog({ totals: { calories: 0 }, meals: [] });
           return;
         }
-        const totals =
-          typeof data.totals === "object" && data.totals !== null
-            ? data.totals
-            : { calories: 0 };
+        const totals = normalizeDailyTotals(data.totals);
         const meals = Array.isArray(data.meals) ? data.meals : [];
         setLog({ totals, meals });
       })
       .catch((error) => {
         console.warn("meals.refreshLog", error);
-        setLog({ totals: { calories: 0 }, meals: [] });
+        setLog({ totals: normalizeDailyTotals(null), meals: [] });
       })
       .finally(() => setLoading(false));
   }, [demo, dateISO]);
@@ -633,10 +631,11 @@ export default function Meals() {
   const targetCarbs = computedGoals.carbsGrams || 0;
   const targetFat = computedGoals.fatGrams || 0;
 
-  const consumedCalories = safeNumber(log.totals?.calories);
-  const consumedProtein = safeNumber(log.totals?.protein);
-  const consumedCarbs = safeNumber(log.totals?.carbs);
-  const consumedFat = safeNumber(log.totals?.fat);
+  const normalizedTotals = normalizeDailyTotals(log.totals);
+  const consumedCalories = safeNumber(normalizedTotals.calories);
+  const consumedProtein = safeNumber(normalizedTotals.protein);
+  const consumedCarbs = safeNumber(normalizedTotals.carbs);
+  const consumedFat = safeNumber(normalizedTotals.fat);
   const exerciseCalories = 0;
   const remainingCalories = Math.round(
     Math.max(0, targetCalories - consumedCalories + exerciseCalories)
@@ -675,10 +674,10 @@ export default function Meals() {
       month: "short",
       day: "numeric",
     }),
-    calories: day.totals.calories || 0,
-    protein: day.totals.protein || 0,
-    carbs: day.totals.carbs || 0,
-    fat: day.totals.fat || 0,
+    calories: normalizeDailyTotals(day.totals).calories || 0,
+    protein: normalizeDailyTotals(day.totals).protein || 0,
+    carbs: normalizeDailyTotals(day.totals).carbs || 0,
+    fat: normalizeDailyTotals(day.totals).fat || 0,
   }));
 
   return (
