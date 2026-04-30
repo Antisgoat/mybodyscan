@@ -88,7 +88,6 @@ const nativeRequiredKeys = [
   "apiKey",
   "authDomain",
   "projectId",
-  "appId",
 ] as const;
 const warningKeys = [
   "storageBucket",
@@ -177,10 +176,30 @@ function buildFirebaseConfigSummary(): Record<string, string> {
   return summary;
 }
 
+
+
+let loggedNativeOptionalWarning = false;
+function logNativeOptionalConfigWarning(): void {
+  if (!isCapacitorNative() || loggedNativeOptionalWarning) return;
+  const missingOptional = warningKeys.filter((key) => {
+    const value = (firebaseConfig as any)?.[key];
+    return isMissing(value);
+  });
+  if (!missingOptional.length) return;
+  if (typeof console !== "undefined") {
+    console.warn(
+      "[firebase] Optional native Firebase config keys missing; continuing with degraded capability",
+      missingOptional
+    );
+  }
+  loggedNativeOptionalWarning = true;
+}
+
 export function logFirebaseConfigSummary(): void {
   if (loggedConfigSummary) return;
   loggedConfigSummary = true;
   try {
+    logNativeOptionalConfigWarning();
     console.info("[firebase] config", buildFirebaseConfigSummary());
     if (firebaseConfigWarningKeys.length) {
       console.warn(
