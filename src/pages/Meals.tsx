@@ -296,7 +296,7 @@ export default function Meals() {
       const meal = payload.meal as MealEntry | undefined;
       const totals = payload.totals;
       if (totals && typeof totals === "object") {
-        setLog((prev) => ({ ...prev, totals }));
+        setLog((prev) => ({ ...prev, totals: normalizeDailyTotals(totals) }));
       }
       if (meal && typeof meal === "object") {
         setLog((prev) => {
@@ -307,7 +307,7 @@ export default function Meals() {
           } else {
             existing.push(meal);
           }
-          return { ...prev, meals: existing };
+          return { ...prev, meals: existing, totals: normalizeDailyTotals(prev.totals) };
         });
         if (typeof meal.id === "string" && meal.id) {
           setHighlightMealId(meal.id);

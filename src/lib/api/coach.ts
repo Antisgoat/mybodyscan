@@ -52,6 +52,8 @@ export interface CoachChatResponse {
 
 type CoachChatCallableResponse = {
   reply?: string;
+  text?: string;
+  answer?: string;
   suggestions?: unknown;
   threadId?: string;
   assistantMessageId?: string;
@@ -143,7 +145,11 @@ function mapCoachPayload(data: any): CoachChatResponse {
   const replyText =
     typeof data?.reply === "string" && data.reply.trim().length
       ? data.reply.trim()
-      : "";
+      : typeof data?.text === "string" && data.text.trim().length
+        ? data.text.trim()
+        : typeof data?.answer === "string" && data.answer.trim().length
+          ? data.answer.trim()
+          : "";
   if (!replyText) {
     throw new Error("Coach did not send a reply. Please try again.");
   }

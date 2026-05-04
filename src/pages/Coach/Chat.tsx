@@ -98,6 +98,27 @@ const DEMO_CHAT_MESSAGES: ThreadMessage[] = demoCoach.messages.flatMap(
 
 const sortMessages = sortCoachThreadMessages;
 
+function dedupeMessages(items: ThreadMessage[]): ThreadMessage[] {
+  const byId = new Map<string, ThreadMessage>();
+  for (const item of items) {
+    if (!item?.id) continue;
+    const prev = byId.get(item.id);
+    if (!prev) {
+      byId.set(item.id, item);
+      continue;
+    }
+    byId.set(item.id, {
+      ...prev,
+      ...item,
+      content: item.content || prev.content,
+      suggestions: item.suggestions ?? prev.suggestions,
+      usedLLM: item.usedLLM ?? prev.usedLLM,
+      createdAt: item.createdAt ?? prev.createdAt,
+    });
+  }
+  return Array.from(byId.values());
+}
+
 function isPermissionDenied(err: any) {
   return (
     err?.code === "permission-denied" ||
@@ -547,7 +568,7 @@ export default function CoachChatPage() {
               suggestions,
             } satisfies ThreadMessage;
           });
-          setMessages(next);
+          setMessages(dedupeMessages(next));
         },
         async (err) => {
           console.warn("coachThread.messages.snapshot_failed", err);
@@ -751,15 +772,15 @@ export default function CoachChatPage() {
       // Optimistic UI: add the user message immediately so the chat feels responsive.
       // Firestore snapshot will reconcile this once the write lands.
       setMessages((prev) =>
-        sortMessages([
-          ...prev,
+        sortMessages(dedupeMessages([
+          ...prev.filter((m) => m.id !== messageId),
           {
             id: messageId,
             role: "user",
             content: sanitized,
             createdAt: new Date(),
           },
-        ])
+        ]))
       );
       await setDoc(
         doc(
