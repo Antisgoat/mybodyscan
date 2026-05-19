@@ -380,7 +380,7 @@ export default function Meals() {
       setLog((prev) => ({
         ...prev,
         meals: (prev.meals ?? []).filter((m) => m.id !== mealId),
-        totals: (result as any)?.totals ?? prev.totals,
+        totals: normalizeDailyTotals((result as any)?.totals ?? prev.totals),
       }));
       refreshHistory();
     } catch (error: any) {
