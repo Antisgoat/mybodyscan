@@ -115,6 +115,7 @@ const SmokeKit = lazy(() => import("./pages/SmokeKit"));
 const AdminConsole = lazy(() => import("./pages/Admin"));
 const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 const ScanDiagnostics = lazy(() => import("./pages/ScanDiagnostics"));
+const LiveFlowsQA = lazy(() => import("./pages/LiveFlowsQA"));
 
 const queryClient = new QueryClient();
 const allowInternalTools =
@@ -1198,6 +1199,20 @@ const App = () => (
               <PageSuspense>
                 <DevAudit />
               </PageSuspense>
+            }
+          />
+        )}
+        {allowInternalTools && (
+          <Route
+            path="/qa/live-flows"
+            element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <PageSuspense>
+                    <LiveFlowsQA />
+                  </PageSuspense>
+                </AuthedLayout>
+              </ProtectedRoute>
             }
           />
         )}
