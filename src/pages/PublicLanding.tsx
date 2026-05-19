@@ -19,7 +19,7 @@ const PublicLanding = () => {
     <>
       <Seo
         title="Body scans from your phone – MyBodyScan"
-        description="Estimate body fat %, weight, and BMI from either a 4-photo scan or quick 2-photo scan. Track progress over time."
+        description="Estimate body fat %, weight, and BMI from a required 4-photo scan (front, left, right, back). Track progress over time."
         canonical="https://mybodyscanapp.com/"
       />
       <section className="py-8">
@@ -29,9 +29,8 @@ const PublicLanding = () => {
               Body scans from your phone
             </h1>
             <p className="mt-3 text-muted-foreground">
-              Estimate body fat %, weight, and BMI from 4 photos (front, left,
-              right, back) or a quick 2-photo scan (front + side). Track
-              progress over time.
+              Estimate body fat %, weight, and BMI from a required 4-photo
+              scan (front, left, right, back). Track progress over time.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button size="lg" onClick={handleLaunch}>

@@ -63,12 +63,16 @@ export interface NutritionHistoryDay {
 
 export function normalizeDailyTotals(raw: any): NutritionHistoryDay["totals"] {
   const source = raw && typeof raw === "object" ? raw : {};
+  const finite = (value: unknown): number => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
   return {
-    calories: Number(source.calories ?? source.totalCalories ?? source.kcal) || 0,
-    protein: Number(source.protein ?? source.totalProtein ?? source.protein_g) || 0,
-    carbs: Number(source.carbs ?? source.totalCarbs ?? source.carbs_g) || 0,
-    fat: Number(source.fat ?? source.totalFat ?? source.fat_g) || 0,
-    alcohol: Number(source.alcohol ?? source.alcohol_g) || 0,
+    calories: finite(source.calories ?? source.totalCalories ?? source.kcal),
+    protein: finite(source.protein ?? source.totalProtein ?? source.protein_g),
+    carbs: finite(source.carbs ?? source.totalCarbs ?? source.carbs_g),
+    fat: finite(source.fat ?? source.totalFat ?? source.fat_g),
+    alcohol: finite(source.alcohol ?? source.alcohol_g),
   };
 }
 

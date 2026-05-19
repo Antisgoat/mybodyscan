@@ -1,7 +1,7 @@
 export const HOW_IT_WORKS = [
   {
     step: "1) Capture",
-    text: "Choose a photo option: • 4 photos (front, left, right, back) for best accuracy • Quick 2-photo scan (front + side) for speed.",
+    text: "Complete your scan with 4 required photos: front, left, right, and back.",
   },
   {
     step: "2) Process",
