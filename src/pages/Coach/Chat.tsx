@@ -846,7 +846,7 @@ export default function CoachChatPage() {
       const fallback =
         code === "invalid_message"
           ? "Please enter a question for the coach."
-          : "Coach is unavailable right now; please try again shortly.";
+          : "Coach is temporarily unavailable. Check your connection, then retry. If this persists, sign out/in and verify your plan is active in Billing.";
       const debugId = (error as any)?.debugId;
       const message = debugId
         ? `${errMessage || fallback} (ref ${debugId.slice(0, 8)})`

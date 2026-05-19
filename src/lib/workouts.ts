@@ -17,6 +17,7 @@ import {
   buildCustomPlanTitleFromPrefs,
   generateCustomPlanDaysFromLibrary,
 } from "@/lib/workoutsCustomGenerator";
+import { CORE_WORKOUT_FALLBACK, toWorkoutSummaryFallback } from "@/lib/workoutsFallback";
 
 export interface WorkoutExercise {
   id: string;
@@ -166,7 +167,7 @@ async function fetchPlanFromFirestore() {
     return { id: planId, ...data };
   } catch (error) {
     console.warn("workouts.plan_fallback_failed", error);
-    return null;
+    return CORE_WORKOUT_FALLBACK;
   }
 }
 
@@ -226,7 +227,7 @@ export async function getPlan() {
       if (fallback) return fallback;
       throw new Error("workouts_disabled_missing_fn");
     }
-    return null;
+    return toWorkoutSummaryFallback();
   }
 }
 
