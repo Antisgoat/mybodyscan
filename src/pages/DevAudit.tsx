@@ -106,6 +106,7 @@ export default function DevAudit() {
       { path: "/system/check", label: "System Check" },
       { path: "/debug/health", label: "Debug Health" },
       { path: "/dev/audit", label: "Dev Audit (this)" },
+      { path: "/qa/live-flows", label: "QA Live Flows" },
     ],
     []
   );
