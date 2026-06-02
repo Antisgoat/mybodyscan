@@ -523,7 +523,7 @@ export const processQueuedScan = onDocumentWritten(
         )
         .catch(() => undefined);
 
-      if (Boolean((scan as any).charged)) {
+      if ((scan as any).charged) {
         await db
           .runTransaction(async (tx) => {
             const latest = await tx.get(scanRef);
