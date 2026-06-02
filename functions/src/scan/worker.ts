@@ -19,6 +19,7 @@ import {
 } from "./analysis.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
+import { refundCredit } from "./creditUtils.js";
 
 const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
@@ -55,7 +56,11 @@ function toMillis(value: any): number | null {
   return null;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  tag: string
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new OpenAIClientError(tag, 504, `${tag}_timeout`)),
@@ -71,137 +76,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, tag: string): Promise<T
         reject(err);
       });
   });
-}
-
-function buildFallbackAnalysis(input: {
-  currentWeightKg: number;
-  goalWeightKg: number;
-  uid: string;
-}): {
-  estimate: ScanDocument["estimate"];
-  workoutPlan: NonNullable<ScanDocument["workoutPlan"]>;
-  nutritionPlan: NonNullable<ScanDocument["nutritionPlan"]>;
-  recommendations: string[];
-  improvementAreas: string[];
-  usedFallback: boolean;
-} {
-  const estimate = {
-    bodyFatPercent: 24,
-    bmi: null,
-    notes: "Fallback estimate (engine timeout).",
-  };
-  const workoutPlan = {
-    summary: "Foundational push/pull/legs split",
-    progressionRules: [
-      "Add 1-2 reps weekly until the top of the range.",
-      "Increase load 2-5% when you hit the top of the rep range.",
-      "Rest 2-3 minutes on compounds, 60-90s on accessories.",
-    ],
-    weeks: Array.from({ length: 4 }).map((_, i) => ({
-      weekNumber: i + 1,
-      days: [
-        {
-          day: "Push",
-          focus: "Chest/Shoulders",
-          exercises: [
-            { name: "Bench press", sets: 3, reps: "6-10" },
-            { name: "Overhead press", sets: 3, reps: "6-10" },
-            { name: "Dips or push-ups", sets: 3, reps: "8-12" },
-          ],
-        },
-        {
-          day: "Pull",
-          focus: "Back",
-          exercises: [
-            { name: "Deadlift or RDL", sets: 3, reps: "5-8" },
-            { name: "Row variation", sets: 3, reps: "8-12" },
-            { name: "Lat pulldown/Pull-up", sets: 3, reps: "8-12" },
-          ],
-        },
-        {
-          day: "Legs",
-          focus: "Lower body",
-          exercises: [
-            { name: "Squat or leg press", sets: 3, reps: "6-10" },
-            { name: "Lunge/step-up", sets: 3, reps: "8-12" },
-            { name: "Leg curl/hinge", sets: 3, reps: "10-15" },
-          ],
-        },
-        {
-          day: "Accessory",
-          focus: "Arms/Core",
-          exercises: [
-            { name: "Biceps + triceps superset", sets: 3, reps: "10-15" },
-            { name: "Planks/side planks", sets: 3, reps: "45-60s" },
-            { name: "Calves", sets: 3, reps: "12-20" },
-          ],
-        },
-      ],
-    })),
-  };
-  const nutritionPlan = deriveNutritionPlan({
-    weightKg: input.currentWeightKg,
-    bodyFatPercent: estimate.bodyFatPercent,
-    goalWeightKg: input.goalWeightKg,
-  });
-  const recommendations = [
-    "Walk 7-10k steps daily; add a 10-minute walk after meals.",
-    "Keep protein at every meal; track 3-4 days/week for accuracy.",
-    "Prioritize sleep and hydration to keep training quality high.",
-  ];
-  return {
-    estimate,
-    workoutPlan,
-    nutritionPlan: {
-      ...nutritionPlan,
-      adjustmentRules: [
-        "If weekly change <0.25 kg, reduce calories by 150–200.",
-        "If losing >1% body weight/week, add 150–200 calories.",
-        "Keep protein steady; adjust carbs/fats first.",
-      ],
-      trainingDay: {
-        calories: nutritionPlan.caloriesPerDay,
-        proteinGrams: nutritionPlan.proteinGrams,
-        carbsGrams: Math.round(nutritionPlan.carbsGrams * 1.05),
-        fatsGrams: Math.round(nutritionPlan.fatsGrams * 0.95),
-      },
-      restDay: {
-        calories: Math.max(1200, Math.round(nutritionPlan.caloriesPerDay - 150)),
-        proteinGrams: nutritionPlan.proteinGrams,
-        carbsGrams: Math.max(0, Math.round(nutritionPlan.carbsGrams * 0.85)),
-        fatsGrams: Math.round(nutritionPlan.fatsGrams + 8),
-      },
-      sampleDay: [
-        {
-          mealName: "Breakfast",
-          description: "Eggs + oats + berries",
-          calories: Math.round(nutritionPlan.caloriesPerDay * 0.25),
-          proteinGrams: Math.round(nutritionPlan.proteinGrams * 0.3),
-          carbsGrams: Math.round(nutritionPlan.carbsGrams * 0.25),
-          fatsGrams: Math.round(nutritionPlan.fatsGrams * 0.35),
-        },
-        {
-          mealName: "Lunch",
-          description: "Chicken, rice, veggies",
-          calories: Math.round(nutritionPlan.caloriesPerDay * 0.3),
-          proteinGrams: Math.round(nutritionPlan.proteinGrams * 0.35),
-          carbsGrams: Math.round(nutritionPlan.carbsGrams * 0.35),
-          fatsGrams: Math.round(nutritionPlan.fatsGrams * 0.25),
-        },
-        {
-          mealName: "Dinner",
-          description: "Lean protein, potatoes, salad",
-          calories: Math.round(nutritionPlan.caloriesPerDay * 0.3),
-          proteinGrams: Math.round(nutritionPlan.proteinGrams * 0.3),
-          carbsGrams: Math.round(nutritionPlan.carbsGrams * 0.3),
-          fatsGrams: Math.round(nutritionPlan.fatsGrams * 0.25),
-        },
-      ],
-    },
-    recommendations,
-    improvementAreas: recommendations,
-    usedFallback: true,
-  };
 }
 
 export const processQueuedScan = onDocumentWritten(
@@ -254,9 +128,11 @@ export const processQueuedScan = onDocumentWritten(
 
     const correlationId = scan.correlationId || processingAttemptId;
     const engine = getEngineConfigOrThrow(correlationId);
-      const queueRequestedAtMs = toMillis((scan as any).processingRequestedAt);
-      const queueDurationMs =
-        queueRequestedAtMs != null ? Math.max(0, Date.now() - queueRequestedAtMs) : null;
+    const queueRequestedAtMs = toMillis((scan as any).processingRequestedAt);
+    const queueDurationMs =
+      queueRequestedAtMs != null
+        ? Math.max(0, Date.now() - queueRequestedAtMs)
+        : null;
 
     const updateStep = async (patch: Partial<ScanDocument>) => {
       await scanRef.set(
@@ -301,7 +177,9 @@ export const processQueuedScan = onDocumentWritten(
         processingHeartbeatAt: serverTimestamp(),
       });
 
-      const photoPaths = scan.photoPaths as ScanDocument["photoPaths"] | undefined;
+      const photoPaths = scan.photoPaths as
+        | ScanDocument["photoPaths"]
+        | undefined;
       const input = scan.input as ScanDocument["input"] | undefined;
       if (!photoPaths) {
         throw new Error("missing_photo_paths");
@@ -313,11 +191,19 @@ export const processQueuedScan = onDocumentWritten(
       }
 
       // Pull height (and other profile details later) to compute BMI deterministically.
-      const profileSnap = await db.doc(`users/${uid}/coach/profile`).get().catch(() => null);
+      const profileSnap = await db
+        .doc(`users/${uid}/coach/profile`)
+        .get()
+        .catch(() => null);
       const profile = profileSnap?.exists ? (profileSnap.data() as any) : null;
-      const scanHeight = Number((input as any)?.heightCm ?? (input as any)?.height_cm);
+      const scanHeight = Number(
+        (input as any)?.heightCm ?? (input as any)?.height_cm
+      );
       const profileHeight = Number(profile?.height_cm ?? profile?.heightCm);
-      const chosenHeight = Number.isFinite(scanHeight) && scanHeight > 0 ? scanHeight : profileHeight;
+      const chosenHeight =
+        Number.isFinite(scanHeight) && scanHeight > 0
+          ? scanHeight
+          : profileHeight;
       const heightOk =
         Number.isFinite(chosenHeight) && chosenHeight > 50 && chosenHeight < 260
           ? Math.round(chosenHeight)
@@ -326,7 +212,8 @@ export const processQueuedScan = onDocumentWritten(
         heightOk != null
           ? round1(currentWeightKg / Math.pow(heightOk / 100, 2))
           : null;
-      const bmiCategoryComputed = bmiComputed != null ? bmiCategory(bmiComputed) : null;
+      const bmiCategoryComputed =
+        bmiComputed != null ? bmiCategory(bmiComputed) : null;
 
       await updateStep({
         lastStep: "Fetching photo URLs",
@@ -343,10 +230,7 @@ export const processQueuedScan = onDocumentWritten(
         progress: 40,
         processingHeartbeatAt: serverTimestamp(),
       });
-      const engine = getEngineConfigOrThrow(correlationId);
-
       startHeartbeat("Analyzing body composition", 45);
-      let usedFallback = false;
       const openAiStartedAtMs = Date.now();
       const result = await withTimeout(
         callOpenAI(
@@ -357,13 +241,7 @@ export const processQueuedScan = onDocumentWritten(
         ),
         ANALYSIS_TIMEOUT_MS,
         "analysis"
-      ).catch((err) => {
-        if (err instanceof OpenAIClientError && err.code === "openai_missing_key") {
-          throw err;
-        }
-        usedFallback = true;
-        return buildFallbackAnalysis({ currentWeightKg, goalWeightKg, uid });
-      });
+      );
       const openAiElapsedMs = Date.now() - openAiStartedAtMs;
       stopHeartbeat();
 
@@ -373,23 +251,22 @@ export const processQueuedScan = onDocumentWritten(
         processingHeartbeatAt: serverTimestamp(),
       });
 
-      const analysis = usedFallback
-        ? {
-            estimate: (result as any).estimate,
-            workoutPlan: (result as any).workoutPlan,
-            nutritionPlan: (result as any).nutritionPlan,
-            recommendations: (result as any).recommendations ?? [],
-            improvementAreas:
-              (result as any).improvementAreas ??
-              (result as any).recommendations ??
-              [],
-          }
-        : buildAnalysisFromResult(result as any);
+      const analysis = buildAnalysisFromResult(result as any);
       const leanMassKg = Number.isFinite(currentWeightKg)
-        ? Number((currentWeightKg * (1 - analysis.estimate.bodyFatPercent / 100)).toFixed(1))
+        ? Number(
+            (
+              currentWeightKg *
+              (1 - analysis.estimate.bodyFatPercent / 100)
+            ).toFixed(1)
+          )
         : null;
       const fatMassKg = Number.isFinite(currentWeightKg)
-        ? Number((currentWeightKg * (analysis.estimate.bodyFatPercent / 100)).toFixed(1))
+        ? Number(
+            (
+              currentWeightKg *
+              (analysis.estimate.bodyFatPercent / 100)
+            ).toFixed(1)
+          )
         : null;
       analysis.estimate.leanMassKg = leanMassKg;
       analysis.estimate.fatMassKg = fatMassKg;
@@ -411,9 +288,11 @@ export const processQueuedScan = onDocumentWritten(
           : null;
 
       const improvementAreas =
-        Array.isArray((analysis as any).improvementAreas) && (analysis as any).improvementAreas.length
+        Array.isArray((analysis as any).improvementAreas) &&
+        (analysis as any).improvementAreas.length
           ? (analysis as any).improvementAreas
-          : Array.isArray(analysis.estimate.keyObservations) && analysis.estimate.keyObservations.length
+          : Array.isArray(analysis.estimate.keyObservations) &&
+              analysis.estimate.keyObservations.length
             ? analysis.estimate.keyObservations
             : Array.isArray(analysis.estimate.goalRecommendations) &&
                 analysis.estimate.goalRecommendations.length
@@ -434,14 +313,25 @@ export const processQueuedScan = onDocumentWritten(
         };
         const coerceDay = (
           day: any,
-          fallback: { calories: number; proteinGrams: number; carbsGrams: number; fatsGrams: number }
+          fallback: {
+            calories: number;
+            proteinGrams: number;
+            carbsGrams: number;
+            fatsGrams: number;
+          }
         ) => ({
-          calories: Math.round(Number.isFinite(day?.calories) ? day.calories : fallback.calories),
+          calories: Math.round(
+            Number.isFinite(day?.calories) ? day.calories : fallback.calories
+          ),
           proteinGrams: Math.round(
-            Number.isFinite(day?.proteinGrams) ? day.proteinGrams : fallback.proteinGrams
+            Number.isFinite(day?.proteinGrams)
+              ? day.proteinGrams
+              : fallback.proteinGrams
           ),
           carbsGrams: Math.round(
-            Number.isFinite(day?.carbsGrams) ? day.carbsGrams : fallback.carbsGrams
+            Number.isFinite(day?.carbsGrams)
+              ? day.carbsGrams
+              : fallback.carbsGrams
           ),
           fatsGrams: Math.round(
             Number.isFinite(day?.fatsGrams) ? day.fatsGrams : fallback.fatsGrams
@@ -459,8 +349,14 @@ export const processQueuedScan = onDocumentWritten(
           proteinGrams: derived.proteinGrams,
           carbsGrams: derived.carbsGrams,
           fatsGrams: derived.fatsGrams,
-          trainingDay: coerceDay((analysis as any)?.nutritionPlan?.trainingDay, baseDay),
-          restDay: coerceDay((analysis as any)?.nutritionPlan?.restDay, restFallback),
+          trainingDay: coerceDay(
+            (analysis as any)?.nutritionPlan?.trainingDay,
+            baseDay
+          ),
+          restDay: coerceDay(
+            (analysis as any)?.nutritionPlan?.restDay,
+            restFallback
+          ),
         };
       })();
 
@@ -477,6 +373,7 @@ export const processQueuedScan = onDocumentWritten(
           input: {
             currentWeightKg,
             goalWeightKg,
+            heightCm: heightOk,
           },
           estimate: analysis.estimate,
           workoutPlan: analysis.workoutPlan,
@@ -494,7 +391,7 @@ export const processQueuedScan = onDocumentWritten(
             recommendations: analysis.recommendations,
             improvementAreas,
             input: { currentWeightKg, goalWeightKg },
-            usedFallback,
+            usedFallback: false,
           }),
           metrics: {
             leanMassKg,
@@ -504,7 +401,15 @@ export const processQueuedScan = onDocumentWritten(
             heightCm: heightOk,
             bodyFatEstimate: bfRange,
           },
-          usedFallback,
+          usedFallback: false,
+          resultSource: "ai",
+          aiProcessing: {
+            status: "succeeded",
+            provider: engine.provider,
+            model: engine.model,
+            elapsedMs: openAiElapsedMs,
+            completedAt: serverTimestamp(),
+          },
           errorMessage: null,
           errorReason: null,
           errorInfo: null,
@@ -521,7 +426,7 @@ export const processQueuedScan = onDocumentWritten(
         downloadElapsedMs,
         openAiElapsedMs,
         totalProcessingMs,
-        usedFallback,
+        usedFallback: false,
         queueDurationMs,
       });
     } catch (error: any) {
@@ -535,10 +440,12 @@ export const processQueuedScan = onDocumentWritten(
           : null;
       const effectiveReason = (() => {
         if (rawMessage?.startsWith("missing_photo_")) return "missing_photos";
-        if (rawMessage?.startsWith("invalid_photo_path_")) return "invalid_photo_paths";
+        if (rawMessage?.startsWith("invalid_photo_path_"))
+          return "invalid_photo_paths";
         if (rawMessage === "missing_photo_paths") return "missing_photo_paths";
         if (rawMessage === "missing_scan_input") return "missing_scan_input";
-        if (errorDetails?.reason === "scan_engine_not_configured") return "scan_engine_not_configured";
+        if (errorDetails?.reason === "scan_engine_not_configured")
+          return "scan_engine_not_configured";
         if (error instanceof OpenAIClientError && error.code) return error.code;
         return errorReason;
       })();
@@ -575,6 +482,7 @@ export const processQueuedScan = onDocumentWritten(
         typeof error?.stack === "string"
           ? error.stack.split("\n").slice(0, 3).join("\n")
           : undefined;
+      const failedAt = serverTimestamp();
       await scanRef
         .set(
           {
@@ -589,14 +497,61 @@ export const processQueuedScan = onDocumentWritten(
               stack,
             },
             lastStep: "error",
-            lastStepAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            completedAt: serverTimestamp(),
-            processingHeartbeatAt: serverTimestamp(),
+            lastStepAt: failedAt,
+            updatedAt: failedAt,
+            completedAt: failedAt,
+            processingHeartbeatAt: failedAt,
+            estimate: null,
+            workoutPlan: null,
+            workoutProgram: null,
+            nutritionPlan: null,
+            planMarkdown: null,
+            recommendations: null,
+            improvementAreas: null,
+            usedFallback: false,
+            resultSource: "failed",
+            aiProcessing: {
+              status: "failed",
+              provider: engine?.provider ?? null,
+              model: engine?.model ?? null,
+              errorCode: effectiveReason,
+              errorMessage: message,
+              failedAt,
+            },
           },
           { merge: true }
         )
         .catch(() => undefined);
+
+      if (Boolean((scan as any).charged)) {
+        await db
+          .runTransaction(async (tx) => {
+            const latest = await tx.get(scanRef);
+            const data = latest.exists ? (latest.data() as any) : null;
+            if (!data?.charged || data?.refundedAt) return;
+            const creditRef = db.doc(`users/${uid}/private/credits`);
+            await refundCredit(tx, creditRef, `scan-failed:${scanId}`);
+            tx.set(
+              scanRef,
+              {
+                charged: false,
+                refundedAt: serverTimestamp(),
+                refundReason: effectiveReason,
+                creditStatus: "refunded",
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+          })
+          .catch((refundError) => {
+            console.error("scan_refund_failed", {
+              uid,
+              scanId,
+              correlationId,
+              message: (refundError as Error)?.message,
+            });
+          });
+      }
       console.error("scan_processing_failed", {
         uid,
         scanId,

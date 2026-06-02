@@ -42,9 +42,13 @@ async function handler(req: Request, res: Response) {
       const charged = Boolean(data.charged);
       const statusValue =
         typeof data.status === "string" ? data.status.toLowerCase() : "";
+      const hasValidResult =
+        data?.usedFallback !== true &&
+        (data.result?.bf_percent != null ||
+          Number.isFinite(Number(data.estimate?.bodyFatPercent)));
       const completed =
         (statusValue === "complete" || statusValue === "completed") &&
-        data.result?.bf_percent != null;
+        hasValidResult;
       if (!charged || completed) {
         return;
       }
@@ -53,7 +57,9 @@ async function handler(req: Request, res: Response) {
         scanRef,
         {
           charged: false,
-          status: "aborted",
+          status: "error",
+          errorReason: "refunded_no_result",
+          errorMessage: "Scan did not produce a valid result. Credit refunded.",
           refundedAt: now,
           updatedAt: now,
         },

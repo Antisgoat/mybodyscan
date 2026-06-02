@@ -1,17 +1,34 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuthUser, getIdToken } from "@/auth/mbs-auth";
 import { useClaims } from "@/lib/claims";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { coachChatApi } from "@/lib/api/coach";
 import { nutritionSearch } from "@/lib/api/nutrition";
 import { addMeal, deleteMeal, getDailyLog } from "@/lib/nutritionBackend";
 import { getPlan, getWorkouts, applyCatalogPlan } from "@/lib/workouts";
-import { startScanSessionClient, validateScanUploadInputs } from "@/lib/api/scan";
+import {
+  startScanSessionClient,
+  validateScanUploadInputs,
+} from "@/lib/api/scan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-type Result = { name: string; ok: boolean; latencyMs: number; error: string; detail?: string };
+type Result = {
+  name: string;
+  ok: boolean;
+  latencyMs: number;
+  error: string;
+  detail?: string;
+};
 
 const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -26,21 +43,51 @@ export default function LiveFlowsQA() {
   const { claims } = useClaims();
   const [results, setResults] = useState<Result[]>([]);
   const [running, setRunning] = useState(false);
+  const [latestScan, setLatestScan] = useState<any>(null);
 
   const allowed = useMemo(() => {
     const c = (claims || {}) as any;
-    return Boolean(c.admin || c.dev || c.staff || c.unlimited || c.unlimitedCredits);
+    return Boolean(
+      c.admin || c.dev || c.staff || c.unlimited || c.unlimitedCredits
+    );
   }, [claims]);
+
+  useEffect(() => {
+    if (!user || !allowed) return;
+    let cancelled = false;
+    async function loadLatestScan() {
+      const snap = await getDocs(
+        query(
+          collection(db, "users", user!.uid, "scans"),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        )
+      ).catch(() => null);
+      if (cancelled || !snap || snap.empty) return;
+      const docSnap = snap.docs[0];
+      setLatestScan({ id: docSnap.id, ...docSnap.data() });
+    }
+    void loadLatestScan();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, user]);
 
   async function run(name: string, fn: () => Promise<string | void>) {
     const started = performance.now();
     try {
       const detail = await fn();
       const latencyMs = Math.round(performance.now() - started);
-      setResults((prev) => [...prev, { name, ok: true, latencyMs, error: "", detail }]);
+      setResults((prev) => [
+        ...prev,
+        { name, ok: true, latencyMs, error: "", detail },
+      ]);
     } catch (error) {
       const latencyMs = Math.round(performance.now() - started);
-      setResults((prev) => [...prev, { name, ok: false, latencyMs, error: normalizeError(error) }]);
+      setResults((prev) => [
+        ...prev,
+        { name, ok: false, latencyMs, error: normalizeError(error) },
+      ]);
     }
   }
 
@@ -70,7 +117,9 @@ export default function LiveFlowsQA() {
       return `credits=${creditsSnap.data()?.creditsSummary?.totalAvailable ?? "na"}, pro=${Boolean(entSnap.data()?.pro)}`;
     });
     await run("4. coachChat callable", async () => {
-      const res = await coachChatApi({ message: "QA ping: respond with one short line." });
+      const res = await coachChatApi({
+        message: "QA ping: respond with one short line.",
+      });
       if (!res.replyText) throw new Error("empty_coach_reply");
       return res.replyText.slice(0, 60);
     });
@@ -84,7 +133,13 @@ export default function LiveFlowsQA() {
     });
     await run("7. addMeal callable", async () => {
       const meal = {
-        name: "QA Test Item (safe)", mealType: "snacks", calories: 10, protein: 0, carbs: 1, fat: 0, notes: "qa-live-flows",
+        name: "QA Test Item (safe)",
+        mealType: "snacks",
+        calories: 10,
+        protein: 0,
+        carbs: 1,
+        fat: 0,
+        notes: "qa-live-flows",
       };
       const res = await addMeal(todayISO, meal);
       testMealId = (res as any)?.meal?.id || null;
@@ -109,13 +164,23 @@ export default function LiveFlowsQA() {
         title: "QA Safe Plan",
         goal: "recomp",
         level: "beginner",
-        days: [{ day: "Mon", exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "8" }] }],
+        days: [
+          {
+            day: "Mon",
+            exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "8" }],
+          },
+        ],
       };
       const res = await applyCatalogPlan(payload as any);
       return `ok=${String(Boolean((res as any)?.ok ?? true))}`;
     });
     await run("12. startScanSession callable/http", async () => {
-      const res = await startScanSessionClient({ currentWeightKg: 70, goalWeightKg: 69, heightCm: 175, correlationId: `qa-${Date.now()}` });
+      const res = await startScanSessionClient({
+        currentWeightKg: 70,
+        goalWeightKg: 69,
+        heightCm: 175,
+        correlationId: `qa-${Date.now()}`,
+      });
       if (!res.ok) throw new Error(res.error.message || "start_scan_failed");
       scanId = res.data.scanId;
       return `scanId=${scanId}`;
@@ -123,7 +188,10 @@ export default function LiveFlowsQA() {
     await run("13. scan upload readiness (no credit consume)", async () => {
       if (!scanId) throw new Error("skipped_no_scan_session");
       const f = new File(["qa"], "qa.txt", { type: "text/plain" });
-      const probe = validateScanUploadInputs({ uid: user.uid, photos: { front: f, back: f, left: f, right: f } as any });
+      const probe = validateScanUploadInputs({
+        uid: user.uid,
+        photos: { front: f, back: f, left: f, right: f } as any,
+      });
       if (!probe.ok) throw new Error(probe.error.message);
       return `targets=${probe.data.uploadTargets.length}`;
     });
@@ -137,16 +205,106 @@ export default function LiveFlowsQA() {
   }
 
   if (!user) return <div className="p-6">Sign in required.</div>;
-  if (!allowed) return <div className="p-6">Internal QA access only (admin/dev/unlimited/staff).</div>;
+  if (!allowed)
+    return (
+      <div className="p-6">
+        Internal QA access only (admin/dev/unlimited/staff).
+      </div>
+    );
 
   return (
     <div className="mx-auto max-w-5xl p-6 space-y-4">
       <Card>
-        <CardHeader><CardTitle>Live Flow Diagnostics QA</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Live Flow Diagnostics QA</CardTitle>
+        </CardHeader>
         <CardContent>
-          <Button onClick={runAll} disabled={running}>{running ? "Running…" : "Run all live-flow checks"}</Button>
+          <Button onClick={runAll} disabled={running}>
+            {running ? "Running…" : "Run all live-flow checks"}
+          </Button>
         </CardContent>
       </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Latest scan/result diagnostics</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          {latestScan ? (
+            <>
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>scanId: {latestScan.id}</div>
+                <div>scan status: {String(latestScan.status ?? "unknown")}</div>
+                <div>
+                  AI processing status:{" "}
+                  {String(
+                    latestScan.aiProcessing?.status ??
+                      latestScan.lastStep ??
+                      "unknown"
+                  )}
+                </div>
+                <div>
+                  provider:{" "}
+                  {String(latestScan.aiProcessing?.provider ?? "unknown")}
+                </div>
+                <div>
+                  output source:{" "}
+                  {latestScan.usedFallback
+                    ? "fallback"
+                    : String(
+                        latestScan.resultSource ??
+                          (latestScan.status === "complete"
+                            ? "real/legacy"
+                            : "none")
+                      )}
+                </div>
+                <div>
+                  timeout/error code:{" "}
+                  {String(
+                    latestScan.errorReason ??
+                      latestScan.aiProcessing?.errorCode ??
+                      "none"
+                  )}
+                </div>
+                <div>
+                  credit status:{" "}
+                  {latestScan.refundedAt
+                    ? "refunded"
+                    : latestScan.charged
+                      ? "consumed/charged"
+                      : String(latestScan.creditStatus ?? "not charged")}
+                </div>
+                <div>
+                  completedAt:{" "}
+                  {String(
+                    latestScan.completedAt?.toDate?.()?.toISOString?.() ??
+                      latestScan.completedAt ??
+                      "none"
+                  )}
+                </div>
+              </div>
+              <details className="rounded-lg border p-3">
+                <summary className="cursor-pointer font-medium">
+                  Result document fields returned
+                </summary>
+                <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap text-xs">
+                  {JSON.stringify(
+                    latestScan,
+                    (_key, value) => {
+                      if (value && typeof value.toDate === "function")
+                        return value.toDate().toISOString();
+                      return value;
+                    },
+                    2
+                  )}
+                </pre>
+              </details>
+            </>
+          ) : (
+            <div>No scan document found yet.</div>
+          )}
+        </CardContent>
+      </Card>
+
       {results.map((r) => (
         <Card key={r.name}>
           <CardContent className="pt-4">

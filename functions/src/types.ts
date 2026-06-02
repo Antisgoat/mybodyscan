@@ -140,6 +140,21 @@ export interface ScanDocument {
   files?: string[];
   metrics?: Record<string, unknown>;
   usedFallback?: boolean;
+  resultSource?: "ai" | "failed" | "demo" | "fallback" | string;
+  aiProcessing?: {
+    status?: "succeeded" | "failed" | "timeout" | "processing" | string;
+    provider?: string | null;
+    model?: string | null;
+    elapsedMs?: number | null;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    completedAt?: Timestamp | null;
+    failedAt?: Timestamp | null;
+  } | null;
+  charged?: boolean;
+  refundedAt?: Timestamp | null;
+  refundReason?: string | null;
+  creditStatus?: string | null;
 }
 
 export interface NutritionItemSnapshot {
