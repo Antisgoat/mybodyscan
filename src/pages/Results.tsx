@@ -36,6 +36,7 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { hasPro } from "@/lib/entitlements/pro";
 import { useEntitlements } from "@/lib/entitlements/store";
+import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -92,6 +93,10 @@ const Results = () => {
   const vm = activeScan
     ? buildScanResultViewModel({ scan: activeScan as any, profile, plan })
     : null;
+  const paidScanPreviewEligible = Boolean((activeScan as any)?.charged);
+  const previewEligible = pro || paidScanPreviewEligible;
+  const showTransformationPreviewEntry =
+    TRANSFORMATION_PREVIEW_ENTRY_ENABLED && vm?.isValidResult;
 
   const onRetryProcessing = async () => {
     if (!activeScan?.id || readOnlyDemo) return;
@@ -168,16 +173,11 @@ const Results = () => {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p>{vm.failureMessage}</p>
-            <div className="rounded-lg border bg-background/80 p-3 text-xs text-muted-foreground">
-              status={activeScan.status || "unknown"} · provider=
-              {vm.diagnostics.provider || "unknown"} · error=
-              {vm.diagnostics.errorCode || "none"} · credit=
-              {vm.diagnostics.refunded
-                ? "refunded"
-                : vm.diagnostics.charged
-                  ? "charged"
-                  : "not charged"}
-            </div>
+            {vm.diagnostics.refunded ? (
+              <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
+                Your scan credit has been returned.
+              </div>
+            ) : null}
             <div className="grid gap-2 sm:grid-cols-2">
               <Button onClick={onRetryProcessing} disabled={readOnlyDemo}>
                 <RotateCcw className="mr-2 h-4 w-4" />
@@ -271,7 +271,7 @@ const Results = () => {
         </CardContent>
       </Card>
 
-      {vm.isValidResult && (
+      {showTransformationPreviewEntry && (
         <Card className="border-zinc-800 bg-zinc-950/70">
           <CardHeader>
             <CardTitle className="text-base text-zinc-100">
@@ -291,18 +291,20 @@ const Results = () => {
               onClick={() =>
                 navigate(`/results/${activeScan.id}/transformation-preview`)
               }
-              variant={pro ? "default" : "secondary"}
+              variant={previewEligible ? "default" : "secondary"}
             >
-              {pro ? "Open not-ready preview" : "Unlock Transformation Preview"}
-              {pro ? (
+              {previewEligible
+                ? "Open Transformation Preview"
+                : "Unlock Transformation Preview"}
+              {previewEligible ? (
                 <ArrowRight className="ml-2 h-4 w-4" />
               ) : (
                 <Lock className="ml-2 h-4 w-4" />
               )}
             </Button>
             <p className="text-xs text-zinc-500">
-              Premium scaffold only — no generated image until scan reliability
-              is proven.
+              Motivational visualization availability depends on scan
+              eligibility.
             </p>
           </CardContent>
         </Card>

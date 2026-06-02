@@ -11,14 +11,10 @@ import {
   query,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { coachChatApi } from "@/lib/api/coach";
 import { nutritionSearch } from "@/lib/api/nutrition";
-import { addMeal, deleteMeal, getDailyLog } from "@/lib/nutritionBackend";
-import { getPlan, getWorkouts, applyCatalogPlan } from "@/lib/workouts";
-import {
-  startScanSessionClient,
-  validateScanUploadInputs,
-} from "@/lib/api/scan";
+import { getDailyLog } from "@/lib/nutritionBackend";
+import { getPlan, getWorkouts } from "@/lib/workouts";
+import { validateScanUploadInputs } from "@/lib/api/scan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -95,113 +91,96 @@ export default function LiveFlowsQA() {
     if (!user) return;
     setRunning(true);
     setResults([]);
-    let testMealId: string | null = null;
-    let scanId: string | null = null;
 
-    await run("1. auth state", async () => {
-      const token = await getIdToken({ forceRefresh: false });
-      if (!token) throw new Error("missing_auth_token");
-      return `uid=${user.uid}`;
-    });
-    await run("2. profile/onboarding", async () => {
-      const snap = await getDoc(doc(db, "users", user.uid));
-      if (!snap.exists()) throw new Error("user_doc_missing");
-      const d = snap.data() as any;
-      return `onboarding=${String(Boolean(d?.onboardingCompleted || d?.onboarding?.completed))}`;
-    });
-    await run("3. entitlement/subscription/credits", async () => {
-      const [creditsSnap, entSnap] = await Promise.all([
-        getDoc(doc(db, "users", user.uid, "private", "credits")),
-        getDoc(doc(db, "users", user.uid, "entitlements", "pro")),
-      ]);
-      return `credits=${creditsSnap.data()?.creditsSummary?.totalAvailable ?? "na"}, pro=${Boolean(entSnap.data()?.pro)}`;
-    });
-    await run("4. coachChat callable", async () => {
-      const res = await coachChatApi({
-        message: "QA ping: respond with one short line.",
-      });
-      if (!res.replyText) throw new Error("empty_coach_reply");
-      return res.replyText.slice(0, 60);
-    });
-    await run("5. nutritionSearch callable", async () => {
-      const res = await nutritionSearch("banana");
-      return `items=${res.results.length}, source=${res.source || "unknown"}`;
-    });
-    await run("6. getDailyLog callable/http", async () => {
-      const res = await getDailyLog(todayISO);
-      return `meals=${Array.isArray((res as any)?.meals) ? (res as any).meals.length : 0}`;
-    });
-    await run("7. addMeal callable", async () => {
-      const meal = {
-        name: "QA Test Item (safe)",
-        mealType: "snacks",
-        calories: 10,
-        protein: 0,
-        carbs: 1,
-        fat: 0,
-        notes: "qa-live-flows",
-      };
-      const res = await addMeal(todayISO, meal);
-      testMealId = (res as any)?.meal?.id || null;
-      if (!testMealId) throw new Error("add_meal_missing_id");
-      return `mealId=${testMealId}`;
-    });
-    await run("8. deleteMeal callable", async () => {
-      if (!testMealId) throw new Error("skipped_no_test_meal");
-      await deleteMeal(todayISO, testMealId);
-    });
-    await run("9. getPlan callable", async () => {
-      const res = await getPlan();
-      return `planId=${String((res as any)?.planId || (res as any)?.id || "none")}`;
-    });
-    await run("10. getWorkouts callable", async () => {
-      const res = await getWorkouts();
-      return `days=${res?.days?.length ?? 0}`;
-    });
-    await run("11. applyCatalogPlan safe path", async () => {
-      const payload = {
-        programId: "qa-live-flow",
-        title: "QA Safe Plan",
-        goal: "recomp",
-        level: "beginner",
-        days: [
-          {
-            day: "Mon",
-            exercises: [{ name: "Bodyweight Squat", sets: 2, reps: "8" }],
-          },
-        ],
-      };
-      const res = await applyCatalogPlan(payload as any);
-      return `ok=${String(Boolean((res as any)?.ok ?? true))}`;
-    });
-    await run("12. startScanSession callable/http", async () => {
-      const res = await startScanSessionClient({
-        currentWeightKg: 70,
-        goalWeightKg: 69,
-        heightCm: 175,
-        correlationId: `qa-${Date.now()}`,
-      });
-      if (!res.ok) throw new Error(res.error.message || "start_scan_failed");
-      scanId = res.data.scanId;
-      return `scanId=${scanId}`;
-    });
-    await run("13. scan upload readiness (no credit consume)", async () => {
-      if (!scanId) throw new Error("skipped_no_scan_session");
-      const f = new File(["qa"], "qa.txt", { type: "text/plain" });
-      const probe = validateScanUploadInputs({
-        uid: user.uid,
-        photos: { front: f, back: f, left: f, right: f } as any,
-      });
-      if (!probe.ok) throw new Error(probe.error.message);
-      return `targets=${probe.data.uploadTargets.length}`;
-    });
-    await run("14. Transformation Preview readiness", async () => {
-      if (!scanId) throw new Error("missing_scanId");
-      const ref = doc(db, "users", user.uid, "transformationPreviews", scanId);
-      return `doc=${ref.path}`;
-    });
+    let latestScanId: string | null = latestScan?.id ?? null;
 
-    setRunning(false);
+    try {
+      await run("1. auth state", async () => {
+        const token = await getIdToken({ forceRefresh: false });
+        if (!token) throw new Error("missing_auth_token");
+        return `uid=${user.uid}`;
+      });
+      await run("2. profile/onboarding read", async () => {
+        const snap = await getDoc(doc(db, "users", user.uid));
+        if (!snap.exists()) throw new Error("user_doc_missing");
+        const d = snap.data() as any;
+        return `onboarding=${String(Boolean(d?.onboardingCompleted || d?.onboarding?.completed))}`;
+      });
+      await run("3. entitlement/subscription/credits read", async () => {
+        const [creditsSnap, entSnap] = await Promise.all([
+          getDoc(doc(db, "users", user.uid, "private", "credits")),
+          getDoc(doc(db, "users", user.uid, "entitlements", "pro")),
+        ]);
+        return `credits=${creditsSnap.data()?.creditsSummary?.totalAvailable ?? "na"}, pro=${Boolean(entSnap.data()?.pro)}`;
+      });
+      await run("4. coachChat manual verification", async () => {
+        return "manual only: skipped to avoid paid AI request or message writes";
+      });
+      await run("5. nutritionSearch read", async () => {
+        const res = await nutritionSearch("banana");
+        return `items=${res.results.length}, source=${res.source || "unknown"}`;
+      });
+      await run("6. getDailyLog read", async () => {
+        const res = await getDailyLog(todayISO);
+        return `meals=${Array.isArray((res as any)?.meals) ? (res as any).meals.length : 0}`;
+      });
+      await run("7. getPlan read", async () => {
+        const res = await getPlan();
+        return `planId=${String((res as any)?.planId || (res as any)?.id || "none")}`;
+      });
+      await run("8. getWorkouts read", async () => {
+        const res = await getWorkouts();
+        return `days=${res?.days?.length ?? 0}`;
+      });
+      await run("9. latest scan/result diagnostics read", async () => {
+        const snap = await getDocs(
+          query(
+            collection(db, "users", user.uid, "scans"),
+            orderBy("createdAt", "desc"),
+            limit(1)
+          )
+        );
+        if (snap.empty) {
+          setLatestScan(null);
+          return "no scan documents found";
+        }
+        const docSnap = snap.docs[0];
+        const next = { id: docSnap.id, ...docSnap.data() };
+        latestScanId = docSnap.id;
+        setLatestScan(next);
+        return `scanId=${docSnap.id}, status=${String((next as any).status ?? "unknown")}`;
+      });
+      await run("10. scan upload validation only", async () => {
+        const pixel = new File([new Uint8Array([137, 80, 78, 71])], "qa.png", {
+          type: "image/png",
+        });
+        const probe = validateScanUploadInputs({
+          uid: user.uid,
+          photos: {
+            front: pixel,
+            back: pixel,
+            left: pixel,
+            right: pixel,
+          } as any,
+        });
+        if (!probe.ok) throw new Error(probe.error.message);
+        return `client-only targets=${probe.data.uploadTargets.length}, bytes=${probe.data.totalBytes}`;
+      });
+      await run("11. Transformation Preview read access", async () => {
+        if (!latestScanId) return "skipped: no latest scan";
+        const ref = doc(
+          db,
+          "users",
+          user.uid,
+          "transformationPreviews",
+          latestScanId
+        );
+        const snap = await getDoc(ref);
+        return `doc=${ref.path}, exists=${String(snap.exists())}`;
+      });
+    } finally {
+      setRunning(false);
+    }
   }
 
   if (!user) return <div className="p-6">Sign in required.</div>;
@@ -220,8 +199,12 @@ export default function LiveFlowsQA() {
         </CardHeader>
         <CardContent>
           <Button onClick={runAll} disabled={running}>
-            {running ? "Running…" : "Run all live-flow checks"}
+            {running ? "Running…" : "Run read-only live-flow checks"}
           </Button>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Read-only by default: no meals, workout plans, scan sessions,
+            credits, or paid AI calls are created by this check.
+          </p>
         </CardContent>
       </Card>
       <Card>

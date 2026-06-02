@@ -48,6 +48,7 @@ import {
   latestHeartbeatMillis,
 } from "@/lib/scanHeartbeat";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
+import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
@@ -1021,17 +1022,11 @@ export default function ScanResultPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-background/80 p-3 text-xs text-muted-foreground">
-              status={scan.status || "unknown"} · provider=
-              {resultVm.diagnostics.provider || "unknown"} · aiStatus=
-              {resultVm.diagnostics.processingStatus || "unknown"} · error=
-              {resultVm.diagnostics.errorCode || "none"} · credit=
-              {resultVm.diagnostics.refunded
-                ? "refunded"
-                : resultVm.diagnostics.charged
-                  ? "charged"
-                  : "not charged"}
-            </div>
+            {resultVm.diagnostics.refunded ? (
+              <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
+                Your scan credit has been returned.
+              </div>
+            ) : null}
             <div className="grid gap-2 sm:grid-cols-3">
               <Button onClick={retryProcessing}>Retry processing</Button>
               <Button variant="outline" onClick={() => nav("/scan")}>
@@ -1112,26 +1107,27 @@ export default function ScanResultPage() {
           </CardContent>
         </Card>
 
-        <Card className="border bg-card/60">
-          <CardHeader>
-            <CardTitle className="text-lg">Transformation Preview</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p>
-              See a realistic motivational visualization of your goal physique
-              once your scan and plan are ready.
-            </p>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => nav(`/results/${scan.id}/transformation-preview`)}
-            >
-              Open preview status
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Premium scaffold only. No generated image is shown yet.
-            </p>
-          </CardContent>
-        </Card>
+        {TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (
+          <Card className="border bg-card/60">
+            <CardHeader>
+              <CardTitle className="text-lg">Transformation Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>
+                See a realistic motivational visualization of your goal physique
+                once your scan and plan are ready.
+              </p>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() =>
+                  nav(`/results/${scan.id}/transformation-preview`)
+                }
+              >
+                Open Transformation Preview
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card className="border bg-card/60">
           <CardHeader>
