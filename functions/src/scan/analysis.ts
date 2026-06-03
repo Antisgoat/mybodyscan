@@ -8,7 +8,11 @@ import {
   type ChatContentPart,
 } from "../openai/client.js";
 import type { EngineConfig } from "./engineConfig.js";
-import type { ScanEstimate, ScanNutritionPlan, ScanWorkoutPlan } from "../types.js";
+import type {
+  ScanEstimate,
+  ScanNutritionPlan,
+  ScanWorkoutPlan,
+} from "../types.js";
 import { scanPhotosPrefix } from "./paths.js";
 
 const storage = getStorage();
@@ -42,7 +46,9 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate {
+function sanitizeEstimate(
+  raw: Partial<ScanEstimate> | undefined
+): ScanEstimate {
   const source = raw as any;
   const bodyFatPercent = clamp(
     Number(raw?.bodyFatPercent ?? source?.body_fat ?? source?.bodyFat),
@@ -64,7 +70,9 @@ function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate 
         : null;
   const keyObservationsRaw =
     (Array.isArray(source?.keyObservations) ? source.keyObservations : null) ??
-    (Array.isArray(source?.key_observations) ? source.key_observations : null) ??
+    (Array.isArray(source?.key_observations)
+      ? source.key_observations
+      : null) ??
     [];
   const keyObservations = (keyObservationsRaw as unknown[])
     .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
@@ -73,7 +81,8 @@ function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate 
     .filter((entry) => entry.length > 0)
     .slice(0, 5);
   const goalRecommendations = sanitizeRecommendations(
-    (source as any)?.goalRecommendations ?? (source as any)?.goal_recommendations
+    (source as any)?.goalRecommendations ??
+      (source as any)?.goal_recommendations
   );
   return {
     bodyFatPercent: Number(bodyFatPercent.toFixed(1)),
@@ -85,7 +94,9 @@ function sanitizeEstimate(raw: Partial<ScanEstimate> | undefined): ScanEstimate 
   };
 }
 
-function sanitizeWorkout(raw: Partial<ScanWorkoutPlan> | undefined): ScanWorkoutPlan {
+function sanitizeWorkout(
+  raw: Partial<ScanWorkoutPlan> | undefined
+): ScanWorkoutPlan {
   const weeks = Array.isArray(raw?.weeks) ? raw.weeks : [];
   const progressionRules = Array.isArray((raw as any)?.progressionRules)
     ? (raw as any).progressionRules
@@ -143,7 +154,10 @@ function sanitizeNutrition(
     0,
     Number(raw?.proteinGrams ?? source?.protein_grams ?? 0)
   );
-  const carbs = Math.max(0, Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0));
+  const carbs = Math.max(
+    0,
+    Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0)
+  );
   const fats = Math.max(0, Number(raw?.fatsGrams ?? source?.fats_grams ?? 0));
   const adjustmentRules = Array.isArray(source?.adjustmentRules)
     ? source.adjustmentRules
@@ -169,7 +183,12 @@ function sanitizeNutrition(
 
   const sanitizeDay = (
     dayRaw: any,
-    fallback: { calories: number; proteinGrams: number; carbsGrams: number; fatsGrams: number }
+    fallback: {
+      calories: number;
+      proteinGrams: number;
+      carbsGrams: number;
+      fatsGrams: number;
+    }
   ) => {
     const day = {
       calories: clamp(
@@ -177,14 +196,22 @@ function sanitizeNutrition(
         800,
         8000
       ),
-      proteinGrams: Number(dayRaw?.proteinGrams ?? dayRaw?.protein ?? fallback.proteinGrams),
-      carbsGrams: Number(dayRaw?.carbsGrams ?? dayRaw?.carbs ?? fallback.carbsGrams),
+      proteinGrams: Number(
+        dayRaw?.proteinGrams ?? dayRaw?.protein ?? fallback.proteinGrams
+      ),
+      carbsGrams: Number(
+        dayRaw?.carbsGrams ?? dayRaw?.carbs ?? fallback.carbsGrams
+      ),
       fatsGrams: Number(dayRaw?.fatsGrams ?? dayRaw?.fat ?? fallback.fatsGrams),
     };
     return {
-      calories: Math.round(Number.isFinite(day.calories) ? day.calories : fallback.calories),
+      calories: Math.round(
+        Number.isFinite(day.calories) ? day.calories : fallback.calories
+      ),
       proteinGrams: Math.round(
-        Number.isFinite(day.proteinGrams) ? day.proteinGrams : fallback.proteinGrams
+        Number.isFinite(day.proteinGrams)
+          ? day.proteinGrams
+          : fallback.proteinGrams
       ),
       carbsGrams: Math.round(
         Number.isFinite(day.carbsGrams) ? day.carbsGrams : fallback.carbsGrams
@@ -214,7 +241,10 @@ function sanitizeNutrition(
     proteinGrams: Math.round(protein),
     carbsGrams: Math.round(carbs),
     fatsGrams: Math.round(fats),
-    trainingDay: sanitizeDay(source?.trainingDay ?? source?.training_day, baseDay),
+    trainingDay: sanitizeDay(
+      source?.trainingDay ?? source?.training_day,
+      baseDay
+    ),
     restDay: sanitizeDay(source?.restDay ?? source?.rest_day, restFallback),
     adjustmentRules:
       cleanedAdjustments.length > 0
@@ -254,9 +284,13 @@ function validateVisionPayload(raw: unknown): OpenAIResult {
     workoutPlan: coerce(payload.workoutPlan),
     nutritionPlan: coerce(payload.nutritionPlan),
     recommendations: payload.recommendations,
-    goalRecommendations: (payload as any).goalRecommendations ?? (payload as any).goal_recommendations,
-    keyObservations: (payload as any).keyObservations ?? (payload as any).key_observations,
-    improvementAreas: (payload as any).improvementAreas ?? (payload as any).improvement_areas,
+    goalRecommendations:
+      (payload as any).goalRecommendations ??
+      (payload as any).goal_recommendations,
+    keyObservations:
+      (payload as any).keyObservations ?? (payload as any).key_observations,
+    improvementAreas:
+      (payload as any).improvementAreas ?? (payload as any).improvement_areas,
   };
 }
 
@@ -280,7 +314,8 @@ export async function buildImageInputs(
           file.download(),
         ]);
         const contentType =
-          typeof metadata?.contentType === "string" && metadata.contentType.startsWith("image/")
+          typeof metadata?.contentType === "string" &&
+          metadata.contentType.startsWith("image/")
             ? metadata.contentType
             : "image/jpeg";
         const base64 = buffer.toString("base64");
@@ -383,14 +418,29 @@ export function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
     const primaryRecommendations = sanitizeRecommendations(
       raw.goalRecommendations ?? raw.recommendations
     );
-    const fallbackRecommendations = sanitizeRecommendations(raw.recommendations);
-    const recommendations = primaryRecommendations.length ? primaryRecommendations : fallbackRecommendations;
-    const improvementAreas = sanitizeRecommendations(
-      (raw as any).improvementAreas ?? raw.keyObservations ?? raw.goalRecommendations ?? raw.recommendations
+    const fallbackRecommendations = sanitizeRecommendations(
+      raw.recommendations
     );
-    return { estimate, workoutPlan, nutritionPlan, recommendations, improvementAreas };
+    const recommendations = primaryRecommendations.length
+      ? primaryRecommendations
+      : fallbackRecommendations;
+    const improvementAreas = sanitizeRecommendations(
+      (raw as any).improvementAreas ??
+        raw.keyObservations ??
+        raw.goalRecommendations ??
+        raw.recommendations
+    );
+    return {
+      estimate,
+      workoutPlan,
+      nutritionPlan,
+      recommendations,
+      improvementAreas,
+    };
   } catch (error) {
-    throw new Error(`openai_parse_failed:${(error as Error)?.message ?? "unknown"}`);
+    throw new Error(
+      `openai_parse_failed:${(error as Error)?.message ?? "unknown"}`
+    );
   }
 }
 
@@ -420,7 +470,10 @@ export function buildPlanMarkdown(params: {
     fatsGrams: params.nutritionPlan.fatsGrams,
   };
   const restDay = params.nutritionPlan.restDay ?? {
-    calories: Math.max(1200, Math.round(params.nutritionPlan.caloriesPerDay - 150)),
+    calories: Math.max(
+      1200,
+      Math.round(params.nutritionPlan.caloriesPerDay - 150)
+    ),
     proteinGrams: params.nutritionPlan.proteinGrams,
     carbsGrams: Math.max(0, Math.round(params.nutritionPlan.carbsGrams * 0.85)),
     fatsGrams: Math.max(0, Math.round(params.nutritionPlan.fatsGrams + 8)),
@@ -448,21 +501,29 @@ export function buildPlanMarkdown(params: {
   lines.push(`- Notes: ${params.estimate.notes}`);
   if (params.estimate.keyObservations?.length) {
     lines.push("- Key observations:");
-    params.estimate.keyObservations.slice(0, 5).forEach((obs) => lines.push(`  - ${obs}`));
+    params.estimate.keyObservations
+      .slice(0, 5)
+      .forEach((obs) => lines.push(`  - ${obs}`));
   }
   if (params.improvementAreas?.length) {
     lines.push("- Improvement areas:");
-    params.improvementAreas.slice(0, 5).forEach((area) => lines.push(`  - ${area}`));
+    params.improvementAreas
+      .slice(0, 5)
+      .forEach((area) => lines.push(`  - ${area}`));
   }
 
   lines.push("");
-  lines.push("## 2) Training Plan (6-day PPL split)");
+  lines.push("## 2) Training Plan");
   lines.push(`- Summary: ${params.workoutPlan.summary}`);
   const weekCount = params.workoutPlan.weeks?.length ?? 0;
-  lines.push(`- Programming weeks available: ${weekCount || "coach generated as needed"}`);
+  lines.push(
+    `- Programming weeks available: ${weekCount || "coach generated as needed"}`
+  );
   const renderWeeks = params.workoutPlan.weeks?.slice(0, 8) ?? [];
   if (!renderWeeks.length) {
-    lines.push("- Weeks 1-8: Push/Pull/Legs rotation with 4-6 days per week. Progress load weekly.");
+    lines.push(
+      "- Detailed training days are only shown after a matched plan is available."
+    );
   } else {
     for (const week of renderWeeks) {
       lines.push(`- Week ${week.weekNumber}:`);

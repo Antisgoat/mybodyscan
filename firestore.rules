@@ -334,12 +334,12 @@ service cloud.firestore {
         allow write: if !isDemoUser() && isOwner(uid);
       }
 
-      // Client-created request + server-updated preview output.
+      // Transformation Preview is read-only for clients. Request, status, provider,
+      // output URLs, prompts, and generated content must be written only by
+      // trusted server code when generation is implemented.
       match /transformationPreviews/{scanId} {
         allow read: if isOwner(uid);
-        allow create: if !isDemoUser() && isOwner(uid);
-        allow update: if !isDemoUser() && isOwner(uid);
-        allow delete: if false;
+        allow create, update, delete: if false;
       }
 
       match /meta/onboarding {

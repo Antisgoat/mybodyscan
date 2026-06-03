@@ -30,6 +30,11 @@ export const STRIPE_PUBLISHABLE_KEY: string | undefined =
 /* Platform/service-worker */
 export const SW_ENABLED: boolean = bool(env.VITE_SW_ENABLED, false); // stays disabled by default
 
+export const TRANSFORMATION_PREVIEW_ENTRY_ENABLED: boolean = bool(
+  env.VITE_ENABLE_TRANSFORMATION_PREVIEW,
+  false
+);
+
 /* Marketing/public experience */
 export const MBS_FLAGS = {
   ...CONFIG_FLAGS,

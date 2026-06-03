@@ -36,6 +36,17 @@ export type ScanErrorInfo = {
   stack?: string;
 };
 
+export type ScanAiProcessing = {
+  status?: string;
+  provider?: string | null;
+  model?: string | null;
+  elapsedMs?: number | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  completedAt?: Date | null;
+  failedAt?: Date | null;
+};
+
 export type WorkoutPlan = {
   summary: string;
   progressionRules: string[];
@@ -116,6 +127,12 @@ export type ScanDocument = {
   planMarkdown?: string | null;
   metrics?: Record<string, unknown> | null;
   usedFallback?: boolean | null;
+  resultSource?: string | null;
+  aiProcessing?: ScanAiProcessing | null;
+  charged?: boolean | null;
+  refundedAt?: Date | null;
+  refundReason?: string | null;
+  creditStatus?: string | null;
   photoPaths: {
     front: string;
     back: string;
@@ -246,16 +263,20 @@ function toScanDocument(
   const normalizedHeight =
     typeof input?.heightCm === "number" && Number.isFinite(input.heightCm)
       ? input.heightCm
-      : typeof (data as any)?.heightCm === "number" && Number.isFinite((data as any).heightCm)
+      : typeof (data as any)?.heightCm === "number" &&
+          Number.isFinite((data as any).heightCm)
         ? ((data as any).heightCm as number)
-        : typeof (data as any)?.height_cm === "number" && Number.isFinite((data as any).height_cm)
+        : typeof (data as any)?.height_cm === "number" &&
+            Number.isFinite((data as any).height_cm)
           ? ((data as any).height_cm as number)
           : undefined;
   const completedAtRaw = data.completedAt as unknown;
   const lastStepAtRaw = (data as any).lastStepAt as unknown;
-  const processingRequestedAtRaw = (data as any).processingRequestedAt as unknown;
+  const processingRequestedAtRaw = (data as any)
+    .processingRequestedAt as unknown;
   const processingStartedAtRaw = (data as any).processingStartedAt as unknown;
-  const processingHeartbeatAtRaw = (data as any).processingHeartbeatAt as unknown;
+  const processingHeartbeatAtRaw = (data as any)
+    .processingHeartbeatAt as unknown;
   const errorInfoRaw = (data as any).errorInfo as ScanErrorInfo | undefined;
   return {
     id,
@@ -267,30 +288,42 @@ function toScanDocument(
     errorMessage:
       typeof data.errorMessage === "string" ? data.errorMessage : null,
     errorReason:
-      typeof (data as any).errorReason === "string" ? (data as any).errorReason : null,
+      typeof (data as any).errorReason === "string"
+        ? (data as any).errorReason
+        : null,
     errorInfo:
       errorInfoRaw && typeof errorInfoRaw === "object"
         ? {
-            code: typeof errorInfoRaw.code === "string" ? errorInfoRaw.code : undefined,
+            code:
+              typeof errorInfoRaw.code === "string"
+                ? errorInfoRaw.code
+                : undefined,
             message:
               typeof errorInfoRaw.message === "string"
                 ? errorInfoRaw.message
                 : undefined,
             stage:
-              typeof errorInfoRaw.stage === "string" ? errorInfoRaw.stage : undefined,
+              typeof errorInfoRaw.stage === "string"
+                ? errorInfoRaw.stage
+                : undefined,
             debugId:
               typeof errorInfoRaw.debugId === "string"
                 ? errorInfoRaw.debugId
                 : undefined,
             stack:
-              typeof errorInfoRaw.stack === "string" ? errorInfoRaw.stack : undefined,
+              typeof errorInfoRaw.stack === "string"
+                ? errorInfoRaw.stack
+                : undefined,
           }
         : null,
     lastStep:
-      typeof (data as any).lastStep === "string" ? (data as any).lastStep : null,
+      typeof (data as any).lastStep === "string"
+        ? (data as any).lastStep
+        : null,
     lastStepAt: lastStepAtRaw ? parseTimestamp(lastStepAtRaw) : null,
     progress:
-      typeof (data as any).progress === "number" && Number.isFinite((data as any).progress)
+      typeof (data as any).progress === "number" &&
+      Number.isFinite((data as any).progress)
         ? (data as any).progress
         : null,
     correlationId:
@@ -327,7 +360,8 @@ function toScanDocument(
           .slice(0, 10) as string[])
       : null,
     disclaimer:
-      typeof (data as any).disclaimer === "string" && (data as any).disclaimer.trim()
+      typeof (data as any).disclaimer === "string" &&
+      (data as any).disclaimer.trim()
         ? ((data as any).disclaimer as string).trim().slice(0, 280)
         : null,
     planMarkdown:
@@ -341,6 +375,61 @@ function toScanDocument(
     usedFallback:
       typeof (data as any).usedFallback === "boolean"
         ? ((data as any).usedFallback as boolean)
+        : null,
+    resultSource:
+      typeof (data as any).resultSource === "string"
+        ? ((data as any).resultSource as string)
+        : null,
+    aiProcessing:
+      (data as any).aiProcessing &&
+      typeof (data as any).aiProcessing === "object"
+        ? {
+            status:
+              typeof (data as any).aiProcessing.status === "string"
+                ? (data as any).aiProcessing.status
+                : undefined,
+            provider:
+              typeof (data as any).aiProcessing.provider === "string"
+                ? (data as any).aiProcessing.provider
+                : null,
+            model:
+              typeof (data as any).aiProcessing.model === "string"
+                ? (data as any).aiProcessing.model
+                : null,
+            elapsedMs:
+              typeof (data as any).aiProcessing.elapsedMs === "number"
+                ? (data as any).aiProcessing.elapsedMs
+                : null,
+            errorCode:
+              typeof (data as any).aiProcessing.errorCode === "string"
+                ? (data as any).aiProcessing.errorCode
+                : null,
+            errorMessage:
+              typeof (data as any).aiProcessing.errorMessage === "string"
+                ? (data as any).aiProcessing.errorMessage
+                : null,
+            completedAt: (data as any).aiProcessing.completedAt
+              ? parseTimestamp((data as any).aiProcessing.completedAt)
+              : null,
+            failedAt: (data as any).aiProcessing.failedAt
+              ? parseTimestamp((data as any).aiProcessing.failedAt)
+              : null,
+          }
+        : null,
+    charged:
+      typeof (data as any).charged === "boolean"
+        ? ((data as any).charged as boolean)
+        : null,
+    refundedAt: (data as any).refundedAt
+      ? parseTimestamp((data as any).refundedAt)
+      : null,
+    refundReason:
+      typeof (data as any).refundReason === "string"
+        ? ((data as any).refundReason as string)
+        : null,
+    creditStatus:
+      typeof (data as any).creditStatus === "string"
+        ? ((data as any).creditStatus as string)
         : null,
     photoPaths:
       fallbackPaths ??
@@ -378,18 +467,21 @@ function toScanDocument(
         : null,
     input: {
       currentWeightKg:
-        typeof input?.currentWeightKg === "number" && Number.isFinite(input.currentWeightKg)
+        typeof input?.currentWeightKg === "number" &&
+        Number.isFinite(input.currentWeightKg)
           ? input.currentWeightKg
           : 0,
       goalWeightKg:
-        typeof input?.goalWeightKg === "number" && Number.isFinite(input.goalWeightKg)
+        typeof input?.goalWeightKg === "number" &&
+        Number.isFinite(input.goalWeightKg)
           ? input.goalWeightKg
           : 0,
       heightCm: normalizedHeight ?? null,
     },
     estimate: (data.estimate as ScanEstimate | null) ?? null,
     workoutPlan: (data.workoutPlan as WorkoutPlan | null) ?? null,
-    workoutProgram: ((data as any).workoutProgram as WorkoutPlan | null) ?? null,
+    workoutProgram:
+      ((data as any).workoutProgram as WorkoutPlan | null) ?? null,
     nutritionPlan: (data.nutritionPlan as NutritionPlan | null) ?? null,
     note: typeof data.note === "string" ? data.note : undefined,
   };
@@ -413,7 +505,9 @@ function buildScanError(
         : fallbackMessage;
     const effectiveReason = reason ?? data.reason;
     const normalizedMessage =
-      effectiveReason === "engine_not_configured" || effectiveReason === "scan_engine_not_configured" || effectiveReason === "provider_not_configured"
+      effectiveReason === "engine_not_configured" ||
+      effectiveReason === "scan_engine_not_configured" ||
+      effectiveReason === "provider_not_configured"
         ? "Scan provider not configured. Please contact support."
         : message;
     return {
@@ -460,7 +554,8 @@ export async function startScanSessionClient(
         currentWeightKg: params.currentWeightKg,
         goalWeightKg: params.goalWeightKg,
         heightCm:
-          typeof params.heightCm === "number" && Number.isFinite(params.heightCm)
+          typeof params.heightCm === "number" &&
+          Number.isFinite(params.heightCm)
             ? Math.round(params.heightCm)
             : undefined,
         correlationId: params.correlationId,
@@ -481,7 +576,6 @@ export async function startScanSessionClient(
     };
   }
 }
-
 
 export type ScanUploadProgress = {
   pose: keyof StartScanResponse["storagePaths"];
@@ -514,20 +608,32 @@ export function validateScanUploadInputs(params: {
 }> {
   const uid = String(params.uid || "").trim();
   if (!uid) {
-    return { ok: false, error: { message: "Missing scan session info.", reason: "upload_failed" } };
+    return {
+      ok: false,
+      error: { message: "Missing scan session info.", reason: "upload_failed" },
+    };
   }
   const poses = ["front", "back", "left", "right"] as const;
   const uploadTargets: UploadTarget[] = [];
   for (const pose of poses) {
     const file = params.photos[pose];
     if (!file) {
-      return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
+      return {
+        ok: false,
+        error: { message: `Missing ${pose} photo.`, reason: "upload_failed" },
+      };
     }
     const size = Number.isFinite(file.size) ? Number(file.size) : 0;
     uploadTargets.push({ pose, path: pose, file, size });
   }
   if (!uploadTargets.length) {
-    return { ok: false, error: { message: "No photos selected for this scan.", reason: "upload_failed" } };
+    return {
+      ok: false,
+      error: {
+        message: "No photos selected for this scan.",
+        reason: "upload_failed",
+      },
+    };
   }
   const zeroByteTargets = uploadTargets.filter((target) => target.size <= 0);
   if (zeroByteTargets.length) {
@@ -540,7 +646,10 @@ export function validateScanUploadInputs(params: {
       },
     };
   }
-  const totalBytes = uploadTargets.reduce((sum, target) => sum + target.size, 0);
+  const totalBytes = uploadTargets.reduce(
+    (sum, target) => sum + target.size,
+    0
+  );
   return { ok: true, data: { uploadTargets, totalBytes } };
 }
 
@@ -638,8 +747,14 @@ export async function submitScanClient(
       ok: false,
       error: { message: "Please sign in before submitting a scan." },
     };
-  const poses: Array<keyof StartScanResponse["storagePaths"]> = ["front", "back", "left", "right"];
-  const scanCorrelationId = params.scanCorrelationId ?? createScanCorrelationId(params.scanId);
+  const poses: Array<keyof StartScanResponse["storagePaths"]> = [
+    "front",
+    "back",
+    "left",
+    "right",
+  ];
+  const scanCorrelationId =
+    params.scanCorrelationId ?? createScanCorrelationId(params.scanId);
   if (params.heightCm == null) {
     console.warn("scan_submit_height_missing", {
       scanId: params.scanId,
@@ -675,22 +790,28 @@ export async function submitScanClient(
   }
 
   const perPhotoPrepTimeoutMs =
-    typeof options?.perPhotoTimeoutMs === "number" && Number.isFinite(options.perPhotoTimeoutMs)
+    typeof options?.perPhotoTimeoutMs === "number" &&
+    Number.isFinite(options.perPhotoTimeoutMs)
       ? Math.max(2500, Math.min(options.perPhotoTimeoutMs, 8000))
       : 3500;
   const uploadTimeoutMs =
-    typeof options?.perPhotoTimeoutMs === "number" && Number.isFinite(options.perPhotoTimeoutMs)
+    typeof options?.perPhotoTimeoutMs === "number" &&
+    Number.isFinite(options.perPhotoTimeoutMs)
       ? Math.max(30_000, options.perPhotoTimeoutMs)
       : 90_000;
   const overallTimeoutMs =
-    typeof options?.overallTimeoutMs === "number" && Number.isFinite(options.overallTimeoutMs)
+    typeof options?.overallTimeoutMs === "number" &&
+    Number.isFinite(options.overallTimeoutMs)
       ? Math.max(45_000, options.overallTimeoutMs)
       : 150_000;
   const controller = new AbortController();
   const overallTimer = setTimeout(() => controller.abort(), overallTimeoutMs);
   if (options?.signal) {
     if (options.signal.aborted) controller.abort();
-    else options.signal.addEventListener("abort", () => controller.abort(), { once: true });
+    else
+      options.signal.addEventListener("abort", () => controller.abort(), {
+        once: true,
+      });
   }
 
   type Prepared = {
@@ -701,7 +822,10 @@ export async function submitScanClient(
       debug?: UploadPreprocessResult["debug"];
     };
   };
-  const preparedFiles: Record<keyof StartScanResponse["storagePaths"], Prepared> = {
+  const preparedFiles: Record<
+    keyof StartScanResponse["storagePaths"],
+    Prepared
+  > = {
     front: null as any,
     back: null as any,
     left: null as any,
@@ -712,14 +836,19 @@ export async function submitScanClient(
     const original = params.photos[pose];
     if (!original) {
       clearTimeout(overallTimer);
-      return { ok: false, error: { message: `Missing ${pose} photo.`, reason: "upload_failed" } };
+      return {
+        ok: false,
+        error: { message: `Missing ${pose} photo.`, reason: "upload_failed" },
+      };
     }
     options?.onPhotoState?.({ pose, status: "preparing" });
     const startedAt = Date.now();
     try {
       const prepResult = await Promise.race([
         prepareScanPhoto(original, pose),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), perPhotoPrepTimeoutMs)),
+        new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), perPhotoPrepTimeoutMs)
+        ),
       ]);
       if (prepResult) {
         preparedFiles[pose] = {
@@ -748,7 +877,12 @@ export async function submitScanClient(
           file: fallbackFile,
           meta: { original: meta, prepared: meta },
         };
-        options?.onPhotoState?.({ pose, status: "preparing", original: meta, compressed: meta });
+        options?.onPhotoState?.({
+          pose,
+          status: "preparing",
+          original: meta,
+          compressed: meta,
+        });
       }
       console.info("scan.preprocess", {
         pose,
@@ -765,7 +899,10 @@ export async function submitScanClient(
       e.code = "preprocess_failed";
       e.pose = pose;
       clearTimeout(overallTimer);
-      return { ok: false, error: buildScanError(e, e.message, "upload_failed") };
+      return {
+        ok: false,
+        error: buildScanError(e, e.message, "upload_failed"),
+      };
     }
   }
 
@@ -783,8 +920,12 @@ export async function submitScanClient(
     };
   }
 
-  const emitOverallProgress = (bytesTransferred: number, status: ScanUploadProgress["status"]) => {
-    const percent = totalBytes > 0 ? clampProgressFraction(bytesTransferred / totalBytes) : 0;
+  const emitOverallProgress = (
+    bytesTransferred: number,
+    status: ScanUploadProgress["status"]
+  ) => {
+    const percent =
+      totalBytes > 0 ? clampProgressFraction(bytesTransferred / totalBytes) : 0;
     options?.onUploadProgress?.({
       pose: "front",
       fileIndex: 0,
@@ -854,7 +995,10 @@ export async function submitScanClient(
     });
 
     const uploadAbort = new AbortController();
-    const uploadTimeoutId = setTimeout(() => uploadAbort.abort(), uploadTimeoutMs);
+    const uploadTimeoutId = setTimeout(
+      () => uploadAbort.abort(),
+      uploadTimeoutMs
+    );
     const response = await fetch(scanUploadUrl(), {
       method: "POST",
       headers: {
@@ -876,7 +1020,10 @@ export async function submitScanClient(
       } catch {
         // ignore
       }
-      throw Object.assign(new Error(message), { code: "upload_failed", debugId });
+      throw Object.assign(new Error(message), {
+        code: "upload_failed",
+        debugId,
+      });
     }
 
     const payload = (await response.json()) as SubmitScanResponse | undefined;
@@ -946,7 +1093,10 @@ export async function retryScanProcessingClient(
     const refDoc = doc(db, "users", user.uid, "scans", trimmed);
     const snap = await getDoc(refDoc);
     if (!snap.exists()) {
-      return { ok: false, error: { message: "Scan not found.", reason: "submit_failed" } };
+      return {
+        ok: false,
+        error: { message: "Scan not found.", reason: "submit_failed" },
+      };
     }
     const data = snap.data() as any;
     const photoPaths = data?.photoPaths;
@@ -956,21 +1106,30 @@ export async function retryScanProcessingClient(
     const heightCm =
       typeof input?.heightCm === "number" && Number.isFinite(input.heightCm)
         ? input.heightCm
-        : typeof (data as any)?.heightCm === "number" && Number.isFinite((data as any).heightCm)
+        : typeof (data as any)?.heightCm === "number" &&
+            Number.isFinite((data as any).heightCm)
           ? ((data as any).heightCm as number)
           : null;
     const correlationId =
-      typeof data?.correlationId === "string" ? (data.correlationId as string) : undefined;
+      typeof data?.correlationId === "string"
+        ? (data.correlationId as string)
+        : undefined;
     if (!photoPaths || typeof photoPaths !== "object") {
       return {
         ok: false,
-        error: { message: "Missing photo paths for this scan.", reason: "submit_failed" },
+        error: {
+          message: "Missing photo paths for this scan.",
+          reason: "submit_failed",
+        },
       };
     }
     if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
       return {
         ok: false,
-        error: { message: "Missing scan input (weights).", reason: "submit_failed" },
+        error: {
+          message: "Missing scan input (weights).",
+          reason: "submit_failed",
+        },
       };
     }
     await apiFetch(submitUrl(), {
@@ -995,7 +1154,11 @@ export async function retryScanProcessingClient(
   } catch (err) {
     return {
       ok: false,
-      error: buildScanError(err, "We couldn't restart processing right now.", "submit_failed"),
+      error: buildScanError(
+        err,
+        "We couldn't restart processing right now.",
+        "submit_failed"
+      ),
     };
   }
 }

@@ -112,6 +112,27 @@ d("Firestore security rules", () => {
     );
   });
 
+  it("allows owner to read transformation previews but blocks all client writes", async () => {
+    const uid = "alice";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      await ctx
+        .firestore()
+        .doc(`users/${uid}/transformationPreviews/scan1`)
+        .set({ status: "not_started", scanId: "scan1" });
+    });
+    const authed = testEnv.authenticatedContext(uid).firestore();
+    const previewRef = authed.doc(`users/${uid}/transformationPreviews/scan1`);
+    await assertSucceeds(previewRef.get());
+    await assertFails(
+      authed.doc(`users/${uid}/transformationPreviews/scan2`).set({
+        status: "ready",
+        imageUrl: "https://example.com/fake.png",
+      })
+    );
+    await assertFails(previewRef.update({ status: "ready" }));
+    await assertFails(previewRef.delete());
+  });
+
   it("blocks cross-user access", async () => {
     const uid1 = "alice";
     const uid2 = "bob";

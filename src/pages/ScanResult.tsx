@@ -18,16 +18,24 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useUnits } from "@/hooks/useUnits";
-import { formatHeightFromCm, formatWeight, formatWeightFromKg, kgToLb } from "@/lib/units";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { deriveNutritionGoals } from "@/lib/nutritionGoals";
-import { collection, doc, getDocs, limit, onSnapshot, orderBy, query } from "firebase/firestore";
+import {
+  buildScanResultViewModel,
+  formatKgForUnits,
+} from "@/lib/scanResultViewModel";
+import {
+  collection,
+  doc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { getCachedScanPhotoUrlMaybe } from "@/lib/storage/photoUrlCache";
-import silhouetteFront from "@/assets/silhouette-front.png";
 import {
   describeScanPipelineStage,
   readScanPipelineState,
@@ -35,8 +43,12 @@ import {
   type ScanPipelineState,
 } from "@/lib/scanPipeline";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
-import { computeProcessingTimeouts, latestHeartbeatMillis } from "@/lib/scanHeartbeat";
+import {
+  computeProcessingTimeouts,
+  latestHeartbeatMillis,
+} from "@/lib/scanHeartbeat";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
+import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
@@ -62,7 +74,9 @@ export default function ScanResultPage() {
     Partial<Record<keyof ScanDocument["photoPaths"], string>>
   >({});
   const [photoUrlRetryTick, setPhotoUrlRetryTick] = useState(0);
-  const photoUrlRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const photoUrlRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const loggedPhotoUrlErrorRef = useRef<Record<string, true>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -205,7 +219,9 @@ export default function ScanResultPage() {
         if (cancelled) return;
         setDocStatus({
           exists: snap.exists(),
-          fields: snap.exists() ? Object.keys(snap.data() as Record<string, unknown>) : [],
+          fields: snap.exists()
+            ? Object.keys(snap.data() as Record<string, unknown>)
+            : [],
         });
         if (!snap.exists()) return;
         const next = deserializeScanDocument(snap.id, uid, snap.data() as any);
@@ -262,11 +278,15 @@ export default function ScanResultPage() {
     }
     if (normalized === "processing" || normalized === "in_progress") {
       mark("processing_seen", { scanId });
-      measure("queued_to_processing", "queued_seen", "processing_seen", { scanId });
+      measure("queued_to_processing", "queued_seen", "processing_seen", {
+        scanId,
+      });
     }
     if (normalized === "complete" || normalized === "completed") {
       mark("complete_seen", { scanId });
-      measure("processing_to_complete", "processing_seen", "complete_seen", { scanId });
+      measure("processing_to_complete", "processing_seen", "complete_seen", {
+        scanId,
+      });
       void flushPerf();
     }
   }, [scan, scanId]);
@@ -351,7 +371,11 @@ export default function ScanResultPage() {
     if (!showLongProcessing) return;
     if (autoRetry.attempted) return;
     if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    )
+      return;
     setAutoRetry({ attempted: true, status: "running" });
     retryScanProcessingClient(scanId)
       .then((result) => {
@@ -373,7 +397,10 @@ export default function ScanResultPage() {
         setAutoRetry({
           attempted: true,
           status: "fail",
-          message: typeof (err as any)?.message === "string" ? (err as any).message : "Retry failed.",
+          message:
+            typeof (err as any)?.message === "string"
+              ? (err as any).message
+              : "Retry failed.",
         });
       });
   }, [autoRetry.attempted, needsRefresh, scanId, showLongProcessing]);
@@ -396,9 +423,13 @@ export default function ScanResultPage() {
         next.status === "failed";
       if (!canResolve) return;
       const paths = next.photoPaths;
-      const entries = (Object.entries(paths) as Array<
-        [keyof ScanDocument["photoPaths"], string]
-      >).filter(([, path]) => typeof path === "string" && path.trim().length > 0);
+      const entries = (
+        Object.entries(paths) as Array<
+          [keyof ScanDocument["photoPaths"], string]
+        >
+      ).filter(
+        ([, path]) => typeof path === "string" && path.trim().length > 0
+      );
       if (!entries.length) {
         setPhotoUrls({});
         return;
@@ -411,13 +442,24 @@ export default function ScanResultPage() {
       const resolved = await Promise.all(
         toFetch.map(async ([pose, path]) => {
           const cacheKey = `${scanKey}:${pose}`;
-          const outcome = await getCachedScanPhotoUrlMaybe(storage, path, cacheKey);
+          const outcome = await getCachedScanPhotoUrlMaybe(
+            storage,
+            path,
+            cacheKey
+          );
           if (outcome.url) {
-            return { pose, url: outcome.url, nextRetryAt: null as number | null };
+            return {
+              pose,
+              url: outcome.url,
+              nextRetryAt: null as number | null,
+            };
           }
           const storageErrorCode = outcome.errorCode;
           const httpStatus = outcome.httpStatus;
-          const retryAt = typeof outcome.nextRetryAt === "number" ? outcome.nextRetryAt : null;
+          const retryAt =
+            typeof outcome.nextRetryAt === "number"
+              ? outcome.nextRetryAt
+              : null;
 
           // One-line diagnostics (no spam): log only once per scan+pose when it's not a simple "not found yet".
           const logKey = `${scanKey}:${pose}`;
@@ -445,14 +487,18 @@ export default function ScanResultPage() {
       if (cancelled) return;
       let earliestRetryAt: number | null = null;
       setPhotoUrls((prev) => {
-        const nextUrls: Partial<Record<keyof ScanDocument["photoPaths"], string>> = {
+        const nextUrls: Partial<
+          Record<keyof ScanDocument["photoPaths"], string>
+        > = {
           ...prev,
         };
         for (const item of resolved) {
           if (item.url) nextUrls[item.pose] = item.url;
           if (typeof item.nextRetryAt === "number") {
             earliestRetryAt =
-              earliestRetryAt == null ? item.nextRetryAt : Math.min(earliestRetryAt, item.nextRetryAt);
+              earliestRetryAt == null
+                ? item.nextRetryAt
+                : Math.min(earliestRetryAt, item.nextRetryAt);
           }
         }
         return nextUrls;
@@ -554,10 +600,17 @@ export default function ScanResultPage() {
     scan.completedAt ?? scan.updatedAt ?? scan.createdAt
   );
   const lastUpdateAt =
-    scan.lastStepAt ?? scan.processingHeartbeatAt ?? scan.updatedAt ?? scan.createdAt;
+    scan.lastStepAt ??
+    scan.processingHeartbeatAt ??
+    scan.updatedAt ??
+    scan.createdAt;
   const lastUpdateLabel = lastUpdateAt ? formatDateTime(lastUpdateAt) : null;
 
-  if (statusMeta.canonical === "error" || statusMeta.recommendRescan) {
+  if (
+    statusMeta.recommendRescan &&
+    scan.status !== "error" &&
+    scan.status !== "failed"
+  ) {
     const canResume =
       scan.status === "uploaded" ||
       scan.status === "pending" ||
@@ -644,7 +697,8 @@ export default function ScanResultPage() {
                   : PROCESSING_STEPS[processingStepIdx]}
               </p>
               <p className="text-xs text-muted-foreground">
-                We’ll keep updating automatically. If your connection changed, we’ll recover when you’re back online.
+                We’ll keep updating automatically. If your connection changed,
+                we’ll recover when you’re back online.
               </p>
             </div>
             {autoRetry.status !== "idle" ? (
@@ -667,13 +721,20 @@ export default function ScanResultPage() {
 
             {hardProcessingTimeout ? (
               <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3">
-                <p className="text-sm font-medium">This scan is taking too long</p>
+                <p className="text-sm font-medium">
+                  This scan is taking too long
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  We won’t keep you stuck here. You can retry processing without re-uploading.
+                  We won’t keep you stuck here. You can retry processing without
+                  re-uploading.
                 </p>
                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {scan.lastStep ? <div>Last stage: {scan.lastStep}</div> : null}
-                  {lastUpdateLabel ? <div>Last update: {lastUpdateLabel}</div> : null}
+                  {scan.lastStep ? (
+                    <div>Last stage: {scan.lastStep}</div>
+                  ) : null}
+                  {lastUpdateLabel ? (
+                    <div>Last update: {lastUpdateLabel}</div>
+                  ) : null}
                   {scan.errorInfo?.message ? (
                     <div>Last error: {scan.errorInfo.message}</div>
                   ) : null}
@@ -720,8 +781,12 @@ export default function ScanResultPage() {
                   If needed, we can restart processing without re-uploading.
                 </p>
                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {scan.lastStep ? <div>Current stage: {scan.lastStep}</div> : null}
-                  {lastUpdateLabel ? <div>Last update: {lastUpdateLabel}</div> : null}
+                  {scan.lastStep ? (
+                    <div>Current stage: {scan.lastStep}</div>
+                  ) : null}
+                  {lastUpdateLabel ? (
+                    <div>Last update: {lastUpdateLabel}</div>
+                  ) : null}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
@@ -746,7 +811,11 @@ export default function ScanResultPage() {
                   >
                     Retry processing
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => nav("/scan")}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => nav("/scan")}
+                  >
                     Back to Scan
                   </Button>
                   <Button
@@ -802,7 +871,9 @@ export default function ScanResultPage() {
                 {scanId}
               </div>
               <div>
-                <span className="font-medium text-foreground">correlationId:</span>{" "}
+                <span className="font-medium text-foreground">
+                  correlationId:
+                </span>{" "}
                 {scan.correlationId ?? pipelineState?.correlationId ?? "—"}
               </div>
               <div>
@@ -814,7 +885,9 @@ export default function ScanResultPage() {
                   : "—"}
               </div>
               <div>
-                <span className="font-medium text-foreground">scan status:</span>{" "}
+                <span className="font-medium text-foreground">
+                  scan status:
+                </span>{" "}
                 {scan.status}
               </div>
               <div>
@@ -822,15 +895,21 @@ export default function ScanResultPage() {
                 {scan.lastStep ?? "—"}
               </div>
               <div>
-                <span className="font-medium text-foreground">last step at:</span>{" "}
+                <span className="font-medium text-foreground">
+                  last step at:
+                </span>{" "}
                 {scan.lastStepAt ? formatDateTime(scan.lastStepAt) : "—"}
               </div>
               <div>
-                <span className="font-medium text-foreground">scan progress:</span>{" "}
+                <span className="font-medium text-foreground">
+                  scan progress:
+                </span>{" "}
                 {typeof scan.progress === "number" ? `${scan.progress}%` : "—"}
               </div>
               <div>
-                <span className="font-medium text-foreground">last update:</span>{" "}
+                <span className="font-medium text-foreground">
+                  last update:
+                </span>{" "}
                 {lastUpdateLabel ?? "—"}
               </div>
               {scan.errorInfo ? (
@@ -839,7 +918,9 @@ export default function ScanResultPage() {
                 </pre>
               ) : null}
               <div>
-                <span className="font-medium text-foreground">pipeline timestamps:</span>{" "}
+                <span className="font-medium text-foreground">
+                  pipeline timestamps:
+                </span>{" "}
                 {pipelineState
                   ? `created=${new Date(
                       pipelineState.createdAt
@@ -859,7 +940,9 @@ export default function ScanResultPage() {
                 {appCheckStatus.message ? ` · ${appCheckStatus.message}` : ""}
               </div>
               <div>
-                <span className="font-medium text-foreground">firestore doc:</span>{" "}
+                <span className="font-medium text-foreground">
+                  firestore doc:
+                </span>{" "}
                 {docStatus.exists == null
                   ? "unknown"
                   : docStatus.exists
@@ -867,7 +950,9 @@ export default function ScanResultPage() {
                     : "missing"}
               </div>
               <div>
-                <span className="font-medium text-foreground">storage bucket:</span>{" "}
+                <span className="font-medium text-foreground">
+                  storage bucket:
+                </span>{" "}
                 {String(storage.app?.options?.storageBucket || "—")}
               </div>
               {docStatus.fields.length ? (
@@ -900,648 +985,256 @@ export default function ScanResultPage() {
     );
   }
 
-  const displayName =
-    (typeof user?.displayName === "string" && user.displayName.trim()) ||
-    (typeof user?.email === "string" && user.email.includes("@")
-      ? user.email.split("@")[0]
-      : null) ||
-    "You";
+  const resultVm = buildScanResultViewModel({ scan, profile, plan });
+  const retryProcessing = () => {
+    setLoading(true);
+    retryScanProcessingClient(scanId)
+      .then((result) => {
+        setLoading(false);
+        if (result.ok) return;
+        setError(result.error.message);
+      })
+      .catch((err) => {
+        setLoading(false);
+        setError(
+          typeof (err as any)?.message === "string"
+            ? (err as any).message
+            : "Retry failed."
+        );
+      });
+  };
 
-  const sex =
-    profile?.sex === "male" || profile?.sex === "female"
-      ? profile.sex
-      : profile?.sex === "unspecified" || profile?.sex === "other"
-        ? profile.sex
-        : null;
-  const age =
-    typeof profile?.age === "number" && Number.isFinite(profile.age)
-      ? profile.age
-      : null;
-
-  const weightKg =
-    typeof scan.input?.currentWeightKg === "number" &&
-    Number.isFinite(scan.input.currentWeightKg)
-      ? scan.input.currentWeightKg
-      : typeof profile?.weight_kg === "number" && Number.isFinite(profile.weight_kg)
-        ? profile.weight_kg
-        : null;
-  const heightCm =
-    typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
-      ? profile.height_cm
-      : null;
-
-  const bfPct =
-    typeof scan.estimate?.bodyFatPercent === "number" &&
-    Number.isFinite(scan.estimate.bodyFatPercent)
-      ? scan.estimate.bodyFatPercent
-      : null;
-
-  const fatMassKg =
-    weightKg != null && bfPct != null ? (weightKg * bfPct) / 100 : null;
-  const leanMassKg =
-    weightKg != null && fatMassKg != null ? weightKg - fatMassKg : null;
-
-  const skeletalMuscleKg =
-    leanMassKg != null ? Math.max(0, leanMassKg * 0.52) : null;
-  const totalBodyWaterKg =
-    leanMassKg != null ? Math.max(0, leanMassKg * 0.73) : null;
-  const totalBodyWaterPct =
-    totalBodyWaterKg != null && weightKg != null && weightKg > 0
-      ? (totalBodyWaterKg / weightKg) * 100
-      : null;
-
-  const goalLabel = (() => {
-    const goal = profile?.goal;
-    if (goal === "lose_fat") return "Fat loss";
-    if (goal === "gain_muscle") return "Muscle gain";
-    if (goal === "improve_heart") return "Improve health";
-    return "Maintain";
-  })();
-
-  const computedGoals = deriveNutritionGoals({
-    weightKg: weightKg ?? null,
-    bodyFatPercent: bfPct ?? null,
-    goalWeightKg: scan.input?.goalWeightKg ?? null,
-    goal:
-      profile?.goal === "lose_fat"
-        ? "lose_fat"
-        : profile?.goal === "gain_muscle"
-          ? "gain_muscle"
-          : null,
-    activityLevel: profile?.activity_level ?? null,
-    sex,
-    age,
-    heightCm,
-    overrides: {
-      calories:
-        typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)
-          ? plan.calorieTarget
-          : undefined,
-      proteinGrams:
-        typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)
-          ? plan.proteinFloor
-          : undefined,
-    },
-  });
-
-  const bmiValue =
-    heightCm != null && weightKg != null
-      ? Number((weightKg / Math.pow(heightCm / 100, 2)).toFixed(1))
-      : null;
-
-  const workoutPlan = scan.workoutPlan?.weeks?.length
-    ? scan.workoutPlan
-    : buildFallbackWorkoutPlan();
-  const weeksToShow = workoutPlan.weeks.slice(0, 1);
-  const hasMoreWeeks = workoutPlan.weeks.length > 1;
-  const progressionRules =
-    Array.isArray(workoutPlan.progressionRules) &&
-    workoutPlan.progressionRules.length
-      ? workoutPlan.progressionRules
-      : [
-          "Add 1–2 reps per set each week until you hit the top of the rep range.",
-          "When all sets hit the top range, increase load 2–5% next week.",
-          "Keep 1–2 reps in reserve on compounds; push accessories closer to failure.",
-          "Deload every 4–6 weeks by cutting volume in half.",
-        ];
-
-  const nutritionPlan = scan.nutritionPlan
-    ? {
-        ...scan.nutritionPlan,
-        adjustmentRules: Array.isArray(scan.nutritionPlan.adjustmentRules)
-          ? scan.nutritionPlan.adjustmentRules
-          : [],
-        sampleDay: Array.isArray(scan.nutritionPlan.sampleDay)
-          ? scan.nutritionPlan.sampleDay
-          : [],
-      }
-    : {
-        caloriesPerDay: Math.round(computedGoals.calories),
-        proteinGrams: Math.round(computedGoals.proteinGrams),
-        carbsGrams: Math.round(computedGoals.carbsGrams),
-        fatsGrams: Math.round(computedGoals.fatGrams),
-        adjustmentRules: [
-          "If weight change is <0.25 kg/week, drop 150–200 kcal.",
-          "If losing >1% body weight/week, add 150–200 kcal.",
-          "Keep protein constant; adjust carbs/fats first.",
-        ],
-        sampleDay: [],
-      };
-
-  const bodyAge = (() => {
-    if (age == null || bfPct == null) return null;
-    const ideal =
-      sex === "female" ? 26 : sex === "male" ? 18 : 22;
-    const delta = clampNumber((bfPct - ideal) * 0.4, -6, 12);
-    return Math.round(age + delta);
-  })();
-
-  const bodyScore = (() => {
-    // A simple 0–10 score: rewards lower BF% and higher lean mass vs weight.
-    if (weightKg == null || bfPct == null || leanMassKg == null) return null;
-    const bfScore =
-      sex === "female"
-        ? mapToScore(18, 34, bfPct, true)
-        : mapToScore(10, 26, bfPct, true);
-    const leanRatio = leanMassKg / weightKg;
-    const leanScore = mapToScore(0.62, 0.82, leanRatio, false);
-    return clampNumber(Math.round(((bfScore + leanScore) / 2) * 10) / 10, 0, 10);
-  })();
-
-  const recommendations =
-    Array.isArray(scan.recommendations) && scan.recommendations.length
-      ? scan.recommendations
-      : defaultRecommendations(computedGoals);
-
-  const improvementAreas =
-    Array.isArray(scan.improvementAreas) && scan.improvementAreas.length
-      ? scan.improvementAreas
-      : Array.isArray(scan.estimate?.keyObservations) && scan.estimate.keyObservations.length
-        ? scan.estimate.keyObservations
-        : Array.isArray(scan.estimate?.goalRecommendations) && scan.estimate.goalRecommendations.length
-          ? scan.estimate.goalRecommendations
-          : [];
-
-  const disclaimer =
-    typeof scan.disclaimer === "string" && scan.disclaimer.trim()
-      ? scan.disclaimer.trim()
-      : "Estimates only. Not medical advice.";
-
-  const delta = (() => {
-    if (!previousScan) return null;
-    const prevWeight = previousScan.input?.currentWeightKg;
-    const prevBf = previousScan.estimate?.bodyFatPercent;
-    const prevWeightOk =
-      typeof prevWeight === "number" && Number.isFinite(prevWeight) ? prevWeight : null;
-    const prevBfOk =
-      typeof prevBf === "number" && Number.isFinite(prevBf) ? prevBf : null;
-    if (weightKg == null || bfPct == null || prevWeightOk == null || prevBfOk == null) {
-      return null;
-    }
-    const prevFatKg = (prevWeightOk * prevBfOk) / 100;
-    const prevLeanKg = prevWeightOk - prevFatKg;
-    return {
-      weightKg: weightKg - prevWeightOk,
-      bfPct: bfPct - prevBfOk,
-      leanKg: (leanMassKg ?? 0) - prevLeanKg,
-    };
-  })();
-
-  return (
-    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-6">
-      <Seo title="Your Body Scan – MyBodyScan" description="Your scan report." />
-
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Your Body Scan</h1>
-          <p className="text-sm text-muted-foreground">
-            {formatDateTime(scan.completedAt ?? scan.updatedAt)} · {displayName}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => nav("/scan/history")}>
-            History
-          </Button>
-          <Button onClick={() => nav("/scan")}>New scan</Button>
-        </div>
-      </header>
-
-      <Card className="border bg-card/60">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle className="text-lg">Overview</CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">{goalLabel}</Badge>
-            {delta ? (
-              <Badge variant="outline">
-                {(() => {
-                  const preferredUnit = units === "metric" ? "kg" : "lb";
-                  const absKg = delta.weightKg;
-                  const formatted = formatWeight({ kg: absKg, preferredUnit, digits: 1 });
-                  const text =
-                    formatted.value != null
-                      ? `${formatted.value >= 0 ? "+" : ""}${formatted.value.toFixed(1)} ${formatted.unitLabel}`
-                      : "—";
-                  return (
-                    <>
-                      vs last scan: {text} · {delta.bfPct >= 0 ? "+" : ""}
-                    </>
-                  );
-                })()}
-                {delta.bfPct.toFixed(1)}%
-              </Badge>
-            ) : null}
-          </div>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="grid grid-cols-2 gap-3">
-            <InfoRow label="Sex" value={sex ? capitalize(sex) : "—"} />
-            <InfoRow label="Age" value={age != null ? String(age) : "—"} />
-            <InfoRow
-              label="Height"
-              value={
-                heightCm != null
-                  ? units === "metric"
-                    ? `${Math.round(heightCm)} cm`
-                    : formatHeightFromCm(heightCm)
-                  : "—"
-              }
-            />
-            <InfoRow
-              label="Weight"
-              value={weightKg != null ? formatWeightFromKg(weightKg, 1, units === "metric" ? "metric" : "us") : "—"}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <InfoRow
-              label="Body fat %"
-              value={bfPct != null ? `${bfPct.toFixed(1)}%` : "—"}
-            />
-            <InfoRow
-              label="BMI"
-              value={
-                bmiValue != null ? bmiValue.toFixed(1) : "—"
-              }
-            />
-            <InfoRow
-              label="BMR"
-              value={computedGoals.bmr != null ? `${Math.round(computedGoals.bmr)} kcal` : "—"}
-            />
-            <InfoRow
-              label="TDEE"
-              value={computedGoals.tdee != null ? `${Math.round(computedGoals.tdee)} kcal` : "—"}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border bg-card/60">
-        <CardHeader>
-          <CardTitle className="text-lg">Coach report</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Structured like a coaching chat — use this as your 8-week playbook.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-6 text-sm">
-          <section className="space-y-2">
-            <h3 className="text-base font-semibold">1) Body metrics snapshot</h3>
-            <ul className="space-y-1 text-muted-foreground">
-              <li>
-                <span className="font-medium text-foreground">Body fat:</span>{" "}
-                {bfPct != null ? `${bfPct.toFixed(1)}%` : "—"}
-              </li>
-              <li>
-                <span className="font-medium text-foreground">Fat mass:</span>{" "}
-                {formatKgLb(fatMassKg, units)}
-              </li>
-              <li>
-                <span className="font-medium text-foreground">Lean mass:</span>{" "}
-                {formatKgLb(leanMassKg, units)}
-              </li>
-              <li>
-                <span className="font-medium text-foreground">BMI:</span>{" "}
-                {bmiValue != null ? bmiValue.toFixed(1) : "Add your height to calculate BMI."}
-              </li>
-            </ul>
-            {typeof scan.estimate?.notes === "string" && scan.estimate.notes.trim() ? (
-              <p className="text-xs text-muted-foreground">{scan.estimate.notes}</p>
-            ) : null}
-            {improvementAreas.length ? (
-              <div className="pt-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Improvement areas
-                </p>
-                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {improvementAreas.slice(0, 6).map((item, idx) => (
-                    <li key={idx}>• {item}</li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </section>
-
-          <Separator />
-
-          <section className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold">
-                2) Training plan (6-day PPL split)
-              </h3>
-              <p className="text-muted-foreground">{workoutPlan.summary}</p>
+  if (resultVm.isFailedOrFallback) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
+        <Seo
+          title="Scan recovery – MyBodyScan"
+          description="Recover a failed scan."
+        />
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle>{resultVm.failureTitle}</CardTitle>
+              <Badge variant="destructive">{resultVm.sourceLabel}</Badge>
             </div>
-            {weeksToShow.map((week) => (
-              <div key={week.weekNumber} className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Week {week.weekNumber} split
-                </p>
-                <div className="grid gap-2 md:grid-cols-2">
-                  {week.days.map((day, idx) => (
-                    <div key={`${day.day}-${idx}`} className="rounded-lg border p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{day.day}</span>
-                        <span className="text-xs text-muted-foreground">{day.focus}</span>
-                      </div>
-                      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                        {day.exercises.map((exercise, exIdx) => (
-                          <li key={`${exercise.name}-${exIdx}`}>
-                            {exercise.name} · {exercise.sets}x{exercise.reps}
-                            {exercise.notes ? ` · ${exercise.notes}` : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {hasMoreWeeks ? (
-              <p className="text-xs text-muted-foreground">
-                Weeks {weeksToShow.length + 1}+ follow the same split with progressive
-                overload.
-              </p>
-            ) : null}
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Progression rules
-              </p>
-              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                {progressionRules.map((rule, idx) => (
-                  <li key={idx}>• {rule}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <Separator />
-
-          <section className="space-y-3">
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold">3) Nutrition plan</h3>
-              <p className="text-muted-foreground">
-                Calories and macros tailored for your goal.
-              </p>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Daily calories</p>
-                <p className="text-lg font-semibold">
-                  {Math.round(nutritionPlan.caloriesPerDay)} kcal
-                </p>
-              </div>
-              <div className="rounded-lg border p-3">
-                <p className="text-xs text-muted-foreground">Macros</p>
-                <p className="text-sm font-medium">
-                  P {Math.round(nutritionPlan.proteinGrams)}g · C{" "}
-                  {Math.round(nutritionPlan.carbsGrams)}g · F{" "}
-                  {Math.round(nutritionPlan.fatsGrams)}g
-                </p>
-              </div>
-            </div>
-            {(nutritionPlan.trainingDay || nutritionPlan.restDay) && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {nutritionPlan.trainingDay ? (
-                  <div className="rounded-lg border p-3">
-                    <p className="text-xs text-muted-foreground">Training day</p>
-                    <p className="text-sm font-medium">
-                      {Math.round(nutritionPlan.trainingDay.calories)} kcal ·{" "}
-                      {Math.round(nutritionPlan.trainingDay.proteinGrams)}P /{" "}
-                      {Math.round(nutritionPlan.trainingDay.carbsGrams)}C /{" "}
-                      {Math.round(nutritionPlan.trainingDay.fatsGrams)}F
-                    </p>
-                  </div>
-                ) : null}
-                {nutritionPlan.restDay ? (
-                  <div className="rounded-lg border p-3">
-                    <p className="text-xs text-muted-foreground">Rest day</p>
-                    <p className="text-sm font-medium">
-                      {Math.round(nutritionPlan.restDay.calories)} kcal ·{" "}
-                      {Math.round(nutritionPlan.restDay.proteinGrams)}P /{" "}
-                      {Math.round(nutritionPlan.restDay.carbsGrams)}C /{" "}
-                      {Math.round(nutritionPlan.restDay.fatsGrams)}F
-                    </p>
-                  </div>
-                ) : null}
-              </div>
-            )}
-            {nutritionPlan.sampleDay?.length ? (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Sample day
-                </p>
-                <ul className="space-y-2 text-xs text-muted-foreground">
-                  {nutritionPlan.sampleDay.map((meal, idx) => (
-                    <li key={`${meal.mealName}-${idx}`}>
-                      <span className="font-medium text-foreground">{meal.mealName}:</span>{" "}
-                      {meal.description} · {meal.calories} kcal (P {meal.proteinGrams}g · C{" "}
-                      {meal.carbsGrams}g · F {meal.fatsGrams}g)
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Adjustment rules
-              </p>
-              <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                {nutritionPlan.adjustmentRules.map((rule, idx) => (
-                  <li key={idx}>• {rule}</li>
-                ))}
-              </ul>
-            </div>
-          </section>
-
-          <Separator />
-
-          <section className="space-y-2">
-            <h3 className="text-base font-semibold">4) Next steps</h3>
-            <ul className="space-y-2 text-muted-foreground">
-              {recommendations.map((item, idx) => (
-                <li key={idx} className="flex gap-2">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            {disclaimer ? (
-              <p className="pt-2 text-[11px] text-muted-foreground">{disclaimer}</p>
-            ) : null}
-          </section>
-        </CardContent>
-      </Card>
-
-      <ScanPhotos photoUrls={photoUrls} />
-
-      <div className="grid gap-4 lg:grid-cols-[1.6fr,1fr]">
-        <Card className="border bg-card/60">
-          <CardHeader>
-            <CardTitle className="text-lg">Body composition</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <MetricCard
-              label="Lean Body Mass"
-              value={formatKgLb(leanMassKg, units)}
-              hint={leanMassKg != null && weightKg != null ? `${Math.round((leanMassKg / weightKg) * 100)}% of weight` : undefined}
-            />
-            <MetricCard
-              label="Skeletal Muscle Mass"
-              value={formatKgLb(skeletalMuscleKg, units)}
-              hint="Estimate"
-            />
-            <MetricCard
-              label="Body Fat %"
-              value={bfPct != null ? `${bfPct.toFixed(1)}%` : "—"}
-            />
-            <MetricCard
-              label="Body Fat Mass"
-              value={formatKgLb(fatMassKg, units)}
-            />
-            <MetricCard
-              label="Total Body Water"
-              value={
-                totalBodyWaterKg != null
-                  ? `${formatKgLbNumber(totalBodyWaterKg, units)}${totalBodyWaterPct != null ? ` · ${Math.round(totalBodyWaterPct)}%` : ""}`
-                  : "—"
-              }
-              hint="Estimate"
-            />
-            <MetricCard
-              label="Visceral fat"
-              value={bfPct != null ? visceralLabel(bfPct, sex) : "—"}
-              hint="Estimate"
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="border bg-card/60">
-          <CardHeader>
-            <CardTitle className="text-lg">Score</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {resultVm.failureMessage}
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <CircleGauge
-                label="Body age"
-                value={bodyAge != null ? String(bodyAge) : "—"}
-                sublabel={age != null ? `Actual: ${age}` : undefined}
-                progress={bodyAge != null && age != null ? clampNumber(age / Math.max(bodyAge, 1), 0, 1) : null}
-              />
-              <CircleGauge
-                label="Body score"
-                value={bodyScore != null ? `${bodyScore.toFixed(1)}` : "—"}
-                sublabel="out of 10"
-                progress={bodyScore != null ? clampNumber(bodyScore / 10, 0, 1) : null}
-              />
-            </div>
-
-            <div className="rounded-lg border bg-background/60 p-4">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Segmental analysis
+            {resultVm.diagnostics.refunded ? (
+              <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
+                Your scan credit has been returned.
               </div>
-              <div className="mt-3 grid grid-cols-[1fr,auto,1fr] items-center gap-3">
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Upper lean</span>
-                    <span className="font-medium">
-                      {leanMassKg != null ? formatKgLbNumber(leanMassKg * 0.55, units) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Lower lean</span>
-                    <span className="font-medium">
-                      {leanMassKg != null ? formatKgLbNumber(leanMassKg * 0.45, units) : "—"}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex justify-center">
-                  <img
-                    src={silhouetteFront}
-                    alt="Body silhouette"
-                    className="h-40 w-auto opacity-90"
-                    loading="lazy"
-                  />
-                </div>
-                <div className="space-y-1 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">BMR</span>
-                    <span className="font-medium">
-                      {computedGoals.bmr != null ? `${Math.round(computedGoals.bmr)} kcal` : "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">TDEE</span>
-                    <span className="font-medium">
-                      {computedGoals.tdee != null ? `${Math.round(computedGoals.tdee)} kcal` : "—"}
-                    </span>
-                  </div>
-                </div>
-              </div>
+            ) : null}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button onClick={retryProcessing}>Retry processing</Button>
+              <Button variant="outline" onClick={() => nav("/scan")}>
+                Re-upload scan
+              </Button>
+              <Button variant="outline" onClick={() => nav("/scan/history")}>
+                History
+              </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              We do not display body fat, macros, body age, scores, or workout
+              prescriptions unless the AI analysis succeeds.
+            </p>
           </CardContent>
         </Card>
       </div>
+    );
+  }
 
-      <div className="grid gap-4 lg:grid-cols-2">
+  if (resultVm.isValidResult) {
+    return (
+      <div className="mx-auto w-full max-w-3xl space-y-4 p-4 md:p-6">
+        <Seo
+          title="Your Body Scan – MyBodyScan"
+          description="Your scan report."
+        />
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              Your Body Scan
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {formatDateTime(scan.completedAt ?? scan.updatedAt)} ·{" "}
+              {resultVm.sourceLabel}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => nav("/scan/history")}>
+              History
+            </Button>
+            <Button onClick={() => nav("/scan")}>New scan</Button>
+          </div>
+        </header>
+
         <Card className="border bg-card/60">
           <CardHeader>
-            <CardTitle className="text-lg">Your nutrition</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-lg">Primary results</CardTitle>
+              <Badge variant="secondary">Fitness estimates only</Badge>
+            </div>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2">
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label="Est. body fat"
+              value={
+                resultVm.primary.bodyFatPercent != null
+                  ? `${resultVm.primary.bodyFatPercent.toFixed(1)}%`
+                  : "—"
+              }
+            />
+            <MetricCard
+              label="Weight"
+              value={formatKgForUnits(resultVm.primary.weightKg, units)}
+            />
+            <MetricCard
+              label="BMI"
+              value={
+                resultVm.primary.bmi != null
+                  ? resultVm.primary.bmi.toFixed(1)
+                  : "—"
+              }
+            />
+            <MetricCard
+              label="Lean mass"
+              value={formatKgForUnits(resultVm.primary.leanMassKg, units)}
+              hint="Derived from weight and body-fat estimate"
+            />
+          </CardContent>
+        </Card>
+
+        {TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (
+          <Card className="border bg-card/60">
+            <CardHeader>
+              <CardTitle className="text-lg">Transformation Preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>
+                See a realistic motivational visualization of your goal physique
+                once your scan and plan are ready.
+              </p>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() =>
+                  nav(`/results/${scan.id}/transformation-preview`)
+                }
+              >
+                Open Transformation Preview
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
+        <Card className="border bg-card/60">
+          <CardHeader>
+            <CardTitle className="text-lg">Nutrition targets</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
               label="Calories"
-              value={`${rangeText(computedGoals.calories)} kcal`}
-              hint={computedGoals.tdee != null ? `TDEE ~${Math.round(computedGoals.tdee)} kcal` : undefined}
+              value={
+                resultVm.nutrition.calories != null
+                  ? `${resultVm.nutrition.calories} kcal`
+                  : "—"
+              }
             />
             <MetricCard
               label="Protein"
-              value={`${Math.round(computedGoals.proteinGrams)} g`}
-              hint={`${Math.round(computedGoals.proteinPct)}%`}
+              value={
+                resultVm.nutrition.proteinGrams != null
+                  ? `${resultVm.nutrition.proteinGrams} g`
+                  : "—"
+              }
             />
             <MetricCard
               label="Carbs"
-              value={`${Math.round(computedGoals.carbsGrams)} g`}
-              hint={`${Math.round(computedGoals.carbsPct)}%`}
+              value={
+                resultVm.nutrition.carbsGrams != null
+                  ? `${resultVm.nutrition.carbsGrams} g`
+                  : "—"
+              }
             />
             <MetricCard
-              label="Fat"
-              value={`${Math.round(computedGoals.fatGrams)} g`}
-              hint={`${Math.round(computedGoals.fatPct)}%`}
+              label="Fats"
+              value={
+                resultVm.nutrition.fatsGrams != null
+                  ? `${resultVm.nutrition.fatsGrams} g`
+                  : "—"
+              }
             />
           </CardContent>
         </Card>
 
         <Card className="border bg-card/60">
           <CardHeader>
-            <CardTitle className="text-lg">Coach recommendations</CardTitle>
+            <CardTitle className="text-lg">Recommended plan</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <ul className="space-y-2 text-sm text-foreground">
-              {recommendations.map((item, idx) => (
-                <li key={idx} className="flex gap-2">
-                  <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            {typeof scan.estimate?.notes === "string" && scan.estimate.notes.trim() ? (
-              <>
-                <Separator />
-                <p className="text-xs text-muted-foreground">{scan.estimate.notes}</p>
-              </>
+          <CardContent className="space-y-3 text-sm">
+            <p className="font-medium">{resultVm.plan.summary}</p>
+            {resultVm.plan.detailLines.length ? (
+              <ul className="space-y-1 text-muted-foreground">
+                {resultVm.plan.detailLines.map((line) => (
+                  <li key={line}>• {line}</li>
+                ))}
+              </ul>
             ) : null}
+            {resultVm.plan.setupNeeded ? (
+              <Button
+                variant="outline"
+                onClick={() => nav("/coach/onboarding")}
+              >
+                Complete plan setup
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => nav("/programs")}>
+                View full plan
+              </Button>
+            )}
           </CardContent>
         </Card>
-      </div>
-    </div>
-  );
-}
 
+        <Card className="border bg-card/60">
+          <CardContent className="pt-6 text-sm">
+            Next scan: rescan in 10 days with the same four angles and current
+            weight.
+          </CardContent>
+        </Card>
+
+        <details className="rounded-lg border bg-card/60 p-4 text-sm">
+          <summary className="cursor-pointer font-medium">
+            View full report
+          </summary>
+          <div className="mt-4 space-y-4">
+            <ScanPhotos photoUrls={photoUrls} />
+            <pre className="whitespace-pre-wrap text-xs text-muted-foreground">
+              {scan.planMarkdown || "Detailed report unavailable."}
+            </pre>
+          </div>
+        </details>
+
+        <p className="text-xs text-muted-foreground">
+          Fitness estimates only. Not medical advice.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
+}
 function ScanPhotos({
   photoUrls,
 }: {
   photoUrls: Partial<Record<"front" | "back" | "left" | "right", string>>;
 }) {
-  const entries = (Object.entries(photoUrls) as Array<
-    ["front" | "back" | "left" | "right", string]
-  >).filter(([, url]) => typeof url === "string" && url.length > 0);
+  const entries = (
+    Object.entries(photoUrls) as Array<
+      ["front" | "back" | "left" | "right", string]
+    >
+  ).filter(([, url]) => typeof url === "string" && url.length > 0);
   if (!entries.length) return null;
   const label: Record<string, string> = {
     front: "Front",
@@ -1611,190 +1304,4 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       <div className="mt-1 text-sm font-medium text-foreground">{value}</div>
     </div>
   );
-}
-
-function CircleGauge({
-  label,
-  value,
-  sublabel,
-  progress,
-}: {
-  label: string;
-  value: string;
-  sublabel?: string;
-  progress: number | null;
-}) {
-  const pct = progress != null ? clampNumber(progress, 0, 1) : 0;
-  const r = 34;
-  const c = 2 * Math.PI * r;
-  const dash = c - c * pct;
-  return (
-    <div className="rounded-lg border bg-background/60 p-4">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-3 flex items-center gap-3">
-        <svg width="84" height="84" viewBox="0 0 84 84" aria-hidden>
-          <circle
-            cx="42"
-            cy="42"
-            r={r}
-            strokeWidth="8"
-            className="fill-none stroke-muted"
-          />
-          <circle
-            cx="42"
-            cy="42"
-            r={r}
-            strokeWidth="8"
-            className="fill-none stroke-primary"
-            strokeDasharray={`${c} ${c}`}
-            strokeDashoffset={dash}
-            strokeLinecap="round"
-            transform="rotate(-90 42 42)"
-          />
-        </svg>
-        <div>
-          <div className="text-2xl font-semibold tracking-tight">{value}</div>
-          {sublabel ? (
-            <div className="text-xs text-muted-foreground">{sublabel}</div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function formatKgLb(valueKg: number | null, units: "metric" | "us") {
-  if (valueKg == null || !Number.isFinite(valueKg)) return "—";
-  const kg = valueKg;
-  const lb = kgToLb(kg);
-  return units === "metric"
-    ? `${kg.toFixed(1)} kg · ${lb.toFixed(1)} lb`
-    : `${lb.toFixed(1)} lb · ${kg.toFixed(1)} kg`;
-}
-
-function formatKgLbNumber(valueKg: number, units: "metric" | "us") {
-  const kg = valueKg;
-  const lb = kgToLb(kg);
-  return units === "metric" ? `${kg.toFixed(1)} kg` : `${lb.toFixed(1)} lb`;
-}
-
-function clampNumber(n: number, min: number, max: number) {
-  if (!Number.isFinite(n)) return min;
-  return Math.min(max, Math.max(min, n));
-}
-
-function capitalize(s: string) {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-}
-
-function mapToScore(min: number, max: number, value: number, lowerIsBetter: boolean) {
-  const v = clampNumber((value - min) / (max - min), 0, 1);
-  return lowerIsBetter ? 1 - v : v;
-}
-
-function rangeText(calories: number) {
-  const base = Math.round(calories);
-  const lo = Math.max(0, base - 50);
-  const hi = base + 50;
-  return `${lo.toLocaleString()}–${hi.toLocaleString()}`;
-}
-
-function visceralLabel(bfPct: number, sex: "male" | "female" | null) {
-  // Lightweight heuristic label for display only.
-  const thresholds = sex === "female" ? [30, 38] : [20, 28];
-  if (bfPct < thresholds[0]!) return "Low";
-  if (bfPct < thresholds[1]!) return "Moderate";
-  return "High";
-}
-
-function defaultRecommendations(goals: ReturnType<typeof deriveNutritionGoals>): string[] {
-  const protein = Math.round(goals.proteinGrams);
-  const calories = Math.round(goals.calories);
-  return [
-    `Aim for ~${protein}g protein per day to support recovery.`,
-    `Keep calories around ~${calories} kcal/day and adjust based on weekly progress.`,
-    "Train 3–5x/week with progressive overload and prioritize sleep (7–9h).",
-    "Hit a daily step baseline (e.g. 7–10k) to support energy balance.",
-  ].slice(0, 5);
-}
-
-function buildFallbackWorkoutPlan() {
-  return {
-    summary:
-      "6-day push/pull/legs split focused on progressive overload and balanced volume.",
-    progressionRules: [
-      "Add reps weekly until you reach the top of the rep range, then increase load.",
-      "Keep 1–2 reps in reserve on compounds to stay consistent.",
-      "Deload every 4–6 weeks if performance stalls.",
-    ],
-    weeks: [
-      {
-        weekNumber: 1,
-        days: [
-          {
-            day: "Day 1",
-            focus: "Push (chest/shoulders/triceps)",
-            exercises: [
-              { name: "Bench press", sets: 4, reps: "6-10" },
-              { name: "Incline dumbbell press", sets: 3, reps: "8-12" },
-              { name: "Overhead press", sets: 3, reps: "6-10" },
-              { name: "Triceps pressdown", sets: 3, reps: "10-15" },
-            ],
-          },
-          {
-            day: "Day 2",
-            focus: "Pull (back/biceps)",
-            exercises: [
-              { name: "Pull-ups or pulldown", sets: 4, reps: "6-10" },
-              { name: "Barbell row", sets: 3, reps: "6-10" },
-              { name: "Face pulls", sets: 3, reps: "12-15" },
-              { name: "Biceps curl", sets: 3, reps: "10-12" },
-            ],
-          },
-          {
-            day: "Day 3",
-            focus: "Legs (quads/hamstrings/glutes)",
-            exercises: [
-              { name: "Squat", sets: 4, reps: "5-8" },
-              { name: "Romanian deadlift", sets: 3, reps: "8-10" },
-              { name: "Leg press", sets: 3, reps: "10-12" },
-              { name: "Calf raise", sets: 3, reps: "12-15" },
-            ],
-          },
-          {
-            day: "Day 4",
-            focus: "Push (volume)",
-            exercises: [
-              { name: "Dumbbell bench press", sets: 3, reps: "8-12" },
-              { name: "Lateral raise", sets: 3, reps: "12-15" },
-              { name: "Dip or push-up", sets: 3, reps: "8-12" },
-              { name: "Triceps extension", sets: 3, reps: "12-15" },
-            ],
-          },
-          {
-            day: "Day 5",
-            focus: "Pull (volume)",
-            exercises: [
-              { name: "Chest-supported row", sets: 3, reps: "8-12" },
-              { name: "Lat pulldown", sets: 3, reps: "10-12" },
-              { name: "Rear delt fly", sets: 3, reps: "12-15" },
-              { name: "Hammer curl", sets: 3, reps: "10-12" },
-            ],
-          },
-          {
-            day: "Day 6",
-            focus: "Legs (volume)",
-            exercises: [
-              { name: "Front squat or goblet squat", sets: 3, reps: "8-10" },
-              { name: "Hip hinge (RDL/hip thrust)", sets: 3, reps: "8-12" },
-              { name: "Leg curl", sets: 3, reps: "10-12" },
-              { name: "Walking lunge", sets: 2, reps: "12-16 steps" },
-            ],
-          },
-        ],
-      },
-    ],
-  };
 }
