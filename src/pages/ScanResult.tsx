@@ -49,6 +49,7 @@ import {
 } from "@/lib/scanHeartbeat";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
+import { hasInternalDebugClaims, useClaims } from "@/lib/claims";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
@@ -90,6 +91,7 @@ export default function ScanResultPage() {
   );
   const { units } = useUnits();
   const { user } = useAuthUser();
+  const { claims } = useClaims();
   const { profile, plan } = useUserProfile();
   const [processingStepIdx, setProcessingStepIdx] = useState(0);
   const [showLongProcessing, setShowLongProcessing] = useState(false);
@@ -104,12 +106,13 @@ export default function ScanResultPage() {
   const lastStatusMarkRef = useRef<string | null>(null);
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
+    if (!hasInternalDebugClaims(claims)) return false;
     try {
       return new URLSearchParams(location.search).get("debug") === "1";
     } catch {
       return false;
     }
-  }, [location.search]);
+  }, [claims, location.search]);
 
   const updatePipeline = useCallback(
     (patch: Partial<ScanPipelineState>) => {
@@ -476,7 +479,6 @@ export default function ScanResultPage() {
               uid,
               scanId: scanKey,
               pose,
-              path,
               storageErrorCode,
               httpStatus,
             });
@@ -618,59 +620,60 @@ export default function ScanResultPage() {
       scan.status === "error" ||
       scan.status === "failed";
     return (
-      <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm text-red-700">{statusMeta.label}</p>
-        <p className="text-xs text-red-700/90">
-          {scan.errorMessage ||
-            statusMeta.helperText ||
-            "We couldn't complete this scan."}
-        </p>
-        {scan.errorReason ? (
-          <p className="text-xs text-muted-foreground">
-            Error code: {scan.errorReason}
-          </p>
-        ) : null}
-        {scan.errorInfo?.message ? (
-          <p className="text-xs text-muted-foreground">
-            Backend error: {scan.errorInfo.message}
-          </p>
-        ) : null}
-        {pipelineState?.lastError?.message ? (
-          <p className="text-xs text-muted-foreground">
-            Last error: {pipelineState.lastError.message}
-          </p>
-        ) : null}
-        <ScanPhotos photoUrls={photoUrls} />
-        <div className="flex gap-2">
-          <Button onClick={() => nav("/scan")}>Try again</Button>
-          {canResume ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setLoading(true);
-                retryScanProcessingClient(scanId)
-                  .then((result) => {
-                    setLoading(false);
-                    if (result.ok) return;
-                    setError(result.error.message);
-                  })
-                  .catch((err) => {
-                    setLoading(false);
-                    setError(
-                      typeof (err as any)?.message === "string"
-                        ? (err as any).message
-                        : "Retry failed."
-                    );
-                  });
-              }}
-            >
-              Resume processing
+      <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
+        <Card className="border-destructive/30 bg-destructive/5">
+          <CardHeader className="space-y-2">
+            <CardTitle>We could not complete this scan.</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              No estimate was created from this attempt. Retry processing, re-upload your 4 photos, or contact support if it keeps happening.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(scan as any).refundStatus === "refunded" || (scan as any).creditRefunded === true ? (
+              <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
+                Your scan credit has been returned.
+              </div>
+            ) : null}
+            <div className="grid gap-2 sm:grid-cols-3">
+              {canResume ? (
+                <Button
+                  onClick={() => {
+                    setLoading(true);
+                    retryScanProcessingClient(scanId)
+                      .then((result) => {
+                        setLoading(false);
+                        if (result.ok) return;
+                        setError("Retry processing did not start. Please re-upload or contact support.");
+                      })
+                      .catch(() => {
+                        setLoading(false);
+                        setError("Retry processing did not start. Please re-upload or contact support.");
+                      });
+                  }}
+                >
+                  Retry processing
+                </Button>
+              ) : null}
+              <Button variant={canResume ? "outline" : "default"} onClick={() => nav("/scan")}>
+                Re-upload scan
+              </Button>
+              <Button variant="outline" onClick={() => nav("/support")}>
+                Contact support
+              </Button>
+            </div>
+            <Button variant="ghost" onClick={() => nav("/scan/history")}>
+              View scan history
             </Button>
-          ) : null}
-          <Button variant="outline" onClick={() => nav("/scan/history")}>
-            History
-          </Button>
-        </div>
+          </CardContent>
+        </Card>
+        {showDebug ? (
+          <details className="rounded border p-3 text-xs">
+            <summary className="cursor-pointer select-none font-medium">Internal debug details</summary>
+            <pre className="mt-2 whitespace-pre-wrap text-[11px] text-muted-foreground">
+              {JSON.stringify({ scanId, status: scan.status, errorReason: scan.errorReason, errorInfo: scan.errorInfo, pipelineState }, null, 2)}
+            </pre>
+          </details>
+        ) : null}
       </div>
     );
   }
@@ -734,9 +737,6 @@ export default function ScanResultPage() {
                   ) : null}
                   {lastUpdateLabel ? (
                     <div>Last update: {lastUpdateLabel}</div>
-                  ) : null}
-                  {scan.errorInfo?.message ? (
-                    <div>Last error: {scan.errorInfo.message}</div>
                   ) : null}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -1014,11 +1014,11 @@ export default function ScanResultPage() {
         <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle>{resultVm.failureTitle}</CardTitle>
+              <CardTitle>We could not complete this scan.</CardTitle>
               <Badge variant="destructive">{resultVm.sourceLabel}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {resultVm.failureMessage}
+              No estimate was created from this attempt. Retry processing, re-upload your 4 photos, or contact support if it keeps happening.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1032,8 +1032,8 @@ export default function ScanResultPage() {
               <Button variant="outline" onClick={() => nav("/scan")}>
                 Re-upload scan
               </Button>
-              <Button variant="outline" onClick={() => nav("/scan/history")}>
-                History
+              <Button variant="outline" onClick={() => nav("/support")}>
+                Contact support
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">

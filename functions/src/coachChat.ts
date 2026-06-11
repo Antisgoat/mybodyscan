@@ -56,6 +56,12 @@ export type CoachChatContext = {
   todayFatGoalGrams?: number;
   lastScanDate?: string; // ISO string
   lastScanBodyFatPercent?: number;
+  goal?: string;
+  timelineWeeks?: number;
+  workoutPlanTitle?: string;
+  trainingDaysPerWeek?: number;
+  injuries?: string;
+  dietPreference?: string;
   nextWorkoutDayName?: string;
 };
 
@@ -146,6 +152,12 @@ function normalizeContext(data: unknown): CoachChatContext | undefined {
     todayFatGoalGrams: toNumber(raw.todayFatGoalGrams),
     lastScanDate: sanitizeIsoString(raw.lastScanDate),
     lastScanBodyFatPercent: toNumber(raw.lastScanBodyFatPercent),
+    goal: typeof raw.goal === "string" ? raw.goal.trim().slice(0, 80) : undefined,
+    timelineWeeks: toNumber(raw.timelineWeeks),
+    workoutPlanTitle: typeof raw.workoutPlanTitle === "string" ? raw.workoutPlanTitle.trim().slice(0, 120) : undefined,
+    trainingDaysPerWeek: toNumber(raw.trainingDaysPerWeek),
+    injuries: typeof raw.injuries === "string" ? raw.injuries.trim().slice(0, 300) : undefined,
+    dietPreference: typeof raw.dietPreference === "string" ? raw.dietPreference.trim().slice(0, 80) : undefined,
     nextWorkoutDayName: nextWorkoutDayName || undefined,
   }) as CoachChatContext;
 }
@@ -192,6 +204,12 @@ function mergeContext(
     "todayFatGoalGrams",
     "lastScanDate",
     "lastScanBodyFatPercent",
+    "goal",
+    "timelineWeeks",
+    "workoutPlanTitle",
+    "trainingDaysPerWeek",
+    "injuries",
+    "dietPreference",
     "nextWorkoutDayName",
   ];
   for (const key of keys) {
@@ -340,7 +358,10 @@ function buildCoachContextBlock(context?: CoachChatContext): string | null {
       Number(context.todayCarbGrams) > 0 ||
       Number(context.todayFatGrams) > 0 ||
       typeof context.lastScanDate === "string" ||
-      typeof context.todayCaloriesGoal === "number");
+      typeof context.todayCaloriesGoal === "number" ||
+      typeof context.goal === "string" ||
+      typeof context.workoutPlanTitle === "string" ||
+      typeof context.injuries === "string");
   if (!hasAny) return null;
 
   const safe = scrubUndefined({
@@ -354,6 +375,12 @@ function buildCoachContextBlock(context?: CoachChatContext): string | null {
     todayFatGoalGrams: context.todayFatGoalGrams,
     lastScanDate: context.lastScanDate,
     lastScanBodyFatPercent: context.lastScanBodyFatPercent,
+    goal: context.goal,
+    timelineWeeks: context.timelineWeeks,
+    workoutPlanTitle: context.workoutPlanTitle,
+    trainingDaysPerWeek: context.trainingDaysPerWeek,
+    injuries: context.injuries,
+    dietPreference: context.dietPreference,
     nextWorkoutDayName: context.nextWorkoutDayName,
   });
 
@@ -374,7 +401,10 @@ function buildPrompt(input: CoachChatRequest): string {
 
   const lines: string[] = [];
   lines.push(
-    "Provide a concise, motivational yet practical answer for the user below."
+    "You are MyBodyScan's coach: strict, motivating, friendly, and supportive. Provide concise, practical fitness/wellness guidance for the user below."
+  );
+  lines.push(
+    "Safety rules: refuse crash diets, extreme dehydration, steroid/drug advice, illegal or dangerous requests, and training through serious injury. If pain or injury is mentioned, suggest safer substitutions, reduce load/range, stop movements that worsen symptoms, and recommend medical care for severe, sharp, radiating, chest, neurological, or persistent symptoms. Do not diagnose or prescribe medical treatment."
   );
   const todayBlock = buildCoachContextBlock(input.context);
   if (todayBlock) {
@@ -388,7 +418,7 @@ function buildPrompt(input: CoachChatRequest): string {
   lines.push("Question:");
   lines.push(input.message);
   lines.push(
-    "Respond in 2-3 short paragraphs max. Prioritize safety, progressive overload, recovery, and nutrition."
+    "Respond in 2-3 short paragraphs max. Prioritize calories/protein, progressive overload, recovery, steps/cardio, and safe substitutions when relevant."
   );
   lines.push(
     'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.'
@@ -472,7 +502,13 @@ function deterministicCoachFallback(payload: CoachChatRequest, requestId: string
   const experience = (payload.activityLevel || "beginner").toLowerCase();
   const cardioDays = goal.includes("fat") ? 4 : goal.includes("muscle") ? 2 : 3;
   const liftDays = goal.includes("muscle") ? 4 : 3;
-  const reply = `AI is temporarily unavailable; here is a standard plan: ${liftDays} lifting days + ${cardioDays} cardio days this week. Keep sessions 30-45 minutes, prioritize compound movements, and hit protein at each meal. (${experience} track)`;
+  const unsafe = /crash\s*diet|dehydrat|steroid|tren|anavar|illegal|through\s+(serious\s+)?injury/i.test(payload.message);
+  const pain = /hurt|pain|injur|ache|sharp|swollen|numb|tingl/i.test(payload.message);
+  const reply = unsafe
+    ? "I can’t help with unsafe shortcuts like crash dieting, dehydration, steroid advice, illegal requests, or training through serious injury. Keep the goal aggressive but sane: hit protein, maintain a sustainable calorie target, train with clean form, sleep, and reassess weekly."
+    : pain
+      ? "Do not train through pain that changes your movement. Swap to pain-free ranges and lower-load options today, stop anything sharp or worsening, and seek medical care for severe, radiating, chest, neurological, or persistent symptoms. Keep the session productive with easy cardio, core bracing, and unaffected muscle groups."
+      : `AI is temporarily unavailable; here is a standard plan: ${liftDays} lifting days + ${cardioDays} cardio days this week. Keep sessions 30-45 minutes, prioritize compound movements, and hit protein at each meal. (${experience} track)`;
   return {
     reply,
     suggestions: ["Open workouts", "Review nutrition targets"],
@@ -617,6 +653,7 @@ async function writeAssistantMessage(params: {
   threadId: string;
   content: string;
   suggestions?: string[];
+  userMessageId?: string;
   meta: {
     requestId: string;
     model: string;
@@ -639,11 +676,37 @@ async function writeAssistantMessage(params: {
         model: params.meta.model,
         tokens: params.meta.tokens,
         metadata: params.meta.metadata,
+        userMessageId: params.userMessageId,
       }),
     }),
     { merge: true }
   );
   return { id, ref };
+}
+
+async function findExistingAssistantForUserMessage(uid: string, threadId: string, requestId: string, userMessageId?: string): Promise<CoachChatResponsePayload | null> {
+  if (!userMessageId) return null;
+  const snap = await db
+    .collection(`users/${uid}/${THREADS_COLLECTION}/${threadId}/messages`)
+    .where("meta.userMessageId", "==", userMessageId)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  const data = doc.data() as any;
+  const content = typeof data?.content === "string" ? data.content.trim() : "";
+  if (!content) return null;
+  return {
+    reply: content,
+    suggestions: Array.isArray(data?.suggestions) ? data.suggestions.filter((x: unknown) => typeof x === "string") : undefined,
+    threadId,
+    assistantMessageId: doc.id,
+    meta: {
+      debugId: requestId,
+      metadata: data?.meta?.metadata,
+      model: data?.meta?.model ?? "dedupe-cache",
+    },
+  };
 }
 
 async function generateCoachResponseForThread(
@@ -657,6 +720,10 @@ async function generateCoachResponseForThread(
 
   await ensureThread(context.uid, threadId);
 
+  const userMessageId = payload.messageId?.trim() || randomUUID();
+  const existingAssistant = await findExistingAssistantForUserMessage(context.uid, threadId, context.requestId, userMessageId);
+  if (existingAssistant) return existingAssistant;
+
   // Load recent history first, then append the current user message content so
   // we don't depend on serverTimestamp propagation for context building.
   const history = await loadThreadHistory(context.uid, threadId, 18);
@@ -669,7 +736,6 @@ async function generateCoachResponseForThread(
   });
   const { replyText, metadata } = parseMetadataLine(content);
 
-  const userMessageId = payload.messageId?.trim() || randomUUID();
   await upsertUserMessage({
     uid: context.uid,
     threadId,
@@ -682,6 +748,7 @@ async function generateCoachResponseForThread(
     threadId,
     content: replyText,
     suggestions: buildSuggestions(metadata),
+    userMessageId,
     meta: {
       requestId: context.requestId,
       model,

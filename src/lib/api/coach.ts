@@ -16,6 +16,12 @@ export type CoachChatContext = {
   todayFatGoalGrams?: number;
   lastScanDate?: string;
   lastScanBodyFatPercent?: number;
+  goal?: string;
+  timelineWeeks?: number;
+  workoutPlanTitle?: string;
+  trainingDaysPerWeek?: number;
+  injuries?: string;
+  dietPreference?: string;
   nextWorkoutDayName?: string;
 };
 

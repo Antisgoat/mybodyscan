@@ -11,6 +11,17 @@ export type UserClaims = {
   [k: string]: unknown;
 } | null;
 
+export function hasInternalDebugClaims(claims: UserClaims): boolean {
+  const c = (claims ?? {}) as Record<string, unknown>;
+  return (
+    c.admin === true ||
+    c.dev === true ||
+    c.staff === true ||
+    c.unlimited === true ||
+    c.unlimitedCredits === true
+  );
+}
+
 function base64UrlDecode(input: string): string {
   const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
   const pad = normalized.length % 4;

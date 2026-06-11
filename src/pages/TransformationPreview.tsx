@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Seo } from "@/components/Seo";
 import { useAuthUser } from "@/auth/mbs-auth";
-import { useClaims } from "@/lib/claims";
+import { hasInternalDebugClaims, useClaims } from "@/lib/claims";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
@@ -24,16 +24,22 @@ export default function TransformationPreviewPage() {
   const { scan, loading: scanLoading } = useLatestScanForUser(scanId);
   const { profile, plan } = useUserProfile();
   const pro = hasPro(entitlements);
-  const internalAccess = Boolean(
-    import.meta.env.DEV ||
-      (claims as any)?.admin ||
-      (claims as any)?.dev ||
-      (claims as any)?.staff ||
-      (claims as any)?.unlimited ||
-      (claims as any)?.unlimitedCredits
+  const internalAccess = Boolean(import.meta.env.DEV || hasInternalDebugClaims(claims));
+  const paidScanPreviewEligible = Boolean(
+    (scan as any)?.charged === true ||
+      (scan as any)?.paid === true ||
+      (scan as any)?.paymentStatus === "paid" ||
+      (scan as any)?.creditConsumed === true ||
+      (scan as any)?.source === "paid_scan"
   );
-  const paidScanPreviewEligible = Boolean((scan as any)?.charged);
-  const previewEligible = pro || paidScanPreviewEligible;
+  const subscriptionPreviewEligible = Boolean(
+    pro ||
+      (entitlements as any)?.subscription?.active === true ||
+      (entitlements as any)?.activeSubscription === true ||
+      (entitlements as any)?.plan === "annual" ||
+      (entitlements as any)?.plan === "yearly"
+  );
+  const previewEligible = internalAccess || subscriptionPreviewEligible || paidScanPreviewEligible;
   const [state, setState] = useState<any>(null);
   const [loadingState, setLoadingState] = useState(true);
 
@@ -75,7 +81,7 @@ export default function TransformationPreviewPage() {
             <CardTitle>Transformation Preview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>Transformation Preview is not available for this scan yet.</p>
+            <p>Transformation Preview will appear here when it is available for customers.</p>
             <Button onClick={() => navigate(`/results/${scanId}`)}>
               Back to results
             </Button>
@@ -141,8 +147,7 @@ export default function TransformationPreviewPage() {
             </Badge>
           </div>
           <p className="text-xs text-zinc-400">
-            See a realistic motivational visualization of your goal physique
-            once your scan and plan are ready.
+            A realistic motivational visualization based on your scan, goal, and plan.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

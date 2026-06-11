@@ -8,6 +8,10 @@ vi.mock("./fnCall", () => ({
   fnJson: (...args: any[]) => fnJsonMock(...args),
 }));
 
+vi.mock("@/lib/backend/callBackend", () => ({
+  callRequestFunction: (...args: any[]) => fnJsonMock(...args),
+}));
+
 // Minimal firestore stubs used by activateCatalogPlan.
 const getDocMock = vi.fn();
 const docMock = vi.fn((_: any, ...rest: any[]) => {
@@ -35,6 +39,7 @@ vi.mock("./firebase", () => ({
 
 vi.mock("@/auth/mbs-auth", () => ({
   getCachedUser: () => ({ uid: "u1" }),
+  requireIdToken: () => Promise.resolve("test-token"),
 }));
 
 describe("activateCatalogPlan", () => {

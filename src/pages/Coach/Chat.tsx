@@ -149,7 +149,7 @@ function PlanSession({ session }: { session: CoachPlanSession }) {
 export default function CoachChatPage() {
   const { toast } = useToast();
   const demo = useDemoMode();
-  const { plan } = useUserProfile();
+  const { profile, plan } = useUserProfile();
   const location = useLocation();
   const { entitlements, loading: entitlementsLoading } = useEntitlements();
   const missingThreadUpdatedAtRef = useRef<Set<string>>(new Set());
@@ -829,8 +829,18 @@ export default function CoachChatPage() {
               todayCarbGrams: totals.carbGrams,
               todayFatGrams: totals.fatGrams,
               todayProteinGoalGrams: plan?.proteinFloor,
+              todayCarbGoalGrams: (plan as any)?.carbsG ?? (plan as any)?.carbs_g,
+              todayFatGoalGrams: (plan as any)?.fatG ?? (plan as any)?.fat_g,
               lastScanDate: latestScan?.createdAt?.toISOString(),
               lastScanBodyFatPercent: latestScan?.bodyFatPercent,
+              goal: (profile as any)?.goal ?? (plan as any)?.goal,
+              timelineWeeks: (profile as any)?.timeframe_weeks ?? (profile as any)?.timelineWeeks,
+              workoutPlanTitle: (plan as any)?.workoutPlanTitle ?? (plan as any)?.title,
+              trainingDaysPerWeek: (profile as any)?.training_days_per_week ?? (profile as any)?.trainingDaysPerWeek,
+              injuries: Array.isArray((profile as any)?.injuries)
+                ? (profile as any).injuries.join(", ")
+                : (profile as any)?.injuries ?? (profile as any)?.pain_areas,
+              dietPreference: (profile as any)?.diet_preference ?? (profile as any)?.dietPreference,
             },
       };
       await coachChatApi(payload);

@@ -22,6 +22,15 @@ const CoachOnboarding = () => {
     height_cm: 170,
     weight_kg: 70,
     activity_level: "light",
+    training_days_per_week: 3,
+    experience: "beginner",
+    equipment: "full_gym",
+    injuries: [],
+    diet_preference: "balanced",
+    target_weight_kg: undefined,
+    target_body_fat_pct: undefined,
+    visual_goal: "leaner, stronger, athletic",
+    transformation_intensity: "balanced",
     medical_flags: {},
     ack: { disclaimer: false },
   });
@@ -31,7 +40,9 @@ const CoachOnboarding = () => {
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   async function finish() {
-    const payload: any = { ...form };
+    const timeframe = Math.max(4, Math.min(52, Number(form.timeframe_weeks) || 12));
+    const intensity = form.transformation_intensity === "elite" && timeframe < 12 ? "aggressive" : form.transformation_intensity;
+    const payload: any = { ...form, timeframe_weeks: timeframe, transformation_intensity: intensity };
     const heightCm = form.height_cm ?? 0;
     const weightKg = form.weight_kg ?? 0;
     const { ft, inches: inch } = inToFtIn(cmToIn(heightCm));
@@ -120,12 +131,8 @@ const CoachOnboarding = () => {
                   value={form.style}
                   onChange={(e) => update("style", e.target.value)}
                 >
-                  <option value="ease_in">
-                    Take it easy - gradual changes
-                  </option>
-                  <option value="all_in">
-                    Go all in - aggressive approach
-                  </option>
+                  <option value="ease_in">Balanced - sustainable changes</option>
+                  <option value="all_in">Aggressive - still safe and realistic</option>
                 </select>
               </label>
 
@@ -136,11 +143,26 @@ const CoachOnboarding = () => {
                   min="4"
                   max="52"
                   value={form.timeframe_weeks}
-                  onChange={(e) =>
-                    update("timeframe_weeks", Number(e.target.value))
-                  }
+                  onChange={(e) => {
+                    const next = Math.max(4, Math.min(52, Number(e.target.value) || 12));
+                    update("timeframe_weeks", next);
+                  }}
                   className="mt-1"
                 />
+                <span className="text-xs text-muted-foreground">We guide unrealistic timelines into a safer 4–52 week range.</span>
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium">Transformation intensity</span>
+                <select
+                  className="mt-1 w-full p-2 border rounded-md"
+                  value={form.transformation_intensity}
+                  onChange={(e) => update("transformation_intensity", e.target.value)}
+                >
+                  <option value="balanced">Balanced</option>
+                  <option value="aggressive">Aggressive (safe)</option>
+                  <option value="elite">Elite discipline (no unsafe shortcuts)</option>
+                </select>
               </label>
             </div>
 
@@ -250,6 +272,49 @@ const CoachOnboarding = () => {
               </select>
             </label>
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-medium">Training days/week</span>
+                <select className="mt-1 w-full p-2 border rounded-md" value={form.training_days_per_week} onChange={(e) => update("training_days_per_week", Number(e.target.value))}>
+                  {[2,3,4,5,6].map((day) => <option key={day} value={day}>{day} days</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm font-medium">Experience</span>
+                <select className="mt-1 w-full p-2 border rounded-md" value={form.experience} onChange={(e) => update("experience", e.target.value)}>
+                  <option value="beginner">Beginner</option>
+                  <option value="intermediate">Intermediate</option>
+                  <option value="advanced">Advanced</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="block">
+              <span className="text-sm font-medium">Equipment</span>
+              <select className="mt-1 w-full p-2 border rounded-md" value={form.equipment} onChange={(e) => update("equipment", e.target.value)}>
+                <option value="full_gym">Full gym</option>
+                <option value="home_gym">Home gym</option>
+                <option value="dumbbells">Dumbbells</option>
+                <option value="bands">Bands</option>
+                <option value="bodyweight">Bodyweight</option>
+                <option value="machines">Machines</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium">Diet preference</span>
+              <select className="mt-1 w-full p-2 border rounded-md" value={form.diet_preference} onChange={(e) => update("diet_preference", e.target.value)}>
+                <option value="balanced">Balanced</option>
+                <option value="high_protein">High protein</option>
+                <option value="low_carb">Low carb</option>
+                <option value="keto">Keto</option>
+                <option value="vegetarian">Vegetarian</option>
+                <option value="vegan">Vegan</option>
+                <option value="gluten_free">Gluten-free</option>
+                <option value="lactose_free">Lactose-free</option>
+              </select>
+            </label>
+
             <div className="flex gap-3">
               <Button
                 variant="secondary"
@@ -313,6 +378,26 @@ const CoachOnboarding = () => {
                   <span className="text-sm">{condition.label}</span>
                 </label>
               ))}
+            </div>
+
+            <div className="space-y-2 rounded-lg border p-3">
+              <div className="text-sm font-medium">Pain areas or injury constraints</div>
+              {["shoulder", "knee", "lower_back", "hip", "wrist_elbow", "other"].map((area) => (
+                <label key={area} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={(form.injuries || []).includes(area)}
+                    onChange={(e) => {
+                      const current = new Set(form.injuries || []);
+                      if (e.target.checked) current.add(area);
+                      else current.delete(area);
+                      update("injuries", Array.from(current));
+                    }}
+                  />
+                  {area.replace(/_/g, " ")}
+                </label>
+              ))}
+              <p className="text-xs text-muted-foreground">Plans avoid obvious aggravators and recommend medical care for severe symptoms.</p>
             </div>
 
             <div className="border-t pt-4">

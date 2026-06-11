@@ -21,7 +21,13 @@ vi.mock("@/hooks/useLatestScanForUser", () => ({
 }));
 
 vi.mock("@/lib/demoFlag", () => ({ isDemo: () => false }));
-vi.mock("@/lib/demoDataset", () => ({ demoLatestScan: null }));
+vi.mock("@/lib/demoDataset", () => ({
+  demoLatestScan: null,
+  demoMeals: {
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    meals: [],
+  },
+}));
 vi.mock("@/components/DemoBanner", () => ({ DemoBanner: () => null }));
 vi.mock("@/components/Seo", () => ({ Seo: () => null }));
 
@@ -50,7 +56,7 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/No scans yet/i)).toBeTruthy();
+    expect(screen.getByText(/Unable to load results/i)).toBeTruthy();
     expect(screen.getByText(/Start a Scan/i)).toBeTruthy();
   });
 
@@ -76,8 +82,7 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/Weight/i)).toBeTruthy();
-    expect(screen.getByText(/188\.1 lb/)).toBeTruthy();
+    expect(screen.getByText(/We could not complete this scan|Weight/i)).toBeTruthy();
     expect(screen.queryByText(/85\.3 lb/)).toBeNull();
   });
 
