@@ -255,7 +255,7 @@ export function buildProgramPreferencesFromOnboarding(
   profile: ReturnType<typeof normalizeCoachOnboardingInput>
 ): ProgramPreferences {
   const days = Math.max(
-    3,
+    2,
     Math.min(6, profile.training_days_per_week)
   ) as ProgramPreferences["daysPerWeek"];
   return {
