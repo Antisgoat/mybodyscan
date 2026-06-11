@@ -68,8 +68,15 @@ describe("Results page weight units", () => {
         status: "complete",
         createdAt: new Date(),
         // Simulate the legacy bug shape: ambiguous `weight` holds kg, not lb.
+        input: { currentWeightKg: 85.3, goalWeightKg: 80 },
         metrics: { weightKg: 85.3, weight: 85.3 },
-        estimate: { bodyFatPercent: 18.2 },
+        estimate: { bodyFatPercent: 18.2, bmi: 25.1 },
+        nutritionPlan: {
+          caloriesPerDay: 2200,
+          proteinGrams: 170,
+          carbsGrams: 220,
+          fatsGrams: 70,
+        },
       },
       loading: false,
       error: null,
@@ -82,7 +89,8 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/We could not complete this scan|Weight/i)).toBeTruthy();
+    expect(screen.getByText("Weight")).toBeTruthy();
+    expect(screen.getByText(/188\.1 lb/)).toBeTruthy();
     expect(screen.queryByText(/85\.3 lb/)).toBeNull();
   });
 
@@ -93,7 +101,15 @@ describe("Results page weight units", () => {
         id: "scan_2",
         status: "complete",
         createdAt: new Date(),
+        input: { currentWeightKg: 85.3, goalWeightKg: 80 },
         metrics: { weightKg: 85.3, weightLb: 85.3 },
+        estimate: { bodyFatPercent: 18.2, bmi: 25.1 },
+        nutritionPlan: {
+          caloriesPerDay: 2200,
+          proteinGrams: 170,
+          carbsGrams: 220,
+          fatsGrams: 70,
+        },
       },
       loading: false,
       error: null,
@@ -109,4 +125,3 @@ describe("Results page weight units", () => {
     expect(screen.queryByText(/85\.3 lb/)).toBeNull();
   });
 });
-

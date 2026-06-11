@@ -1,6 +1,16 @@
-export type ProgramPreferenceGoal = "strength" | "hypertrophy" | "fat_loss" | "athletic";
-export type ProgramPreferenceEquipment = "full_gym" | "dumbbells" | "bodyweight";
-export type ProgramPreferenceExperience = "beginner" | "intermediate" | "advanced";
+export type ProgramPreferenceGoal =
+  | "strength"
+  | "hypertrophy"
+  | "fat_loss"
+  | "athletic";
+export type ProgramPreferenceEquipment =
+  | "full_gym"
+  | "dumbbells"
+  | "bodyweight";
+export type ProgramPreferenceExperience =
+  | "beginner"
+  | "intermediate"
+  | "advanced";
 export type ProgramPreferenceFocus =
   | "full_body"
   | "upper_lower"
@@ -72,4 +82,87 @@ export function normalizeProgramPreferences(
     timePerWorkout: time,
     focus,
   };
+}
+
+export function safeProgramPreferences(
+  raw?: Partial<ProgramPreferences> | null,
+  context?: { injuries?: unknown }
+): ProgramPreferences {
+  const prefs = normalizeProgramPreferences(raw);
+  const injuries = Array.isArray(context?.injuries)
+    ? context.injuries.map((item) => String(item).toLowerCase())
+    : typeof context?.injuries === "string"
+      ? [context.injuries.toLowerCase()]
+      : [];
+  const hasConflict = injuries.some((item) =>
+    ["shoulder", "knee", "lower_back", "hip", "wrist_elbow"].some((key) =>
+      item.includes(key)
+    )
+  );
+  const canRunPpl =
+    prefs.daysPerWeek === 6 &&
+    prefs.experience !== "beginner" &&
+    prefs.equipment === "full_gym" &&
+    !hasConflict;
+  if (prefs.focus === "push_pull_legs" && !canRunPpl) {
+    return {
+      ...prefs,
+      focus:
+        prefs.daysPerWeek >= 4 && !hasConflict ? "upper_lower" : "full_body",
+    };
+  }
+  return prefs;
+}
+
+export function preferencesFromCoachProfile(
+  profile: any
+): ProgramPreferences | null {
+  if (!profile || typeof profile !== "object") return null;
+  if (profile.programPreferences) {
+    return safeProgramPreferences(
+      profile.programPreferences as Partial<ProgramPreferences>,
+      {
+        injuries: profile.injuries,
+      }
+    );
+  }
+  const daysRaw = Number(
+    profile.training_days_per_week ?? profile.trainingDaysPerWeek
+  );
+  const days = [3, 4, 5, 6].includes(daysRaw)
+    ? (daysRaw as ProgramPreferences["daysPerWeek"])
+    : undefined;
+  const goalRaw = String(profile.goal || "");
+  const goal: ProgramPreferences["goal"] =
+    goalRaw === "lose_fat"
+      ? "fat_loss"
+      : goalRaw === "improve_heart"
+        ? "athletic"
+        : goalRaw === "gain_muscle"
+          ? "hypertrophy"
+          : DEFAULT_PROGRAM_PREFERENCES.goal;
+  const equipmentRaw = String(profile.equipment || "");
+  const equipment: ProgramPreferences["equipment"] =
+    equipmentRaw === "dumbbells"
+      ? "dumbbells"
+      : equipmentRaw === "bodyweight" || equipmentRaw === "bands"
+        ? "bodyweight"
+        : "full_gym";
+  const experienceRaw = String(profile.experience || "");
+  const experience: ProgramPreferences["experience"] =
+    experienceRaw === "advanced" ||
+    experienceRaw === "intermediate" ||
+    experienceRaw === "beginner"
+      ? experienceRaw
+      : DEFAULT_PROGRAM_PREFERENCES.experience;
+  return safeProgramPreferences(
+    {
+      ...DEFAULT_PROGRAM_PREFERENCES,
+      ...(days ? { daysPerWeek: days } : {}),
+      goal,
+      equipment,
+      experience,
+    },
+    { injuries: profile.injuries }
+  );
 }

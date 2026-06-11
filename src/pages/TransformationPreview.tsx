@@ -15,6 +15,22 @@ import { buildScanResultViewModel } from "@/lib/scanResultViewModel";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 
+export function shouldShowTransformationPreviewScaffold(params: {
+  featureEnabled: boolean;
+  internalAccess: boolean;
+}): boolean {
+  return params.featureEnabled || params.internalAccess;
+}
+
+function hasDevPreviewAccess(search: string): boolean {
+  if (!import.meta.env.DEV) return false;
+  try {
+    return new URLSearchParams(search).get("debug") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export default function TransformationPreviewPage() {
   const { scanId = "" } = useParams();
   const navigate = useNavigate();
@@ -24,7 +40,10 @@ export default function TransformationPreviewPage() {
   const { scan, loading: scanLoading } = useLatestScanForUser(scanId);
   const { profile, plan } = useUserProfile();
   const pro = hasPro(entitlements);
-  const internalAccess = Boolean(import.meta.env.DEV || hasInternalDebugClaims(claims));
+  const internalAccess = Boolean(
+    hasDevPreviewAccess(window.location.search) ||
+      hasInternalDebugClaims(claims)
+  );
   const paidScanPreviewEligible = Boolean(
     (scan as any)?.charged === true ||
       (scan as any)?.paid === true ||
@@ -39,7 +58,8 @@ export default function TransformationPreviewPage() {
       (entitlements as any)?.plan === "annual" ||
       (entitlements as any)?.plan === "yearly"
   );
-  const previewEligible = internalAccess || subscriptionPreviewEligible || paidScanPreviewEligible;
+  const previewEligible =
+    internalAccess || subscriptionPreviewEligible || paidScanPreviewEligible;
   const [state, setState] = useState<any>(null);
   const [loadingState, setLoadingState] = useState(true);
 
@@ -68,7 +88,12 @@ export default function TransformationPreviewPage() {
     [scan, profile, plan]
   );
 
-  if (!TRANSFORMATION_PREVIEW_ENTRY_ENABLED && !internalAccess) {
+  if (
+    !shouldShowTransformationPreviewScaffold({
+      featureEnabled: TRANSFORMATION_PREVIEW_ENTRY_ENABLED,
+      internalAccess,
+    })
+  ) {
     return (
       <main className="min-h-screen p-4 md:p-6 max-w-2xl mx-auto space-y-4">
         <Seo
@@ -81,7 +106,10 @@ export default function TransformationPreviewPage() {
             <CardTitle>Transformation Preview</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>Transformation Preview will appear here when it is available for customers.</p>
+            <p>
+              Transformation Preview will appear here when it is available for
+              customers.
+            </p>
             <Button onClick={() => navigate(`/results/${scanId}`)}>
               Back to results
             </Button>
@@ -147,7 +175,8 @@ export default function TransformationPreviewPage() {
             </Badge>
           </div>
           <p className="text-xs text-zinc-400">
-            A realistic motivational visualization based on your scan, goal, and plan.
+            A realistic motivational visualization based on your scan, goal, and
+            plan.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

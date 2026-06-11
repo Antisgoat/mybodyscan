@@ -51,6 +51,22 @@ import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 import { hasInternalDebugClaims, useClaims } from "@/lib/claims";
 
+export function canShowScanDebug(params: {
+  claims: unknown;
+  search: string;
+  isDev?: boolean;
+}): boolean {
+  let requested = false;
+  try {
+    requested = new URLSearchParams(params.search).get("debug") === "1";
+  } catch {
+    requested = false;
+  }
+  if (!requested) return false;
+  if (params.isDev === true) return true;
+  return hasInternalDebugClaims(params.claims as any);
+}
+
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
 const PROCESSING_STEPS = [
@@ -104,15 +120,15 @@ export default function ScanResultPage() {
   const lastMeaningfulUpdateRef = useRef<number>(Date.now());
   const scanRef = useRef<ScanDocument | null>(null);
   const lastStatusMarkRef = useRef<string | null>(null);
-  const showDebug = useMemo(() => {
-    if (import.meta.env.DEV) return true;
-    if (!hasInternalDebugClaims(claims)) return false;
-    try {
-      return new URLSearchParams(location.search).get("debug") === "1";
-    } catch {
-      return false;
-    }
-  }, [claims, location.search]);
+  const showDebug = useMemo(
+    () =>
+      canShowScanDebug({
+        claims,
+        search: location.search,
+        isDev: import.meta.env.DEV,
+      }),
+    [claims, location.search]
+  );
 
   const updatePipeline = useCallback(
     (patch: Partial<ScanPipelineState>) => {
@@ -608,11 +624,7 @@ export default function ScanResultPage() {
     scan.createdAt;
   const lastUpdateLabel = lastUpdateAt ? formatDateTime(lastUpdateAt) : null;
 
-  if (
-    statusMeta.recommendRescan &&
-    scan.status !== "error" &&
-    scan.status !== "failed"
-  ) {
+  if (statusMeta.recommendRescan) {
     const canResume =
       scan.status === "uploaded" ||
       scan.status === "pending" ||
@@ -625,11 +637,13 @@ export default function ScanResultPage() {
           <CardHeader className="space-y-2">
             <CardTitle>We could not complete this scan.</CardTitle>
             <p className="text-sm text-muted-foreground">
-              No estimate was created from this attempt. Retry processing, re-upload your 4 photos, or contact support if it keeps happening.
+              No estimate was created from this attempt. Retry processing,
+              re-upload your 4 photos, or contact support if it keeps happening.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(scan as any).refundStatus === "refunded" || (scan as any).creditRefunded === true ? (
+            {(scan as any).refundStatus === "refunded" ||
+            (scan as any).creditRefunded === true ? (
               <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
                 Your scan credit has been returned.
               </div>
@@ -643,18 +657,25 @@ export default function ScanResultPage() {
                       .then((result) => {
                         setLoading(false);
                         if (result.ok) return;
-                        setError("Retry processing did not start. Please re-upload or contact support.");
+                        setError(
+                          "Retry processing did not start. Please re-upload or contact support."
+                        );
                       })
                       .catch(() => {
                         setLoading(false);
-                        setError("Retry processing did not start. Please re-upload or contact support.");
+                        setError(
+                          "Retry processing did not start. Please re-upload or contact support."
+                        );
                       });
                   }}
                 >
                   Retry processing
                 </Button>
               ) : null}
-              <Button variant={canResume ? "outline" : "default"} onClick={() => nav("/scan")}>
+              <Button
+                variant={canResume ? "outline" : "default"}
+                onClick={() => nav("/scan")}
+              >
                 Re-upload scan
               </Button>
               <Button variant="outline" onClick={() => nav("/support")}>
@@ -668,9 +689,21 @@ export default function ScanResultPage() {
         </Card>
         {showDebug ? (
           <details className="rounded border p-3 text-xs">
-            <summary className="cursor-pointer select-none font-medium">Internal debug details</summary>
+            <summary className="cursor-pointer select-none font-medium">
+              Internal debug details
+            </summary>
             <pre className="mt-2 whitespace-pre-wrap text-[11px] text-muted-foreground">
-              {JSON.stringify({ scanId, status: scan.status, errorReason: scan.errorReason, errorInfo: scan.errorInfo, pipelineState }, null, 2)}
+              {JSON.stringify(
+                {
+                  scanId,
+                  status: scan.status,
+                  errorReason: scan.errorReason,
+                  errorInfo: scan.errorInfo,
+                  pipelineState,
+                },
+                null,
+                2
+              )}
             </pre>
           </details>
         ) : null}
@@ -1018,7 +1051,8 @@ export default function ScanResultPage() {
               <Badge variant="destructive">{resultVm.sourceLabel}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              No estimate was created from this attempt. Retry processing, re-upload your 4 photos, or contact support if it keeps happening.
+              No estimate was created from this attempt. Retry processing,
+              re-upload your 4 photos, or contact support if it keeps happening.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">

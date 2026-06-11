@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeCalories } from "@/lib/nutritionBackend";
+import { computeCalories, normalizeDailyTotals } from "@/lib/nutritionBackend";
 
 describe("nutritionBackend.computeCalories", () => {
   it("trusts calories when macros are empty (Quick Add)", () => {
@@ -29,3 +29,20 @@ describe("nutritionBackend.computeCalories", () => {
   });
 });
 
+describe("nutritionBackend.normalizeDailyTotals", () => {
+  it("tolerates partial daily totals without NaN crashes", () => {
+    expect(
+      normalizeDailyTotals({
+        totalCalories: 450,
+        protein_g: undefined,
+        carbs: null,
+      })
+    ).toEqual({
+      calories: 450,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      alcohol: 0,
+    });
+  });
+});

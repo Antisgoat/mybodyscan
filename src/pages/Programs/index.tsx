@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, ChevronRight, Loader2, PauseCircle, Play, RefreshCcw, Settings2 } from "lucide-react";
+import {
+  Calendar,
+  ChevronRight,
+  Loader2,
+  PauseCircle,
+  Play,
+  RefreshCcw,
+  Settings2,
+} from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +23,21 @@ import {
 } from "@/components/ui/select";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { BottomNav } from "@/components/BottomNav";
-import { loadAllPrograms, matchScore, type CatalogEntry } from "@/lib/coach/catalog";
-import type { ProgramGoal, ProgramLevel, ProgramEquipment } from "@/lib/coach/types";
-import { getPlan, getWorkouts, setWorkoutPlanStatusRemote } from "@/lib/workouts";
+import {
+  loadAllPrograms,
+  matchScore,
+  type CatalogEntry,
+} from "@/lib/coach/catalog";
+import type {
+  ProgramGoal,
+  ProgramLevel,
+  ProgramEquipment,
+} from "@/lib/coach/types";
+import {
+  getPlan,
+  getWorkouts,
+  setWorkoutPlanStatusRemote,
+} from "@/lib/workouts";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { startCatalogProgram } from "@/lib/programs/startProgram";
@@ -26,7 +46,8 @@ import { canStartPrograms } from "@/lib/entitlements";
 import { useEntitlements } from "@/lib/entitlements/store";
 import {
   DEFAULT_PROGRAM_PREFERENCES,
-  normalizeProgramPreferences,
+  preferencesFromCoachProfile,
+  safeProgramPreferences,
   type ProgramPreferenceEquipment,
   type ProgramPreferenceExperience,
   type ProgramPreferenceFocus,
@@ -107,7 +128,9 @@ function next7Days(): Array<{ iso: string; day: string }> {
 
 function planDaysPerWeek(plan: any): number {
   const days = Array.isArray(plan?.days) ? plan.days : [];
-  const workoutDays = days.filter((d: any) => Array.isArray(d?.exercises) && d.exercises.length > 0);
+  const workoutDays = days.filter(
+    (d: any) => Array.isArray(d?.exercises) && d.exercises.length > 0
+  );
   return workoutDays.length;
 }
 
@@ -126,9 +149,13 @@ export default function ProgramsCatalog() {
   const { profile } = useUserProfile();
   const { user, authReady } = useAuthUser();
 
-  const [startingProgramId, setStartingProgramId] = useState<string | null>(null);
+  const [startingProgramId, setStartingProgramId] = useState<string | null>(
+    null
+  );
   const [endingPlan, setEndingPlan] = useState<"paused" | "ended" | null>(null);
-  const [planPrefs, setPlanPrefs] = useState<ProgramPreferences>(() => loadPlanPreferences());
+  const [planPrefs, setPlanPrefs] = useState<ProgramPreferences>(() =>
+    loadPlanPreferences()
+  );
   const hydratedFromProfileRef = useRef(false);
   const saveTimeoutRef = useRef<number | null>(null);
 
@@ -138,32 +165,35 @@ export default function ProgramsCatalog() {
 
   useEffect(() => {
     if (hydratedFromProfileRef.current) return;
-    if (profile?.programPreferences) {
-      setPlanPrefs(normalizeProgramPreferences(profile.programPreferences));
+    const profilePrefs = preferencesFromCoachProfile(profile);
+    if (profilePrefs) {
+      setPlanPrefs(profilePrefs);
       hydratedFromProfileRef.current = true;
       return;
     }
     if (authReady) {
       hydratedFromProfileRef.current = true;
     }
-  }, [authReady, profile?.programPreferences]);
+  }, [authReady, profile]);
 
   useEffect(() => {
     if (saveTimeoutRef.current) {
       window.clearTimeout(saveTimeoutRef.current);
     }
     if (!authReady || demo || !user) return;
-    const normalizedProfile = profile?.programPreferences
-      ? normalizeProgramPreferences(profile.programPreferences)
+    const normalizedProfile = preferencesFromCoachProfile(profile);
+    const profileSignature = normalizedProfile
+      ? JSON.stringify(normalizedProfile)
       : null;
-    const profileSignature = normalizedProfile ? JSON.stringify(normalizedProfile) : null;
     const localSignature = JSON.stringify(planPrefs);
     if (profileSignature === localSignature) return;
     saveTimeoutRef.current = window.setTimeout(() => {
       void setDoc(
         doc(db, "users", user.uid, "coach", "profile"),
         {
-          programPreferences: planPrefs,
+          programPreferences: safeProgramPreferences(planPrefs, {
+            injuries: (profile as any)?.injuries,
+          }),
           programPreferencesUpdatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -174,7 +204,7 @@ export default function ProgramsCatalog() {
     return () => {
       if (saveTimeoutRef.current) window.clearTimeout(saveTimeoutRef.current);
     };
-  }, [authReady, demo, planPrefs, profile?.programPreferences, user]);
+  }, [authReady, demo, planPrefs, profile, user]);
 
   const planQuery = useQuery({
     queryKey: ["workouts", "plan"],
@@ -242,13 +272,30 @@ export default function ProgramsCatalog() {
   }, [catalogQuery.data]);
 
   const templates = useMemo(() => {
-    const entries = catalogQuery.data ?? [];
+    const effectivePrefs = safeProgramPreferences(planPrefs, {
+      injuries: (profile as any)?.injuries,
+    });
+    const entries = (catalogQuery.data ?? []).filter((entry) => {
+      const isPpl =
+        (entry.meta.tags ?? []).some(
+          (tag) =>
+            tag.toLowerCase().includes("ppl") ||
+            tag.toLowerCase().includes("push")
+        ) && entry.meta.daysPerWeek >= 6;
+      return !isPpl || effectivePrefs.focus === "push_pull_legs";
+    });
     const exclude = new Set([
       ...recommendedPrograms.map((e) => e.meta.id),
       ...popularPrograms.map((e) => e.meta.id),
     ]);
     return entries.filter((e) => !exclude.has(e.meta.id));
-  }, [catalogQuery.data, popularPrograms, recommendedPrograms]);
+  }, [
+    catalogQuery.data,
+    popularPrograms,
+    recommendedPrograms,
+    planPrefs,
+    profile,
+  ]);
 
   const entitlementsReady = !entitlementsLoading;
   const canStart = canStartPrograms({ demo, entitlements });
@@ -262,18 +309,22 @@ export default function ProgramsCatalog() {
       fat_loss: "cut",
       athletic: "general",
     };
-    const equipmentMap: Record<ProgramPreferenceEquipment, ProgramEquipment[]> = {
-      full_gym: ["machines", "barbell", "dumbbells"],
-      dumbbells: ["dumbbells"],
-      bodyweight: ["none"],
-    };
+    const equipmentMap: Record<ProgramPreferenceEquipment, ProgramEquipment[]> =
+      {
+        full_gym: ["machines", "barbell", "dumbbells"],
+        dumbbells: ["dumbbells"],
+        bodyweight: ["none"],
+      };
+    const effectivePrefs = safeProgramPreferences(planPrefs, {
+      injuries: (profile as any)?.injuries,
+    });
     const prefs = {
-      goal: goalMap[planPrefs.goal],
-      level: planPrefs.experience,
-      days: planPrefs.daysPerWeek,
-      equipment: equipmentMap[planPrefs.equipment],
-      time: planPrefs.timePerWorkout,
-      focus: planPrefs.focus,
+      goal: goalMap[effectivePrefs.goal],
+      level: effectivePrefs.experience,
+      days: effectivePrefs.daysPerWeek,
+      equipment: equipmentMap[effectivePrefs.equipment],
+      time: effectivePrefs.timePerWorkout,
+      focus: effectivePrefs.focus,
     };
     const ranked = entries
       .map((entry) => ({
@@ -282,7 +333,7 @@ export default function ProgramsCatalog() {
       }))
       .sort((a, b) => b.score - a.score);
     return ranked[0] ?? null;
-  }, [catalogQuery.data, planPrefs]);
+  }, [catalogQuery.data, planPrefs, profile]);
 
   const retryAll = () => {
     void Promise.all([
@@ -311,37 +362,55 @@ export default function ProgramsCatalog() {
     }
   };
 
-  const renderProgramCard = (entry: CatalogEntry, variant?: "recommended" | "popular") => {
+  const renderProgramCard = (
+    entry: CatalogEntry,
+    variant?: "recommended" | "popular"
+  ) => {
     const meta = entry.meta;
     const program = entry.program;
     const days = meta.daysPerWeek;
-    const time = meta.durationPerSessionMin ? `${meta.durationPerSessionMin} min` : "~45 min";
+    const time = meta.durationPerSessionMin
+      ? `${meta.durationPerSessionMin} min`
+      : "~45 min";
     const equip = (meta.equipment?.length ? meta.equipment : ["none"])
       .map((e) => equipmentLabels[e] ?? e)
       .join(" • ");
     const difficulty = levelLabels[meta.level];
-    const badge = variant === "recommended" ? "Recommended" : variant === "popular" ? "Popular" : null;
+    const badge =
+      variant === "recommended"
+        ? "Recommended"
+        : variant === "popular"
+          ? "Popular"
+          : null;
 
     return (
       <Card key={meta.id} className="overflow-hidden border bg-card/70">
         <div className="relative">
           <AspectRatio ratio={16 / 8}>
             {meta.heroImg ? (
-              <img src={meta.heroImg} alt={program.title} className="h-full w-full object-cover" />
+              <img
+                src={meta.heroImg}
+                alt={program.title}
+                className="h-full w-full object-cover"
+              />
             ) : (
               <div className="h-full w-full bg-gradient-to-br from-primary/25 via-primary/10 to-background" />
             )}
           </AspectRatio>
           <div className="absolute left-3 top-3 flex flex-wrap gap-2">
             {badge ? (
-              <Badge className="bg-primary text-primary-foreground">{badge}</Badge>
+              <Badge className="bg-primary text-primary-foreground">
+                {badge}
+              </Badge>
             ) : null}
           </div>
         </div>
         <CardContent className="space-y-3 p-5">
           <div className="space-y-1">
             <div className="flex items-start justify-between gap-3">
-              <h3 className="text-lg font-semibold text-foreground">{program.title}</h3>
+              <h3 className="text-lg font-semibold text-foreground">
+                {program.title}
+              </h3>
               <Badge variant="secondary" className="shrink-0">
                 {goalLabels[meta.goal]}
               </Badge>
@@ -349,7 +418,9 @@ export default function ProgramsCatalog() {
             <p className="text-sm text-muted-foreground">
               {days} days/week • {time} • {equip}
             </p>
-            <p className="text-xs text-muted-foreground">Difficulty: {difficulty}</p>
+            <p className="text-xs text-muted-foreground">
+              Difficulty: {difficulty}
+            </p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
@@ -365,13 +436,19 @@ export default function ProgramsCatalog() {
                 if (!entitlementsReady) {
                   toast({
                     title: "Checking access…",
-                    description: "We’ll enable start once your account is synced.",
+                    description:
+                      "We’ll enable start once your account is synced.",
                   });
                   return;
                 }
                 setStartingProgramId(meta.id);
                 try {
-                  await startCatalogProgram({ entry, demo, entitlements, navigate: nav });
+                  await startCatalogProgram({
+                    entry,
+                    demo,
+                    entitlements,
+                    navigate: nav,
+                  });
                 } finally {
                   setStartingProgramId(null);
                 }
@@ -392,7 +469,8 @@ export default function ProgramsCatalog() {
     );
   };
 
-  const loading = catalogQuery.isLoading || planQuery.isLoading || workoutsQuery.isLoading;
+  const loading =
+    catalogQuery.isLoading || planQuery.isLoading || workoutsQuery.isLoading;
   const errorMessage =
     (catalogQuery.error as any)?.message ||
     (planQuery.error as any)?.message ||
@@ -401,7 +479,10 @@ export default function ProgramsCatalog() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Plans – MyBodyScan" description="Choose and manage your workout plan." />
+      <Seo
+        title="Plans – MyBodyScan"
+        description="Choose and manage your workout plan."
+      />
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
         {loading ? (
           <div className="space-y-4">
@@ -414,7 +495,9 @@ export default function ProgramsCatalog() {
         ) : errorMessage ? (
           <Card className="border bg-card/60">
             <CardContent className="flex flex-col gap-3 p-6">
-              <div className="text-lg font-semibold">We couldn’t load Plans</div>
+              <div className="text-lg font-semibold">
+                We couldn’t load Plans
+              </div>
               <div className="text-sm text-muted-foreground">
                 Please check your connection and try again.
               </div>
@@ -426,21 +509,28 @@ export default function ProgramsCatalog() {
         ) : activePlan ? (
           <>
             <div className="space-y-1">
-              <h1 className="text-3xl font-semibold text-foreground">Your plan</h1>
+              <h1 className="text-3xl font-semibold text-foreground">
+                Your plan
+              </h1>
               <p className="text-sm text-muted-foreground">
-                Keep your schedule simple. We’ll take you straight to Today when you’re ready.
+                Keep your schedule simple. We’ll take you straight to Today when
+                you’re ready.
               </p>
             </div>
 
             <Card className="border bg-card/60">
               <CardHeader className="space-y-2">
-                <CardTitle className="text-2xl">{activePlan.title || "Active plan"}</CardTitle>
+                <CardTitle className="text-2xl">
+                  {activePlan.title || "Active plan"}
+                </CardTitle>
                 <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
                   <span>{activeDaysPerWeek || 0} days/week</span>
                   <span>•</span>
                   <span>
                     Next workout:{" "}
-                    {todayTotal > 0 ? `${todayName} (${todayTotal} exercises)` : "Rest day"}
+                    {todayTotal > 0
+                      ? `${todayName} (${todayTotal} exercises)`
+                      : "Rest day"}
                   </span>
                   <span>•</span>
                   <span>
@@ -453,10 +543,18 @@ export default function ProgramsCatalog() {
                   <Button onClick={() => nav("/workouts")} className="gap-2">
                     <Play className="h-4 w-4" /> Open today’s workout
                   </Button>
-                  <Button variant="outline" onClick={() => nav("/programs/active/edit")} className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => nav("/programs/active/edit")}
+                    className="gap-2"
+                  >
                     <Settings2 className="h-4 w-4" /> Edit plan
                   </Button>
-                  <Button variant="outline" onClick={() => nav("/programs/customize?fromActive=1")} className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => nav("/programs/customize?fromActive=1")}
+                    className="gap-2"
+                  >
                     <RefreshCcw className="h-4 w-4" /> Regenerate plan
                   </Button>
                 </div>
@@ -494,7 +592,10 @@ export default function ProgramsCatalog() {
                   const done = workoutsQuery.data?.progress?.[iso]?.length ?? 0;
                   const completed = total > 0 && done >= total;
                   return (
-                    <div key={iso} className="flex items-center justify-between rounded-md border bg-background/60 p-3 text-sm">
+                    <div
+                      key={iso}
+                      className="flex items-center justify-between rounded-md border bg-background/60 p-3 text-sm"
+                    >
                       <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <div>
@@ -527,7 +628,9 @@ export default function ProgramsCatalog() {
         ) : (
           <>
             <div className="space-y-1">
-              <h1 className="text-3xl font-semibold text-foreground">Choose your plan</h1>
+              <h1 className="text-3xl font-semibold text-foreground">
+                Choose your plan
+              </h1>
               <p className="text-sm text-muted-foreground">
                 Set a few preferences and we’ll match you to the right program.
               </p>
@@ -551,7 +654,9 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          daysPerWeek: Number(value) as ProgramPreferences["daysPerWeek"],
+                          daysPerWeek: Number(
+                            value
+                          ) as ProgramPreferences["daysPerWeek"],
                         }))
                       }
                     >
@@ -632,10 +737,18 @@ export default function ProgramsCatalog() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="full_body">Full body</SelectItem>
-                        <SelectItem value="upper_lower">Upper / Lower</SelectItem>
-                        <SelectItem value="push_pull_legs">Push / Pull / Legs</SelectItem>
-                        <SelectItem value="conditioning">Conditioning</SelectItem>
-                        <SelectItem value="mobility">Mobility & Core</SelectItem>
+                        <SelectItem value="upper_lower">
+                          Upper / Lower
+                        </SelectItem>
+                        <SelectItem value="push_pull_legs">
+                          Push / Pull / Legs
+                        </SelectItem>
+                        <SelectItem value="conditioning">
+                          Conditioning
+                        </SelectItem>
+                        <SelectItem value="mobility">
+                          Mobility & Core
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -657,7 +770,9 @@ export default function ProgramsCatalog() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="beginner">Beginner</SelectItem>
-                        <SelectItem value="intermediate">Intermediate</SelectItem>
+                        <SelectItem value="intermediate">
+                          Intermediate
+                        </SelectItem>
                         <SelectItem value="advanced">Advanced</SelectItem>
                       </SelectContent>
                     </Select>
@@ -671,7 +786,9 @@ export default function ProgramsCatalog() {
                       onValueChange={(value) =>
                         setPlanPrefs((prev) => ({
                           ...prev,
-                          timePerWorkout: Number(value) as ProgramPreferences["timePerWorkout"],
+                          timePerWorkout: Number(
+                            value
+                          ) as ProgramPreferences["timePerWorkout"],
                         }))
                       }
                     >
@@ -696,7 +813,8 @@ export default function ProgramsCatalog() {
                       if (!entitlementsReady) {
                         toast({
                           title: "Checking access…",
-                          description: "We’ll enable start once your account is synced.",
+                          description:
+                            "We’ll enable start once your account is synced.",
                         });
                         return;
                       }
@@ -728,19 +846,28 @@ export default function ProgramsCatalog() {
                       "Start program"
                     )}
                   </Button>
-                  <Button variant="outline" onClick={() => nav("/programs/customize")} className="gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => nav("/programs/customize")}
+                    className="gap-2"
+                  >
                     Build my plan <ChevronRight className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" onClick={() => nav("/programs/quiz")}>
+                  <Button
+                    variant="outline"
+                    onClick={() => nav("/programs/quiz")}
+                  >
                     Take the quick quiz
                   </Button>
                 </div>
                 {entitlementsReady && !canStart ? (
                   <div className="rounded-lg border border-dashed bg-muted/30 p-3 text-sm text-muted-foreground">
-                    <div className="font-medium text-foreground">Programs locked</div>
+                    <div className="font-medium text-foreground">
+                      Programs locked
+                    </div>
                     <p className="mt-1">
-                      Activate your plan to start programs. We’ll bring you back here once you’re
-                      unlocked.
+                      Activate your plan to start programs. We’ll bring you back
+                      here once you’re unlocked.
                     </p>
                     <Button
                       variant="secondary"

@@ -36,6 +36,14 @@ vi.mock("@/lib/demoDataset", () => ({
     status: "complete",
     // Intentionally omit createdAt/updatedAt/completedAt to prevent regressions like
     // "undefined is not an object (evaluating 'p.updatedAt')".
+    input: { currentWeightKg: 81.7, heightCm: 180 },
+    estimate: { bodyFatPercent: 20.1, bmi: 25.2, leanMassKg: 65.3 },
+    nutritionPlan: {
+      caloriesPerDay: 2200,
+      proteinGrams: 165,
+      carbsGrams: 220,
+      fatsGrams: 73,
+    },
     metrics: { bodyFatPct: 20.1, weightLb: 180.2, bmi: 25.1 },
     results: { bodyFatPct: 20.1, weightLb: 180.2, bmi: 25.1 },
   },
@@ -60,6 +68,7 @@ describe("Results (demo timestamps)", () => {
         </MemoryRouter>
       )
     ).not.toThrow();
-    expect(screen.getByText(/We could not complete this scan|Results/i)).toBeTruthy();
+    expect(screen.getByText("Your Body Scan")).toBeTruthy();
+    expect(screen.getByText("20.1%")).toBeTruthy();
   });
 });

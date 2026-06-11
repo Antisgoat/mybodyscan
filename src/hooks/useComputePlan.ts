@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { authedFetch } from "@/lib/api";
+import { getCurrentUser } from "@/auth/mbs-auth";
+import { completeCoachOnboarding } from "@/lib/onboarding/completeCoachOnboarding";
 
 export function useComputePlan() {
   const [computing, setComputing] = useState(false);
@@ -7,17 +8,9 @@ export function useComputePlan() {
   const computePlan = async (profile: any) => {
     setComputing(true);
     try {
-      const response = await authedFetch("/computePlan", {
-        method: "POST",
-        body: JSON.stringify(profile),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to compute plan");
-      }
-
-      const result = await response.json();
-      return result;
+      const user = await getCurrentUser();
+      if (!user) throw new Error("auth_required");
+      return await completeCoachOnboarding({ user, input: profile });
     } catch (error) {
       console.error("Error computing plan:", error);
       throw error;

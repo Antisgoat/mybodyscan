@@ -89,7 +89,8 @@ export function computeCalories({
   calories,
 }: MealEntry) {
   const kcal = round(kcalFromMacros({ protein, carbs, fat, alcohol }), 0);
-  const macrosEnergy = Number(protein || 0) * 4 +
+  const macrosEnergy =
+    Number(protein || 0) * 4 +
     Number(carbs || 0) * 4 +
     Number(fat || 0) * 9 +
     Number(alcohol || 0) * 7;
@@ -118,7 +119,11 @@ export function computeCalories({
   };
 }
 
-async function callFn(path: string, body?: any, method: "GET" | "POST" = "POST") {
+async function callFn(
+  path: string,
+  body?: any,
+  method: "GET" | "POST" = "POST"
+) {
   const tzOffsetMins =
     typeof Intl !== "undefined" ? new Date().getTimezoneOffset() : 0;
   const name = path.replace(/^\/+/, "");
@@ -156,7 +161,15 @@ export async function getDailyLog(dateISO: string) {
     params.set("date", dateISO);
   }
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return apiFetchJson(`${"/nutrition/daily-log"}${suffix}`, { method: "GET" });
+  const response = await apiFetchJson<{ totals?: any; meals?: any[] }>(
+    `${"/nutrition/daily-log"}${suffix}`,
+    { method: "GET" }
+  );
+  return {
+    ...response,
+    totals: normalizeDailyTotals(response?.totals),
+    meals: Array.isArray(response?.meals) ? response.meals : [],
+  };
 }
 
 export async function getNutritionHistory(

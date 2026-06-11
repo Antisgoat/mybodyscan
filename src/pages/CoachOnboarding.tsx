@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate, Link } from "react-router-dom";
 import { ChevronRight, Target, Clock, User } from "lucide-react";
 import HeightInputUS from "@/components/HeightInputUS";
+import { useAuthUser } from "@/auth/mbs-auth";
+import { completeCoachOnboarding } from "@/lib/onboarding/completeCoachOnboarding";
+import { toast } from "@/hooks/use-toast";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -36,13 +39,24 @@ const CoachOnboarding = () => {
   });
   const [plan, setPlan] = useState<any>(null);
   const navigate = useNavigate();
+  const { user } = useAuthUser();
 
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   async function finish() {
-    const timeframe = Math.max(4, Math.min(52, Number(form.timeframe_weeks) || 12));
-    const intensity = form.transformation_intensity === "elite" && timeframe < 12 ? "aggressive" : form.transformation_intensity;
-    const payload: any = { ...form, timeframe_weeks: timeframe, transformation_intensity: intensity };
+    const timeframe = Math.max(
+      4,
+      Math.min(52, Number(form.timeframe_weeks) || 12)
+    );
+    const intensity =
+      form.transformation_intensity === "elite" && timeframe < 12
+        ? "aggressive"
+        : form.transformation_intensity;
+    const payload: any = {
+      ...form,
+      timeframe_weeks: timeframe,
+      transformation_intensity: intensity,
+    };
     const heightCm = form.height_cm ?? 0;
     const weightKg = form.weight_kg ?? 0;
     const { ft, inches: inch } = inToFtIn(cmToIn(heightCm));
@@ -50,10 +64,33 @@ const CoachOnboarding = () => {
     payload.height_ft = ft;
     payload.height_in = inch;
     payload.weight_lb = kgToLb(weightKg);
-    await call("saveOnboarding", payload);
-    const { data } = await call("computePlan", {});
-    setPlan(data);
-    setStep(4);
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in again to finish onboarding.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const completedPlan = await completeCoachOnboarding({
+        user,
+        input: payload,
+      });
+      setPlan(completedPlan);
+      setStep(4);
+      toast({
+        title: "Plan ready",
+        description: "Your nutrition targets and workout plan were saved.",
+      });
+    } catch (error: any) {
+      console.error("coachOnboarding.finish", error);
+      toast({
+        title: "Could not finish onboarding",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
   }
 
   const progress = (step / 4) * 100;
@@ -131,8 +168,12 @@ const CoachOnboarding = () => {
                   value={form.style}
                   onChange={(e) => update("style", e.target.value)}
                 >
-                  <option value="ease_in">Balanced - sustainable changes</option>
-                  <option value="all_in">Aggressive - still safe and realistic</option>
+                  <option value="ease_in">
+                    Balanced - sustainable changes
+                  </option>
+                  <option value="all_in">
+                    Aggressive - still safe and realistic
+                  </option>
                 </select>
               </label>
 
@@ -144,24 +185,35 @@ const CoachOnboarding = () => {
                   max="52"
                   value={form.timeframe_weeks}
                   onChange={(e) => {
-                    const next = Math.max(4, Math.min(52, Number(e.target.value) || 12));
+                    const next = Math.max(
+                      4,
+                      Math.min(52, Number(e.target.value) || 12)
+                    );
                     update("timeframe_weeks", next);
                   }}
                   className="mt-1"
                 />
-                <span className="text-xs text-muted-foreground">We guide unrealistic timelines into a safer 4–52 week range.</span>
+                <span className="text-xs text-muted-foreground">
+                  We guide unrealistic timelines into a safer 4–52 week range.
+                </span>
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium">Transformation intensity</span>
+                <span className="text-sm font-medium">
+                  Transformation intensity
+                </span>
                 <select
                   className="mt-1 w-full p-2 border rounded-md"
                   value={form.transformation_intensity}
-                  onChange={(e) => update("transformation_intensity", e.target.value)}
+                  onChange={(e) =>
+                    update("transformation_intensity", e.target.value)
+                  }
                 >
                   <option value="balanced">Balanced</option>
                   <option value="aggressive">Aggressive (safe)</option>
-                  <option value="elite">Elite discipline (no unsafe shortcuts)</option>
+                  <option value="elite">
+                    Elite discipline (no unsafe shortcuts)
+                  </option>
                 </select>
               </label>
             </div>
@@ -275,13 +327,27 @@ const CoachOnboarding = () => {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="block">
                 <span className="text-sm font-medium">Training days/week</span>
-                <select className="mt-1 w-full p-2 border rounded-md" value={form.training_days_per_week} onChange={(e) => update("training_days_per_week", Number(e.target.value))}>
-                  {[2,3,4,5,6].map((day) => <option key={day} value={day}>{day} days</option>)}
+                <select
+                  className="mt-1 w-full p-2 border rounded-md"
+                  value={form.training_days_per_week}
+                  onChange={(e) =>
+                    update("training_days_per_week", Number(e.target.value))
+                  }
+                >
+                  {[2, 3, 4, 5, 6].map((day) => (
+                    <option key={day} value={day}>
+                      {day} days
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="block">
                 <span className="text-sm font-medium">Experience</span>
-                <select className="mt-1 w-full p-2 border rounded-md" value={form.experience} onChange={(e) => update("experience", e.target.value)}>
+                <select
+                  className="mt-1 w-full p-2 border rounded-md"
+                  value={form.experience}
+                  onChange={(e) => update("experience", e.target.value)}
+                >
                   <option value="beginner">Beginner</option>
                   <option value="intermediate">Intermediate</option>
                   <option value="advanced">Advanced</option>
@@ -291,7 +357,11 @@ const CoachOnboarding = () => {
 
             <label className="block">
               <span className="text-sm font-medium">Equipment</span>
-              <select className="mt-1 w-full p-2 border rounded-md" value={form.equipment} onChange={(e) => update("equipment", e.target.value)}>
+              <select
+                className="mt-1 w-full p-2 border rounded-md"
+                value={form.equipment}
+                onChange={(e) => update("equipment", e.target.value)}
+              >
                 <option value="full_gym">Full gym</option>
                 <option value="home_gym">Home gym</option>
                 <option value="dumbbells">Dumbbells</option>
@@ -303,7 +373,11 @@ const CoachOnboarding = () => {
 
             <label className="block">
               <span className="text-sm font-medium">Diet preference</span>
-              <select className="mt-1 w-full p-2 border rounded-md" value={form.diet_preference} onChange={(e) => update("diet_preference", e.target.value)}>
+              <select
+                className="mt-1 w-full p-2 border rounded-md"
+                value={form.diet_preference}
+                onChange={(e) => update("diet_preference", e.target.value)}
+              >
                 <option value="balanced">Balanced</option>
                 <option value="high_protein">High protein</option>
                 <option value="low_carb">Low carb</option>
@@ -381,8 +455,17 @@ const CoachOnboarding = () => {
             </div>
 
             <div className="space-y-2 rounded-lg border p-3">
-              <div className="text-sm font-medium">Pain areas or injury constraints</div>
-              {["shoulder", "knee", "lower_back", "hip", "wrist_elbow", "other"].map((area) => (
+              <div className="text-sm font-medium">
+                Pain areas or injury constraints
+              </div>
+              {[
+                "shoulder",
+                "knee",
+                "lower_back",
+                "hip",
+                "wrist_elbow",
+                "other",
+              ].map((area) => (
                 <label key={area} className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"
@@ -397,7 +480,10 @@ const CoachOnboarding = () => {
                   {area.replace(/_/g, " ")}
                 </label>
               ))}
-              <p className="text-xs text-muted-foreground">Plans avoid obvious aggravators and recommend medical care for severe symptoms.</p>
+              <p className="text-xs text-muted-foreground">
+                Plans avoid obvious aggravators and recommend medical care for
+                severe symptoms.
+              </p>
             </div>
 
             <div className="border-t pt-4">
@@ -519,5 +605,3 @@ const CoachOnboarding = () => {
 };
 
 export default CoachOnboarding;
-
-import { call } from "@/lib/callable";

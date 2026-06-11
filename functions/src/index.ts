@@ -19,6 +19,7 @@ export { nutritionBarcode } from "./nutrition/barcode.js";
 export { startScanSession } from "./scan/start.js";
 export { submitScan } from "./scan/submit.js";
 export { scanUpload } from "./scan/upload.js";
+export { beginPaidScan } from "./scan/beginPaidScan.js";
 export { processQueuedScan } from "./scan/worker.js";
 export { recordGateFailure } from "./scan/recordGateFailure.js";
 export { refundIfNoResult } from "./scan/refundIfNoResult.js";
@@ -78,7 +79,11 @@ const allowedOrigins = new Set([
   "http://localhost:5173",
 ]);
 
-function buildError(code: string, message: string, ref = randomUUID().slice(0, 8)) {
+function buildError(
+  code: string,
+  message: string,
+  ref = randomUUID().slice(0, 8)
+) {
   return { ok: false as const, error: { code, message, ref } };
 }
 
@@ -88,7 +93,10 @@ function applyGatewayCors(req: Request, res: Response) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   }
-  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Firebase-AppCheck"
+  );
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
 }
 
@@ -108,7 +116,11 @@ app.options("*", (req: Request, res: Response) => {
 });
 app.use(allowCorsAndOptionalAppCheck);
 
-async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: string) {
+async function forwardLegacyFunctionRoute(
+  req: Request,
+  res: Response,
+  fnName: string
+) {
   try {
     const protocol = req.get("x-forwarded-proto") || "https";
     const host = req.get("host");
@@ -132,21 +144,47 @@ async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: s
     try {
       body = text ? JSON.parse(text) : {};
     } catch {
-      body = buildError("upstream_invalid_json", "Upstream returned invalid JSON");
+      body = buildError(
+        "upstream_invalid_json",
+        "Upstream returned invalid JSON"
+      );
     }
     if (response.ok) {
       res.status(response.status).json({ ok: true, data: body });
       return;
     }
     const ref = randomUUID().slice(0, 8);
-    console.error("api_gateway_forward_failed", { fnName, status: response.status, ref, body });
+    console.error("api_gateway_forward_failed", {
+      fnName,
+      status: response.status,
+      ref,
+      body,
+    });
     res
       .status(response.status)
-      .json(buildError(`upstream_${response.status}`, body?.message || body?.error || "Request failed", ref));
+      .json(
+        buildError(
+          `upstream_${response.status}`,
+          body?.message || body?.error || "Request failed",
+          ref
+        )
+      );
   } catch (error: any) {
     const ref = randomUUID().slice(0, 8);
-    console.error("legacy_route_forward_failed", { fnName, ref, message: error?.message });
-    res.status(502).json(buildError("legacy_route_forward_failed", error?.message || "forward_failed", ref));
+    console.error("legacy_route_forward_failed", {
+      fnName,
+      ref,
+      message: error?.message,
+    });
+    res
+      .status(502)
+      .json(
+        buildError(
+          "legacy_route_forward_failed",
+          error?.message || "forward_failed",
+          ref
+        )
+      );
   }
 }
 

@@ -22,7 +22,6 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachPlanSession } from "@/hooks/useUserProfile";
 import { formatDistanceToNow } from "date-fns";
 import { coachChatApi, type CoachChatRequest } from "@/lib/api/coach";
-import { call } from "@/lib/callable";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -44,6 +43,7 @@ import { sortCoachThreadMessages } from "@/lib/coach/threadStore";
 import { toDateOrNull } from "@/lib/time";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 import { canUseCoach } from "@/lib/entitlements";
+import { generateWorkoutPlan } from "@/lib/workouts";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { isNative } from "@/lib/platform";
@@ -189,10 +189,10 @@ export default function CoachChatPage() {
   const coachPrereqMessage =
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false
-        ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
-        : coachConfigured === false
-          ? "Coach chat is offline until the backend configuration is completed."
-          : null;
+      ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
+      : coachConfigured === false
+        ? "Coach chat is offline until the backend configuration is completed."
+        : null;
   const coachAvailable = coachConfigured && !coachPrereqMessage;
   const coachEntitled = canUseCoach({
     demo,
@@ -341,8 +341,10 @@ export default function CoachChatPage() {
             })
             .filter((t): t is ThreadMeta => Boolean(t))
             .sort((a, b) => {
-              const am = a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
-              const bm = b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
+              const am =
+                a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
+              const bm =
+                b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
               if (am !== bm) return bm - am;
               const ac = a.createdAt?.getTime?.() ?? 0;
               const bc = b.createdAt?.getTime?.() ?? 0;
@@ -373,7 +375,8 @@ export default function CoachChatPage() {
             threadStorageKey && typeof window !== "undefined"
               ? window.localStorage.getItem(threadStorageKey)
               : null;
-          const storedValid = stored && nextThreads.some((t) => t.id === stored);
+          const storedValid =
+            stored && nextThreads.some((t) => t.id === stored);
           setActiveThreadId((prev) => {
             if (prev && nextThreads.some((t) => t.id === prev)) return prev;
             if (storedValid) return stored!;
@@ -490,10 +493,10 @@ export default function CoachChatPage() {
           },
           async (err) => {
             console.warn("coachChat.snapshot_failed", err);
-          recordPermissionDenied(err, {
-            op: "coachChatLegacy.onSnapshot",
-            path: uid ? coachChatCollectionPath(uid) : undefined,
-          });
+            recordPermissionDenied(err, {
+              op: "coachChatLegacy.onSnapshot",
+              path: uid ? coachChatCollectionPath(uid) : undefined,
+            });
             void reportError({
               kind: "coach_legacy_snapshot_failed",
               message: err?.message || "coachChat legacy snapshot failed",
@@ -772,21 +775,20 @@ export default function CoachChatPage() {
       // Optimistic UI: add the user message immediately so the chat feels responsive.
       // Firestore snapshot will reconcile this once the write lands.
       setMessages((prev) =>
-        sortMessages(dedupeMessages([
-          ...prev.filter((m) => m.id !== messageId),
-          {
-            id: messageId,
-            role: "user",
-            content: sanitized,
-            createdAt: new Date(),
-          },
-        ]))
+        sortMessages(
+          dedupeMessages([
+            ...prev.filter((m) => m.id !== messageId),
+            {
+              id: messageId,
+              role: "user",
+              content: sanitized,
+              createdAt: new Date(),
+            },
+          ])
+        )
       );
       await setDoc(
-        doc(
-          coachThreadMessagesCollection(uid, threadId),
-          messageId
-        ) as any,
+        doc(coachThreadMessagesCollection(uid, threadId), messageId) as any,
         {
           role: "user",
           content: sanitized,
@@ -799,10 +801,7 @@ export default function CoachChatPage() {
         if (isPermissionDenied(err)) {
           await refreshAuthTokenSoft();
           return setDoc(
-            doc(
-              coachThreadMessagesCollection(uid, threadId),
-              messageId
-            ) as any,
+            doc(coachThreadMessagesCollection(uid, threadId), messageId) as any,
             {
               role: "user",
               content: sanitized,
@@ -829,18 +828,26 @@ export default function CoachChatPage() {
               todayCarbGrams: totals.carbGrams,
               todayFatGrams: totals.fatGrams,
               todayProteinGoalGrams: plan?.proteinFloor,
-              todayCarbGoalGrams: (plan as any)?.carbsG ?? (plan as any)?.carbs_g,
+              todayCarbGoalGrams:
+                (plan as any)?.carbsG ?? (plan as any)?.carbs_g,
               todayFatGoalGrams: (plan as any)?.fatG ?? (plan as any)?.fat_g,
               lastScanDate: latestScan?.createdAt?.toISOString(),
               lastScanBodyFatPercent: latestScan?.bodyFatPercent,
               goal: (profile as any)?.goal ?? (plan as any)?.goal,
-              timelineWeeks: (profile as any)?.timeframe_weeks ?? (profile as any)?.timelineWeeks,
-              workoutPlanTitle: (plan as any)?.workoutPlanTitle ?? (plan as any)?.title,
-              trainingDaysPerWeek: (profile as any)?.training_days_per_week ?? (profile as any)?.trainingDaysPerWeek,
+              timelineWeeks:
+                (profile as any)?.timeframe_weeks ??
+                (profile as any)?.timelineWeeks,
+              workoutPlanTitle:
+                (plan as any)?.workoutPlanTitle ?? (plan as any)?.title,
+              trainingDaysPerWeek:
+                (profile as any)?.training_days_per_week ??
+                (profile as any)?.trainingDaysPerWeek,
               injuries: Array.isArray((profile as any)?.injuries)
                 ? (profile as any).injuries.join(", ")
-                : (profile as any)?.injuries ?? (profile as any)?.pain_areas,
-              dietPreference: (profile as any)?.diet_preference ?? (profile as any)?.dietPreference,
+                : ((profile as any)?.injuries ?? (profile as any)?.pain_areas),
+              dietPreference:
+                (profile as any)?.diet_preference ??
+                (profile as any)?.dietPreference,
             },
       };
       await coachChatApi(payload);
@@ -887,10 +894,23 @@ export default function CoachChatPage() {
     }
     setRegenerating(true);
     try {
-      await call("generatePlan", {});
+      await generateWorkoutPlan({
+        daysPerWeek:
+          (profile as any)?.training_days_per_week ?? (plan as any)?.days ?? 3,
+        equipment:
+          (profile as any)?.equipment === "bodyweight"
+            ? "none"
+            : (profile as any)?.equipment === "full_gym"
+              ? "gym"
+              : ((profile as any)?.equipment ?? "gym"),
+        focus: "full",
+        injuries: Array.isArray((profile as any)?.injuries)
+          ? (profile as any).injuries
+          : [],
+      });
       toast({
-        title: "Weekly plan updated",
-        description: "Your coach plan was regenerated.",
+        title: "Workout plan updated",
+        description: "Your active workout plan was regenerated.",
       });
     } catch (error) {
       toast(
@@ -999,7 +1019,7 @@ export default function CoachChatPage() {
                         readOnlyDemo
                           ? "Demo preview"
                           : !coachAvailable
-                            ? coachPrereqMessage ?? "Coach unavailable"
+                            ? (coachPrereqMessage ?? "Coach unavailable")
                             : undefined
                       }
                     >
@@ -1037,7 +1057,9 @@ export default function CoachChatPage() {
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>Coach</span>
                               <Badge
-                                variant={message.usedLLM ? "default" : "secondary"}
+                                variant={
+                                  message.usedLLM ? "default" : "secondary"
+                                }
                                 className="uppercase tracking-wide"
                               >
                                 {message.usedLLM ? "LLM" : "Rules"}
@@ -1065,8 +1087,8 @@ export default function CoachChatPage() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No messages yet. Ask a question to get personalized training
-                      and nutrition tips.
+                      No messages yet. Ask a question to get personalized
+                      training and nutrition tips.
                     </p>
                   )}
                 </div>
