@@ -19,7 +19,7 @@ export type ProgramPreferenceFocus =
   | "mobility";
 
 export type ProgramPreferences = {
-  daysPerWeek: 3 | 4 | 5 | 6;
+  daysPerWeek: 2 | 3 | 4 | 5 | 6;
   goal: ProgramPreferenceGoal;
   equipment: ProgramPreferenceEquipment;
   experience: ProgramPreferenceExperience;
@@ -40,7 +40,7 @@ export function normalizeProgramPreferences(
   raw?: Partial<ProgramPreferences> | null
 ): ProgramPreferences {
   if (!raw || typeof raw !== "object") return DEFAULT_PROGRAM_PREFERENCES;
-  const days = [3, 4, 5, 6].includes(Number(raw.daysPerWeek))
+  const days = [2, 3, 4, 5, 6].includes(Number(raw.daysPerWeek))
     ? (Number(raw.daysPerWeek) as ProgramPreferences["daysPerWeek"])
     : DEFAULT_PROGRAM_PREFERENCES.daysPerWeek;
   const goal =
@@ -129,7 +129,7 @@ export function preferencesFromCoachProfile(
   const daysRaw = Number(
     profile.training_days_per_week ?? profile.trainingDaysPerWeek
   );
-  const days = [3, 4, 5, 6].includes(daysRaw)
+  const days = [2, 3, 4, 5, 6].includes(daysRaw)
     ? (daysRaw as ProgramPreferences["daysPerWeek"])
     : undefined;
   const goalRaw = String(profile.goal || "");
