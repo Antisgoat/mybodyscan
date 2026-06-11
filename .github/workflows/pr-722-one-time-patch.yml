@@ -1,0 +1,165 @@
+name: PR 722 one-time patch
+
+on:
+  push:
+    branches:
+      - codex/create-production-readiness-pr-for-mybodyscan
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/create-production-readiness-pr-for-mybodyscan
+
+      - name: Apply patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f"missing {label}")
+              return text.replace(old, new, 1)
+
+          p = Path('functions/src/coachChat.ts')
+          s = p.read_text()
+
+          if 'async function ensureCoachEntitled(' not in s:
+              marker = '\nexport const coachChat = onCall<CoachChatRequest>('
+              helper = '''
+async function ensureCoachEntitled(
+  uid: string,
+  token?: any,
+  tokenEmail?: string | null
+): Promise<void> {
+  const unlimited = hasUnlimitedAccessFromClaims(token);
+  const staffOrPro = unlimited || (await hasProEntitlement(uid, tokenEmail ?? null));
+  if (staffOrPro) return;
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
+  if (!active) {
+    throw new HttpsError(
+      "permission-denied",
+      "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
+    );
+  }
+}
+'''
+              s = replace_once(s, marker, helper + marker, 'coach entitlement helper')
+
+          old_gate = '''    // Entitlement gate: Unlimited credits OR active subscription.
+    // Keep this server-side so a misconfigured client can't bypass it.
+    try {
+      const token = request.auth?.token as any;
+      const tokenEmail = typeof token?.email === "string" ? token.email : null;
+      const unlimited = hasUnlimitedAccessFromClaims(token);
+      const staffOrPro = unlimited || (await hasProEntitlement(uid, tokenEmail));
+      if (!staffOrPro) {
+        const userSnap = await db.doc(`users/${uid}`).get();
+        const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
+        if (!active) {
+          throw new HttpsError(
+            "permission-denied",
+            "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError(
+        "unavailable",
+        "Coach is temporarily unavailable. Please try again later."
+      );
+    }
+
+'''
+          new_gate = '''    // Entitlement gate: Unlimited/pro OR active subscription.
+    // Keep this server-side so a misconfigured client can't bypass it.
+    try {
+      const token = request.auth?.token as any;
+      const tokenEmail = typeof token?.email === "string" ? token.email : null;
+      await ensureCoachEntitled(uid, token, tokenEmail);
+    } catch (error) {
+      if (error instanceof HttpsError) throw error;
+      throw new HttpsError(
+        "unavailable",
+        "Coach is temporarily unavailable. Please try again later."
+      );
+    }
+
+'''
+          if old_gate in s:
+              s = s.replace(old_gate, new_gate, 1)
+
+          s = s.replace(
+              '      typeof context.workoutPlanTitle === "string" ||\n      typeof context.injuries === "string");',
+              '      typeof context.workoutPlanTitle === "string" ||\n      typeof context.injuries === "string" ||\n      Number(context.timelineWeeks) > 0 ||\n      Number(context.trainingDaysPerWeek) > 0 ||\n      typeof context.dietPreference === "string");'
+          )
+
+          s = s.replace(
+              '        "You are MyBodyScan\'s virtual coach. Respond with concise, motivational guidance in under 150 words. Avoid medical advice.\\n" +\n        \'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.\',',
+              '        "You are MyBodyScan\'s coach: strict, motivating, friendly, and supportive. Provide concise, practical fitness/wellness guidance. Refuse unsafe shortcuts, dangerous requests, and training through serious injury; suggest safer substitutions and medical evaluation for serious symptoms.\\n" +\n        \'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.\','
+          )
+
+          s = replace_once(
+              s,
+              '    await enforceRateLimit({\n      uid,\n      key: "coachChat",\n      limit: 12,\n      windowMs: 60_000,\n    });\n    payload.context = await buildServerContext({',
+              '    await enforceRateLimit({\n      uid,\n      key: "coachChat",\n      limit: 12,\n      windowMs: 60_000,\n    });\n    await ensureCoachEntitled(uid);\n    payload.context = await buildServerContext({',
+              'http coach entitlement gate'
+          )
+          p.write_text(s)
+
+          p = Path('src/pages/TransformationPreview.tsx')
+          s = p.read_text()
+          if 'const canReadPreview = previewEligible || internalAccess;' not in s:
+              s = replace_once(
+                  s,
+                  '  const previewEligible =\n    internalAccess || subscriptionPreviewEligible || paidScanPreviewEligible;\n  const [state, setState] = useState<any>(null);',
+                  '  const previewEligible =\n    internalAccess || subscriptionPreviewEligible || paidScanPreviewEligible;\n  const canReadPreview = previewEligible || internalAccess;\n  const [state, setState] = useState<any>(null);',
+                  'preview read gate var'
+              )
+          s = replace_once(
+              s,
+              '    if (!user?.uid || !scanId) {\n      setLoadingState(false);\n      return;\n    }',
+              '    if (!user?.uid || !scanId || !canReadPreview) {\n      setLoadingState(false);\n      return;\n    }',
+              'preview subscription gate'
+          )
+          s = s.replace('  }, [user?.uid, scanId]);', '  }, [user?.uid, scanId, canReadPreview]);')
+          s = s.replace(
+              '          {state?.status === "ready" &&\n          state?.imageUrl &&\n          TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (',
+              '          {canReadPreview &&\n          state?.status === "ready" &&\n          state?.imageUrl &&\n          TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? ('
+          )
+          p.write_text(s)
+
+          p = Path('src/pages/Coach/Chat.tsx')
+          s = p.read_text()
+          if 'const coachInteractive = coachAvailable && coachEntitled;' not in s:
+              s = replace_once(
+                  s,
+                  '  const coachEntitled = canUseCoach({\n    demo,\n    entitlements,\n  });\n',
+                  '  const coachEntitled = canUseCoach({\n    demo,\n    entitlements,\n  });\n  const coachInteractive = coachAvailable && coachEntitled;\n',
+                  'coach interactive var'
+              )
+          s = s.replace('if (!coachAvailable) {', 'if (!coachInteractive) {')
+          s = s.replace('!coachAvailable', '!coachInteractive')
+          p.write_text(s)
+
+          Path('.github/workflows/pr-722-one-time-patch.yml').unlink(missing_ok=True)
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add functions/src/coachChat.ts src/pages/TransformationPreview.tsx src/pages/Coach/Chat.tsx .github/workflows/pr-722-one-time-patch.yml
+          git commit -m "Patch coach and preview access gates" || exit 0
+          git push origin HEAD:codex/create-production-readiness-pr-for-mybodyscan
