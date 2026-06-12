@@ -189,15 +189,16 @@ export default function CoachChatPage() {
   const coachPrereqMessage =
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false
-        ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
-        : coachConfigured === false
-          ? "Coach chat is offline until the backend configuration is completed."
-          : null;
+      ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
+      : coachConfigured === false
+        ? "Coach chat is offline until the backend configuration is completed."
+        : null;
   const coachAvailable = coachConfigured && !coachPrereqMessage;
   const coachEntitled = canUseCoach({
     demo,
     entitlements,
   });
+  const coachInteractive = coachAvailable && coachEntitled;
   const { totals, latestScan } = useCoachTodayAtAGlance();
 
   const startListening = () => {
@@ -341,8 +342,10 @@ export default function CoachChatPage() {
             })
             .filter((t): t is ThreadMeta => Boolean(t))
             .sort((a, b) => {
-              const am = a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
-              const bm = b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
+              const am =
+                a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;
+              const bm =
+                b.updatedAt?.getTime?.() ?? b.createdAt?.getTime?.() ?? 0;
               if (am !== bm) return bm - am;
               const ac = a.createdAt?.getTime?.() ?? 0;
               const bc = b.createdAt?.getTime?.() ?? 0;
@@ -373,7 +376,8 @@ export default function CoachChatPage() {
             threadStorageKey && typeof window !== "undefined"
               ? window.localStorage.getItem(threadStorageKey)
               : null;
-          const storedValid = stored && nextThreads.some((t) => t.id === stored);
+          const storedValid =
+            stored && nextThreads.some((t) => t.id === stored);
           setActiveThreadId((prev) => {
             if (prev && nextThreads.some((t) => t.id === prev)) return prev;
             if (storedValid) return stored!;
@@ -490,10 +494,10 @@ export default function CoachChatPage() {
           },
           async (err) => {
             console.warn("coachChat.snapshot_failed", err);
-          recordPermissionDenied(err, {
-            op: "coachChatLegacy.onSnapshot",
-            path: uid ? coachChatCollectionPath(uid) : undefined,
-          });
+            recordPermissionDenied(err, {
+              op: "coachChatLegacy.onSnapshot",
+              path: uid ? coachChatCollectionPath(uid) : undefined,
+            });
             void reportError({
               kind: "coach_legacy_snapshot_failed",
               message: err?.message || "coachChat legacy snapshot failed",
@@ -632,6 +636,21 @@ export default function CoachChatPage() {
       });
       return;
     }
+    if (!coachInteractive) {
+      const message = !coachAvailable
+        ? (coachPrereqMessage ??
+          "Coach chat is disabled until it is fully configured.")
+        : isNative()
+          ? "Coach is a Pro feature. Upgrade to Pro to unlock Coach."
+          : "Coach is a Pro feature. Visit Plans to upgrade and unlock Coach.";
+      setCoachError(message);
+      toast({
+        title: "Coach unavailable",
+        description: message,
+        variant: "destructive",
+      });
+      return;
+    }
     const threadId =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
@@ -695,10 +714,13 @@ export default function CoachChatPage() {
       demoToast();
       return;
     }
-    if (!coachAvailable) {
-      const message =
-        coachPrereqMessage ??
-        "Coach chat is disabled until it is fully configured.";
+    if (!coachInteractive) {
+      const message = !coachAvailable
+        ? (coachPrereqMessage ??
+          "Coach chat is disabled until it is fully configured.")
+        : isNative()
+          ? "Coach is a Pro feature. Upgrade to Pro to unlock Coach."
+          : "Coach is a Pro feature. Visit Plans to upgrade and unlock Coach.";
       setCoachError(message);
       return;
     }
@@ -772,21 +794,20 @@ export default function CoachChatPage() {
       // Optimistic UI: add the user message immediately so the chat feels responsive.
       // Firestore snapshot will reconcile this once the write lands.
       setMessages((prev) =>
-        sortMessages(dedupeMessages([
-          ...prev.filter((m) => m.id !== messageId),
-          {
-            id: messageId,
-            role: "user",
-            content: sanitized,
-            createdAt: new Date(),
-          },
-        ]))
+        sortMessages(
+          dedupeMessages([
+            ...prev.filter((m) => m.id !== messageId),
+            {
+              id: messageId,
+              role: "user",
+              content: sanitized,
+              createdAt: new Date(),
+            },
+          ])
+        )
       );
       await setDoc(
-        doc(
-          coachThreadMessagesCollection(uid, threadId),
-          messageId
-        ) as any,
+        doc(coachThreadMessagesCollection(uid, threadId), messageId) as any,
         {
           role: "user",
           content: sanitized,
@@ -799,10 +820,7 @@ export default function CoachChatPage() {
         if (isPermissionDenied(err)) {
           await refreshAuthTokenSoft();
           return setDoc(
-            doc(
-              coachThreadMessagesCollection(uid, threadId),
-              messageId
-            ) as any,
+            doc(coachThreadMessagesCollection(uid, threadId), messageId) as any,
             {
               role: "user",
               content: sanitized,
@@ -872,6 +890,20 @@ export default function CoachChatPage() {
       toast({
         title: "Initializing",
         description: "Secure services are almost ready. Try again in a moment.",
+      });
+      return;
+    }
+    if (!coachInteractive) {
+      const message = !coachAvailable
+        ? (coachPrereqMessage ?? "Coach is unavailable right now.")
+        : isNative()
+          ? "Coach is a Pro feature. Upgrade to Pro to unlock Coach."
+          : "Coach is a Pro feature. Visit Plans to upgrade and unlock Coach.";
+      setCoachError(message);
+      toast({
+        title: "Coach unavailable",
+        description: message,
+        variant: "destructive",
       });
       return;
     }
@@ -984,12 +1016,16 @@ export default function CoachChatPage() {
                       size="sm"
                       variant="outline"
                       onClick={handleNewChat}
-                      disabled={readOnlyDemo || initializing || !coachAvailable}
+                      disabled={
+                        readOnlyDemo || initializing || !coachInteractive
+                      }
                       title={
                         readOnlyDemo
                           ? "Demo preview"
-                          : !coachAvailable
-                            ? coachPrereqMessage ?? "Coach unavailable"
+                          : !coachInteractive
+                            ? !coachAvailable
+                              ? (coachPrereqMessage ?? "Coach unavailable")
+                              : "Coach requires an active plan"
                             : undefined
                       }
                     >
@@ -1027,7 +1063,9 @@ export default function CoachChatPage() {
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
                               <span>Coach</span>
                               <Badge
-                                variant={message.usedLLM ? "default" : "secondary"}
+                                variant={
+                                  message.usedLLM ? "default" : "secondary"
+                                }
                                 className="uppercase tracking-wide"
                               >
                                 {message.usedLLM ? "LLM" : "Rules"}
@@ -1055,8 +1093,8 @@ export default function CoachChatPage() {
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground">
-                      No messages yet. Ask a question to get personalized training
-                      and nutrition tips.
+                      No messages yet. Ask a question to get personalized
+                      training and nutrition tips.
                     </p>
                   )}
                 </div>
@@ -1090,7 +1128,10 @@ export default function CoachChatPage() {
                     }
                     rows={4}
                     disabled={
-                      pending || readOnlyDemo || initializing || !coachAvailable
+                      pending ||
+                      readOnlyDemo ||
+                      initializing ||
+                      !coachInteractive
                     }
                     data-testid="coach-message-input"
                   />
@@ -1104,7 +1145,7 @@ export default function CoachChatPage() {
                           pending ||
                           readOnlyDemo ||
                           initializing ||
-                          !coachAvailable
+                          !coachInteractive
                         }
                         data-testid="coach-mic"
                       >
@@ -1129,7 +1170,7 @@ export default function CoachChatPage() {
                             pending ||
                             !input.trim() ||
                             initializing ||
-                            !coachAvailable
+                            !coachInteractive
                           }
                           data-testid="coach-send-button"
                         >
@@ -1165,7 +1206,9 @@ export default function CoachChatPage() {
                   ) : (
                     <Button
                       onClick={regeneratePlan}
-                      disabled={regenerating || initializing}
+                      disabled={
+                        regenerating || initializing || !coachInteractive
+                      }
                       className="w-full"
                     >
                       {regenerating

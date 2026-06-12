@@ -57,6 +57,9 @@ export type CoachChatContext = {
   lastScanDate?: string; // ISO string
   lastScanBodyFatPercent?: number;
   nextWorkoutDayName?: string;
+  timelineWeeks?: number;
+  trainingDaysPerWeek?: number;
+  dietPreference?: string;
 };
 
 interface CoachChatMetadata {
@@ -93,6 +96,14 @@ type ThreadMessage = {
 const db = getFirestore();
 const THREADS_COLLECTION = "coachThreads";
 const MAX_MESSAGE_LENGTH = 2000;
+const COACH_PERSONA_AND_SAFETY_PROMPT =
+  "You are MyBodyScan's virtual coach. Keep responses concise, motivational, and practical. " +
+  "Prioritize safe training, progressive overload, recovery, sustainable nutrition, and hydration. " +
+  "Refuse crash diets, extreme dehydration, steroid/drug advice, illegal or dangerous requests, and training through serious injury. " +
+  "If pain or injury is mentioned, recommend safer substitutions and medical evaluation for severe symptoms. " +
+  "Do not present guidance as medical advice.";
+const COACH_METADATA_INSTRUCTION =
+  'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.';
 
 function sanitizeMessage(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -135,6 +146,10 @@ function normalizeContext(data: unknown): CoachChatContext | undefined {
     typeof raw.nextWorkoutDayName === "string"
       ? raw.nextWorkoutDayName.trim().slice(0, 20)
       : undefined;
+  const dietPreference =
+    typeof raw.dietPreference === "string"
+      ? raw.dietPreference.trim().slice(0, 80)
+      : undefined;
   return scrubUndefined({
     todayCalories: toNumber(raw.todayCalories),
     todayCaloriesGoal: toNumber(raw.todayCaloriesGoal),
@@ -147,6 +162,9 @@ function normalizeContext(data: unknown): CoachChatContext | undefined {
     lastScanDate: sanitizeIsoString(raw.lastScanDate),
     lastScanBodyFatPercent: toNumber(raw.lastScanBodyFatPercent),
     nextWorkoutDayName: nextWorkoutDayName || undefined,
+    timelineWeeks: toNumber(raw.timelineWeeks),
+    trainingDaysPerWeek: toNumber(raw.trainingDaysPerWeek),
+    dietPreference: dietPreference || undefined,
   }) as CoachChatContext;
 }
 
@@ -193,6 +211,9 @@ function mergeContext(
     "lastScanDate",
     "lastScanBodyFatPercent",
     "nextWorkoutDayName",
+    "timelineWeeks",
+    "trainingDaysPerWeek",
+    "dietPreference",
   ];
   for (const key of keys) {
     const value = clientContext[key];
@@ -206,7 +227,8 @@ function mergeContext(
 
 function toDateOrNull(value: any): Date | null {
   if (!value) return null;
-  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  if (value instanceof Date)
+    return Number.isFinite(value.getTime()) ? value : null;
   if (typeof value.toDate === "function") {
     try {
       const d = value.toDate();
@@ -252,8 +274,10 @@ async function buildServerContext(params: {
     const data = snap.exists ? (snap.data() as any) : null;
     const totals = (data?.totals as any) || null;
     const calories = Number(totals?.calories ?? data?.calories) || 0;
-    const protein = Number(totals?.protein ?? totals?.protein_g ?? data?.protein_g) || 0;
-    const carbs = Number(totals?.carbs ?? totals?.carbs_g ?? data?.carbs_g) || 0;
+    const protein =
+      Number(totals?.protein ?? totals?.protein_g ?? data?.protein_g) || 0;
+    const carbs =
+      Number(totals?.carbs ?? totals?.carbs_g ?? data?.carbs_g) || 0;
     const fat = Number(totals?.fat ?? totals?.fat_g ?? data?.fat_g) || 0;
     serverComputed.todayCalories = calories;
     serverComputed.todayProteinGrams = protein;
@@ -273,16 +297,22 @@ async function buildServerContext(params: {
     const planSnap = await db.doc(`users/${uid}/coachPlans/current`).get();
     if (planSnap.exists) {
       const plan = planSnap.data() as any;
-      const calorieTarget = toNumber(plan?.calorieTarget ?? plan?.targetCalories);
+      const calorieTarget = toNumber(
+        plan?.calorieTarget ?? plan?.targetCalories
+      );
       const proteinFloor = toNumber(plan?.proteinFloor ?? plan?.proteinTarget);
-      if (calorieTarget !== undefined) serverComputed.todayCaloriesGoal = calorieTarget;
+      if (calorieTarget !== undefined)
+        serverComputed.todayCaloriesGoal = calorieTarget;
       if (proteinFloor !== undefined)
         serverComputed.todayProteinGoalGrams = proteinFloor;
       const macros = plan?.macros;
       if (macros && typeof macros === "object") {
-        const carbsGoal = toNumber((macros as any).carbs ?? (macros as any).carb);
+        const carbsGoal = toNumber(
+          (macros as any).carbs ?? (macros as any).carb
+        );
         const fatGoal = toNumber((macros as any).fat);
-        if (carbsGoal !== undefined) serverComputed.todayCarbGoalGrams = carbsGoal;
+        if (carbsGoal !== undefined)
+          serverComputed.todayCarbGoalGrams = carbsGoal;
         if (fatGoal !== undefined) serverComputed.todayFatGoalGrams = fatGoal;
       }
     }
@@ -304,7 +334,8 @@ async function buildServerContext(params: {
     if (!scansSnap.empty) {
       const doc = scansSnap.docs[0];
       const scan = doc.data() as any;
-      const createdAt = toDateOrNull(scan?.createdAt) ?? toDateOrNull(scan?.completedAt);
+      const createdAt =
+        toDateOrNull(scan?.createdAt) ?? toDateOrNull(scan?.completedAt);
       if (createdAt) {
         serverComputed.lastScanDate = createdAt.toISOString();
       }
@@ -333,14 +364,18 @@ async function buildServerContext(params: {
 
 function buildCoachContextBlock(context?: CoachChatContext): string | null {
   if (!context) return null;
-  const hasAny =
-    Object.values(context).some((v) => v !== undefined) &&
-    (Number(context.todayCalories) > 0 ||
-      Number(context.todayProteinGrams) > 0 ||
-      Number(context.todayCarbGrams) > 0 ||
-      Number(context.todayFatGrams) > 0 ||
-      typeof context.lastScanDate === "string" ||
-      typeof context.todayCaloriesGoal === "number");
+  const hasAny = Object.entries(context).some(([key, value]) => {
+    if (value === undefined || value === null || value === "") return false;
+    if (
+      key === "todayCalories" ||
+      key === "todayProteinGrams" ||
+      key === "todayCarbGrams" ||
+      key === "todayFatGrams"
+    ) {
+      return Number(value) > 0;
+    }
+    return true;
+  });
   if (!hasAny) return null;
 
   const safe = scrubUndefined({
@@ -355,6 +390,9 @@ function buildCoachContextBlock(context?: CoachChatContext): string | null {
     lastScanDate: context.lastScanDate,
     lastScanBodyFatPercent: context.lastScanBodyFatPercent,
     nextWorkoutDayName: context.nextWorkoutDayName,
+    timelineWeeks: context.timelineWeeks,
+    trainingDaysPerWeek: context.trainingDaysPerWeek,
+    dietPreference: context.dietPreference,
   });
 
   return `TODAY_AT_A_GLANCE: ${JSON.stringify(safe)}`;
@@ -373,6 +411,7 @@ function buildPrompt(input: CoachChatRequest): string {
     context.push(`Activity level: ${input.activityLevel}`);
 
   const lines: string[] = [];
+  lines.push(COACH_PERSONA_AND_SAFETY_PROMPT);
   lines.push(
     "Provide a concise, motivational yet practical answer for the user below."
   );
@@ -387,24 +426,22 @@ function buildPrompt(input: CoachChatRequest): string {
   }
   lines.push("Question:");
   lines.push(input.message);
-  lines.push(
-    "Respond in 2-3 short paragraphs max. Prioritize safety, progressive overload, recovery, and nutrition."
-  );
-  lines.push(
-    'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.'
-  );
+  lines.push("Respond in 2-3 short paragraphs max.");
+  lines.push(COACH_METADATA_INSTRUCTION);
   return lines.join("\n");
 }
 
 function buildContextLines(input: CoachChatRequest): string[] {
   const context: string[] = [];
   if (input.goalType) context.push(`Goal focus: ${input.goalType}`);
-  if (input.currentWeight) context.push(`Current weight: ${input.currentWeight} kg`);
+  if (input.currentWeight)
+    context.push(`Current weight: ${input.currentWeight} kg`);
   if (input.goalWeight) context.push(`Goal weight: ${input.goalWeight} kg`);
   if (input.heightCm) context.push(`Height: ${input.heightCm} cm`);
   if (input.sex) context.push(`Sex: ${input.sex}`);
   if (input.age) context.push(`Age: ${input.age}`);
-  if (input.activityLevel) context.push(`Activity level: ${input.activityLevel}`);
+  if (input.activityLevel)
+    context.push(`Activity level: ${input.activityLevel}`);
   return context;
 }
 
@@ -466,8 +503,10 @@ function parseMetadataLine(source: string): {
   return { replyText: replyText || source.trim(), metadata };
 }
 
-
-function deterministicCoachFallback(payload: CoachChatRequest, requestId: string): CoachChatResponsePayload {
+function deterministicCoachFallback(
+  payload: CoachChatRequest,
+  requestId: string
+): CoachChatResponsePayload {
   const goal = (payload.goalType || "general").toLowerCase();
   const experience = (payload.activityLevel || "beginner").toLowerCase();
   const cardioDays = goal.includes("fat") ? 4 : goal.includes("muscle") ? 2 : 3;
@@ -553,8 +592,8 @@ function threadMessagesToOpenAI(
     {
       role: "system",
       content:
-        "You are MyBodyScan's virtual coach. Respond with concise, motivational guidance in under 150 words. Avoid medical advice.\n" +
-        'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.',
+        `${COACH_PERSONA_AND_SAFETY_PROMPT} Respond in under 150 words.\n` +
+        COACH_METADATA_INSTRUCTION,
     },
   ];
 
@@ -686,7 +725,8 @@ async function generateCoachResponseForThread(
       requestId: context.requestId,
       model,
       tokens:
-        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) || undefined,
+        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) ||
+        undefined,
       metadata,
     },
   });
@@ -711,9 +751,49 @@ async function generateCoachResponseForThread(
       metadata,
       model,
       tokens:
-        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) || undefined,
+        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) ||
+        undefined,
     },
   };
+}
+
+async function ensureCoachEntitled(
+  uid: string,
+  tokenOrClaims?: Record<string, unknown> | null,
+  email?: string | null
+): Promise<void> {
+  const tokenEmail =
+    typeof email === "string" && email.trim()
+      ? email.trim()
+      : typeof tokenOrClaims?.email === "string"
+        ? tokenOrClaims.email
+        : null;
+  const role =
+    typeof tokenOrClaims?.role === "string"
+      ? tokenOrClaims.role.toLowerCase()
+      : "";
+  const claimEntitled =
+    hasUnlimitedAccessFromClaims(tokenOrClaims as any) ||
+    tokenOrClaims?.dev === true ||
+    tokenOrClaims?.pro === true ||
+    role === "dev" ||
+    role === "staff" ||
+    role === "pro";
+  const staffOrPro =
+    claimEntitled || (await hasProEntitlement(uid, tokenEmail));
+
+  if (staffOrPro) {
+    return;
+  }
+
+  const userSnap = await db.doc(`users/${uid}`).get();
+  const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
+  if (!active) {
+    throw new HttpsError(
+      "permission-denied",
+      "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
+    );
+  }
 }
 
 function getHttpsErrorDetails(error: HttpsError): any {
@@ -787,14 +867,16 @@ function httpStatusFromHttpsError(error: HttpsError): number {
   }
 }
 
-async function resolveUidFromRequest(req: Request): Promise<string | null> {
+async function resolveAuthFromRequest(
+  req: Request
+): Promise<{ uid: string; token: Record<string, unknown> } | null> {
   const header = req.get("Authorization") || req.get("authorization") || "";
   if (!header.startsWith("Bearer ")) return null;
   const idToken = header.slice("Bearer ".length).trim();
   if (!idToken) return null;
   try {
     const decoded = await getAuth().verifyIdToken(idToken);
-    return decoded.uid ?? null;
+    return decoded.uid ? { uid: decoded.uid, token: decoded as any } : null;
   } catch (error) {
     logger.warn("coachChat.http.auth_failed", {
       message: (error as Error)?.message,
@@ -824,23 +906,11 @@ export const coachChat = onCall<CoachChatRequest>(
       throw new HttpsError("unauthenticated", "Authentication required");
     }
 
-    // Entitlement gate: Unlimited credits OR active subscription.
+    // Entitlement gate: Unlimited/dev/staff/pro claims OR active subscription.
     // Keep this server-side so a misconfigured client can't bypass it.
     try {
       const token = request.auth?.token as any;
-      const tokenEmail = typeof token?.email === "string" ? token.email : null;
-      const unlimited = hasUnlimitedAccessFromClaims(token);
-      const staffOrPro = unlimited || (await hasProEntitlement(uid, tokenEmail));
-      if (!staffOrPro) {
-        const userSnap = await db.doc(`users/${uid}`).get();
-        const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
-        if (!active) {
-          throw new HttpsError(
-            "permission-denied",
-            "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
-          );
-        }
-      }
+      await ensureCoachEntitled(uid, token);
     } catch (error) {
       if (error instanceof HttpsError) throw error;
       throw new HttpsError(
@@ -883,7 +953,11 @@ export const coachChat = onCall<CoachChatRequest>(
         requestId,
       };
       if (payload.threadId) {
-        return await generateCoachResponseForThread(payload, ctx, payload.threadId);
+        return await generateCoachResponseForThread(
+          payload,
+          ctx,
+          payload.threadId
+        );
       }
       return await generateCoachResponse(payload, ctx);
     } catch (error) {
@@ -893,7 +967,10 @@ export const coachChat = onCall<CoachChatRequest>(
         message: (error as Error)?.message,
       });
       const mapped = toHttpsError(error, requestId);
-      if (mapped.code === "failed-precondition" || mapped.code === "unavailable") {
+      if (
+        mapped.code === "failed-precondition" ||
+        mapped.code === "unavailable"
+      ) {
         return deterministicCoachFallback(payload, requestId);
       }
       throw mapped;
@@ -940,13 +1017,15 @@ export async function coachChatHandler(
 
   const requestId = req.get("x-request-id")?.trim() || randomUUID();
   const identifier = identifierFromRequest(req);
-  const uid = await resolveUidFromRequest(req);
+  const auth = await resolveAuthFromRequest(req);
+  const uid = auth?.uid ?? null;
   await ensureSoftAppCheckFromRequest(req, { fn: "coachChat", uid, requestId });
 
   try {
-    if (!uid) {
+    if (!uid || !auth) {
       throw new HttpsError("unauthenticated", "Authentication required");
     }
+    await ensureCoachEntitled(uid, auth.token);
     await enforceRateLimit({
       uid,
       key: "coachChat",
@@ -965,7 +1044,10 @@ export async function coachChatHandler(
     res.status(200).json(response);
   } catch (error) {
     const mapped = toHttpsError(error, requestId);
-    if (mapped.code === "failed-precondition" || mapped.code === "unavailable") {
+    if (
+      mapped.code === "failed-precondition" ||
+      mapped.code === "unavailable"
+    ) {
       res.status(200).json(deterministicCoachFallback(payload, requestId));
       return;
     }

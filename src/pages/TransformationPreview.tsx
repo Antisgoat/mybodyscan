@@ -34,14 +34,17 @@ export default function TransformationPreviewPage() {
   );
   const paidScanPreviewEligible = Boolean((scan as any)?.charged);
   const previewEligible = pro || paidScanPreviewEligible;
+  const canAccessPreview = previewEligible || internalAccess;
   const [state, setState] = useState<any>(null);
   const [loadingState, setLoadingState] = useState(true);
 
   useEffect(() => {
-    if (!user?.uid || !scanId) {
+    if (!user?.uid || !scanId || !canAccessPreview) {
+      setState(null);
       setLoadingState(false);
       return;
     }
+    setLoadingState(true);
     const unsub = subscribeTransformationPreview(
       user.uid,
       scanId,
@@ -52,7 +55,7 @@ export default function TransformationPreviewPage() {
       () => setLoadingState(false)
     );
     return () => unsub();
-  }, [user?.uid, scanId]);
+  }, [user?.uid, scanId, canAccessPreview]);
 
   const vm = useMemo(
     () =>
@@ -110,7 +113,7 @@ export default function TransformationPreviewPage() {
         copy: "Complete your plan setup so the preview can reflect your training target.",
       };
     }
-    if (state?.status === "ready" && state?.imageUrl) {
+    if (canAccessPreview && state?.status === "ready" && state?.imageUrl) {
       return {
         label: "Ready",
         copy: "Your Transformation Preview is ready.",
@@ -146,7 +149,8 @@ export default function TransformationPreviewPage() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          {state?.status === "ready" &&
+          {canAccessPreview &&
+          state?.status === "ready" &&
           state?.imageUrl &&
           TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (
             <img
