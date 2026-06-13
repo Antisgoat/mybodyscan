@@ -55,6 +55,7 @@ import { toast } from "@/hooks/use-toast";
 import { POSES, type Pose } from "@/features/scan/poses";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { useAuthUser } from "@/lib/useAuthUser";
+import { useClaims } from "@/lib/claims";
 
 const VIEW_NAME_MAP: Record<CaptureView, ViewName> = {
   Front: "front",
@@ -197,14 +198,25 @@ export default function ScanFlowResult() {
   const [submittedScanId, setSubmittedScanId] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { claims } = useClaims();
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
+    const c = (claims || {}) as Record<string, unknown>;
+    const internal = Boolean(
+      c.admin === true ||
+        c.dev === true ||
+        c.staff === true ||
+        c.unlimited === true ||
+        c.unlimitedCredits === true ||
+        c.creditsUnlimited === true
+    );
+    if (!internal) return false;
     try {
       return new URLSearchParams(location.search).get("debug") === "1";
     } catch {
       return false;
     }
-  }, [location.search]);
+  }, [claims, location.search]);
 
   const [isOffline, setIsOffline] = useState(() => {
     try {

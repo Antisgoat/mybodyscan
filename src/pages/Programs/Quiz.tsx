@@ -23,8 +23,7 @@ import type {
 import { toast } from "@/hooks/use-toast";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import { useClaims } from "@/lib/claims";
-import { useSubscription } from "@/hooks/useSubscription";
+import { useEntitlements } from "@/lib/entitlements/store";
 import { startCatalogProgram } from "@/lib/programs/startProgram";
 
 const goalOptions: Array<{
@@ -103,8 +102,7 @@ export default function ProgramsQuiz() {
   const [results, setResults] = useState<QuizResult[] | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const demo = useDemoMode();
-  const { claims } = useClaims();
-  const { subscription } = useSubscription();
+  const { entitlements } = useEntitlements();
 
   useEffect(() => {
     let mounted = true;
@@ -193,8 +191,7 @@ export default function ProgramsQuiz() {
       await startCatalogProgram({
         entry: topRecommendation.entry,
         demo,
-        claims: (claims as any) ?? null,
-        subscription: (subscription as any) ?? null,
+        entitlements,
         navigate,
       });
     } catch (error) {

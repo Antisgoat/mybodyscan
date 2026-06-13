@@ -319,15 +319,10 @@ const Home = () => {
               <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
                 <p className="text-sm font-semibold text-destructive">
                   Last scan failed
-                  {latestAttempt?.raw?.errorReason
-                    ? ` (${latestAttempt.raw.errorReason})`
-                    : latestAttempt?.raw?.lastStep
-                      ? ` (${latestAttempt.raw.lastStep})`
-                      : ""}
+
                 </p>
                 <p className="text-xs text-destructive/80">
-                  {latestAttempt?.raw?.errorMessage ||
-                    "Start a new scan to try again."}
+                  We could not complete this scan. Start a new scan or open history to retry.
                 </p>
                 <div className="mt-2">
                   {renderStartButton({ className: "w-full" })}

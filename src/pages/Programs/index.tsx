@@ -559,7 +559,7 @@ export default function ProgramsCatalog() {
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[3, 4, 5, 6].map((v) => (
+                        {[2, 3, 4, 5, 6].map((v) => (
                           <SelectItem key={v} value={String(v)}>
                             {v} days
                           </SelectItem>

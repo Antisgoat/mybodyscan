@@ -631,23 +631,63 @@ async function requireProgramsEntitlement(uid: string, claims: any) {
 
 function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
   const focus = prefs.focus || "full";
-  const baseExercises =
-    focus === "back"
-      ? [
-          { id: randomUUID(), name: "Pull Ups", sets: 3, reps: 8 },
-          { id: randomUUID(), name: "Bent Over Row", sets: 3, reps: 10 },
-          { id: randomUUID(), name: "Face Pull", sets: 3, reps: 12 },
-        ]
-      : [
-          { id: randomUUID(), name: "Goblet Squat", sets: 3, reps: 12 },
-          { id: randomUUID(), name: "Reverse Lunge", sets: 3, reps: 10 },
-          { id: randomUUID(), name: "Plank", sets: 3, reps: 45 },
-        ];
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const limit = Math.max(2, Math.min(prefs.daysPerWeek || 4, 6));
+  const injuryNote = prefs.injuries?.length
+    ? `Safety note: avoid painful ranges around ${prefs.injuries.join(", ")}; swap for pain-free alternatives.`
+    : "Safety note: keep 2 reps in reserve and stop if sharp pain appears.";
+  const cardio =
+    focus === "legs"
+      ? "Steps/cardio: 20-30 min easy walk or bike after upper/rest days."
+      : "Steps/cardio: 7k-10k daily steps plus 2 easy Zone-2 sessions/week.";
+  const templates: Array<Array<{ id: string; name: string; sets: number; reps: string }>> = [
+    [
+      { id: randomUUID(), name: "Warm-up: 5 min incline walk + dynamic hips/shoulders", sets: 1, reps: "5-8 min" },
+      { id: randomUUID(), name: focus === "back" ? "Assisted Pull-Up or Lat Pulldown" : "Goblet Squat", sets: 3, reps: "8-12 @ RPE 7" },
+      { id: randomUUID(), name: "Dumbbell Bench Press (sub: push-up)", sets: 3, reps: "8-12 @ RPE 7" },
+      { id: randomUUID(), name: "Chest-Supported Row (sub: band row)", sets: 3, reps: "10-12 @ RPE 7" },
+      { id: randomUUID(), name: injuryNote, sets: 1, reps: "review before lifting" },
+    ],
+    [
+      { id: randomUUID(), name: "Warm-up: 5 min bike + glute/core activation", sets: 1, reps: "5-8 min" },
+      { id: randomUUID(), name: focus === "core" ? "Dead Bug + Side Plank" : "Romanian Deadlift", sets: 3, reps: "8-10 @ RPE 7" },
+      { id: randomUUID(), name: "Split Squat (sub: leg press or step-up)", sets: 3, reps: "8-10/side @ RPE 7" },
+      { id: randomUUID(), name: "Cable or Band Row", sets: 3, reps: "10-15 @ RPE 7" },
+      { id: randomUUID(), name: cardio, sets: 1, reps: "weekly target" },
+    ],
+    [
+      { id: randomUUID(), name: "Warm-up: mobility flow + ramp-up sets", sets: 1, reps: "8 min" },
+      { id: randomUUID(), name: "Front Squat or Leg Press", sets: 3, reps: "6-10 @ RPE 7-8" },
+      { id: randomUUID(), name: "Overhead Press (sub: landmine press)", sets: 3, reps: "8-10 @ RPE 7" },
+      { id: randomUUID(), name: "Lat Pulldown", sets: 3, reps: "10-12 @ RPE 7" },
+      { id: randomUUID(), name: "Progression: add 1 rep weekly, then +5 lb when top reps are clean", sets: 1, reps: "4-week block" },
+    ],
+    [
+      { id: randomUUID(), name: "Warm-up: easy cardio + band circuit", sets: 1, reps: "8 min" },
+      { id: randomUUID(), name: "Hip Thrust (sub: glute bridge)", sets: 3, reps: "10-12 @ RPE 7" },
+      { id: randomUUID(), name: "Incline Dumbbell Press", sets: 3, reps: "8-12 @ RPE 7" },
+      { id: randomUUID(), name: "Single-Arm Row", sets: 3, reps: "10-12/side @ RPE 7" },
+      { id: randomUUID(), name: "Substitutions: use machines, cables, bands, or bodyweight to match equipment", sets: 1, reps: "as needed" },
+    ],
+    [
+      { id: randomUUID(), name: "Warm-up: movement prep + ramp sets", sets: 1, reps: "8 min" },
+      { id: randomUUID(), name: "Trap-Bar Deadlift or Kettlebell Deadlift", sets: 3, reps: "5-8 @ RPE 7" },
+      { id: randomUUID(), name: "Walking Lunge", sets: 3, reps: "10/side @ RPE 7" },
+      { id: randomUUID(), name: "Face Pull + Curl superset", sets: 3, reps: "12-15 @ RPE 7" },
+      { id: randomUUID(), name: "Recovery: sleep 7-9h; deload every 4th week if soreness accumulates", sets: 1, reps: "weekly" },
+    ],
+    [
+      { id: randomUUID(), name: "Warm-up: easy cardio + mobility", sets: 1, reps: "8 min" },
+      { id: randomUUID(), name: "Technique full-body circuit", sets: 3, reps: "8-12 @ RPE 6-7" },
+      { id: randomUUID(), name: "Core carry: farmer carry or suitcase carry", sets: 3, reps: "30-45 sec" },
+      { id: randomUUID(), name: "Optional conditioning finisher", sets: 6, reps: "30 sec easy/hard intervals" },
+      { id: randomUUID(), name: injuryNote, sets: 1, reps: "review before lifting" },
+    ],
+  ];
+
   return days.slice(0, limit).map((day, index) => ({
     day,
-    exercises: baseExercises.map((ex, idx) => ({
+    exercises: templates[index % templates.length].map((ex, idx) => ({
       ...ex,
       id: `${ex.id}-${index}-${idx}`,
     })),

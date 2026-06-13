@@ -12,10 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { db } from "@/lib/firebase";
-import { setDoc } from "@/lib/dbWrite";
-import { doc } from "firebase/firestore";
-import { useComputePlan } from "@/hooks/useComputePlan";
+import { completeCoachOnboarding } from "@/lib/onboarding/coachOnboarding";
 import { useToast } from "@/hooks/use-toast";
 import { Seo } from "@/components/Seo";
 import HeightInputUS from "@/components/HeightInputUS";
@@ -31,6 +28,14 @@ interface OnboardingData {
   weight_kg?: number;
   activity_level?: "sedentary" | "light" | "moderate" | "very" | "extra";
   goal?: "lose_fat" | "gain_muscle" | "improve_heart";
+  training_days_per_week?: 2 | 3 | 4 | 5 | 6;
+  experience?: "beginner" | "intermediate" | "advanced";
+  equipment?: "full_gym" | "dumbbells" | "bodyweight";
+  injuries?: string[];
+  diet_preference?: "balanced" | "low_carb" | "vegetarian" | "vegan";
+  target_weight_kg?: number;
+  target_body_fat_percent?: number;
+  visual_goal?: string;
   timeframe_weeks?: number;
   style?: "ease_in" | "all_in";
   medical_flags?: Record<string, boolean>;
@@ -55,7 +60,6 @@ export default function CoachOnboardingNew() {
 
   const navigate = useNavigate();
   const { user } = useAuthUser();
-  const { computePlan } = useComputePlan();
   const { toast } = useToast();
   const { units } = useUnits();
 
@@ -82,19 +86,14 @@ export default function CoachOnboardingNew() {
 
     setComputing(true);
     try {
-      // Save profile
-      const profileRef = doc(
-        db,
-        "users",
-        user.uid,
-        "coach",
-        "profile"
-      );
-      await setDoc(profileRef, data);
-
-      // Compute plan
-      const planResult = await computePlan(data);
-      setPlan(planResult);
+      const planResult = await completeCoachOnboarding({
+        training_days_per_week: 3,
+        experience: "beginner",
+        equipment: "full_gym",
+        diet_preference: "balanced",
+        ...data,
+      });
+      setPlan(planResult.plan);
 
       setCurrentStep("plan");
 

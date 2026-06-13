@@ -49,6 +49,7 @@ import {
 } from "@/lib/scanHeartbeat";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
+import { useClaims } from "@/lib/claims";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
@@ -90,6 +91,7 @@ export default function ScanResultPage() {
   );
   const { units } = useUnits();
   const { user } = useAuthUser();
+  const { claims } = useClaims();
   const { profile, plan } = useUserProfile();
   const [processingStepIdx, setProcessingStepIdx] = useState(0);
   const [showLongProcessing, setShowLongProcessing] = useState(false);
@@ -104,12 +106,22 @@ export default function ScanResultPage() {
   const lastStatusMarkRef = useRef<string | null>(null);
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
+    const c = (claims || {}) as Record<string, unknown>;
+    const internal = Boolean(
+      c.admin === true ||
+        c.dev === true ||
+        c.staff === true ||
+        c.unlimited === true ||
+        c.unlimitedCredits === true ||
+        c.creditsUnlimited === true
+    );
+    if (!internal) return false;
     try {
       return new URLSearchParams(location.search).get("debug") === "1";
     } catch {
       return false;
     }
-  }, [location.search]);
+  }, [claims, location.search]);
 
   const updatePipeline = useCallback(
     (patch: Partial<ScanPipelineState>) => {
@@ -619,23 +631,22 @@ export default function ScanResultPage() {
       scan.status === "failed";
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm text-red-700">{statusMeta.label}</p>
+        <p className="text-sm text-red-700">We could not complete this scan.</p>
         <p className="text-xs text-red-700/90">
-          {scan.errorMessage ||
-            statusMeta.helperText ||
-            "We couldn't complete this scan."}
+          Please retry processing or re-upload your four photos. If a refund has
+          been confirmed, your scan credit has been returned.
         </p>
-        {scan.errorReason ? (
+        {showDebug && scan.errorReason ? (
           <p className="text-xs text-muted-foreground">
             Error code: {scan.errorReason}
           </p>
         ) : null}
-        {scan.errorInfo?.message ? (
+        {showDebug && scan.errorInfo?.message ? (
           <p className="text-xs text-muted-foreground">
             Backend error: {scan.errorInfo.message}
           </p>
         ) : null}
-        {pipelineState?.lastError?.message ? (
+        {showDebug && pipelineState?.lastError?.message ? (
           <p className="text-xs text-muted-foreground">
             Last error: {pipelineState.lastError.message}
           </p>
@@ -735,7 +746,7 @@ export default function ScanResultPage() {
                   {lastUpdateLabel ? (
                     <div>Last update: {lastUpdateLabel}</div>
                   ) : null}
-                  {scan.errorInfo?.message ? (
+                  {showDebug && scan.errorInfo?.message ? (
                     <div>Last error: {scan.errorInfo.message}</div>
                   ) : null}
                 </div>
@@ -913,9 +924,7 @@ export default function ScanResultPage() {
                 {lastUpdateLabel ?? "—"}
               </div>
               {scan.errorInfo ? (
-                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                  {JSON.stringify(scan.errorInfo, null, 2)}
-                </pre>
+                <div>Backend error present. See server logs for full details.</div>
               ) : null}
               <div>
                 <span className="font-medium text-foreground">
@@ -956,9 +965,7 @@ export default function ScanResultPage() {
                 {String(storage.app?.options?.storageBucket || "—")}
               </div>
               {docStatus.fields.length ? (
-                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                  {JSON.stringify(docStatus.fields, null, 2)}
-                </pre>
+                <div>Field count: {docStatus.fields.length}</div>
               ) : null}
               {snapshotError ? (
                 <div>
@@ -969,14 +976,10 @@ export default function ScanResultPage() {
                 </div>
               ) : null}
               {pipelineState?.lastError ? (
-                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                  {JSON.stringify(pipelineState.lastError, null, 2)}
-                </pre>
+                <div>Pipeline error captured. See server logs for full details.</div>
               ) : null}
               {scan?.photoPaths ? (
-                <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground">
-                  {JSON.stringify(scan.photoPaths, null, 2)}
-                </pre>
+                <div>Photo set: {Object.keys(scan.photoPaths).length} views uploaded.</div>
               ) : null}
             </div>
           </details>
@@ -1114,8 +1117,10 @@ export default function ScanResultPage() {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p>
-                See a realistic motivational visualization of your goal physique
-                once your scan and plan are ready.
+                A realistic motivational visualization based on your scan, goal, and plan.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Motivational wellness visualization only. Not a medical prediction.
               </p>
               <Button
                 className="w-full sm:w-auto"

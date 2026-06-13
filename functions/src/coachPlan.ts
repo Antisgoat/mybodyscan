@@ -8,6 +8,10 @@ interface CoachProfile {
   style?: string;
   sex?: string;
   weight_kg?: number;
+  training_days_per_week?: number;
+  experience?: string;
+  equipment?: string;
+  injuries?: string[] | string;
 }
 
 type SessionBlock = {
@@ -35,16 +39,33 @@ type GeneratedPlan = {
 const db = getFirestore();
 
 function resolveDays(profile: CoachProfile | null): number {
+  const requested = Number(profile?.training_days_per_week);
+  if (Number.isFinite(requested)) return Math.max(2, Math.min(6, Math.round(requested)));
   if (!profile) return 4;
   if (profile.style === "all_in") return 5;
-  if (profile.activity_level === "sedentary") return 3;
+  if (profile.activity_level === "sedentary") return 2;
   return 4;
 }
 
-function pickSplit(dayCount: number): string {
-  if (dayCount <= 3) return "Push/Pull/Legs";
+function hasInjuryConstraints(profile: CoachProfile | null): boolean {
+  const injuries = profile?.injuries;
+  if (Array.isArray(injuries)) return injuries.some((item) => String(item).trim().length > 0);
+  return typeof injuries === "string" && injuries.trim().length > 0;
+}
+
+function pickSplit(dayCount: number, profile?: CoachProfile | null): string {
+  if (dayCount <= 2) return "2-Day Full Body";
+  if (dayCount === 3) return "3-Day Full Body";
   if (dayCount === 4) return "Upper/Lower/Upper/Lower";
-  return "Upper/Lower/Push/Pull/Legs";
+  if (
+    dayCount === 6 &&
+    profile?.experience !== "beginner" &&
+    (profile?.equipment === "full_gym" || profile?.equipment === "gym") &&
+    !hasInjuryConstraints(profile)
+  ) {
+    return "Push/Pull/Legs";
+  }
+  return "Upper/Lower + Conditioning";
 }
 
 function buildSessions(dayCount: number): SessionPlan[] {
@@ -170,7 +191,7 @@ async function fetchProfile(uid: string): Promise<CoachProfile | null> {
 
 function buildPlan(profile: CoachProfile | null): GeneratedPlan {
   const days = resolveDays(profile);
-  const split = pickSplit(days);
+  const split = pickSplit(days, profile);
   const sessions = buildSessions(days);
   const calorieTarget = estimateCalories(profile);
   const proteinFloor = estimateProtein(profile);

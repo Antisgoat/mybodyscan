@@ -21,7 +21,13 @@ vi.mock("@/hooks/useLatestScanForUser", () => ({
 }));
 
 vi.mock("@/lib/demoFlag", () => ({ isDemo: () => false }));
-vi.mock("@/lib/demoDataset", () => ({ demoLatestScan: null }));
+vi.mock("@/lib/demoDataset", () => ({
+  demoLatestScan: null,
+  demoMeals: {
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    meals: [],
+  },
+}));
 vi.mock("@/components/DemoBanner", () => ({ DemoBanner: () => null }));
 vi.mock("@/components/Seo", () => ({ Seo: () => null }));
 
@@ -50,7 +56,7 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/No scans yet/i)).toBeTruthy();
+    expect(screen.getByText(/Unable to load results/i)).toBeTruthy();
     expect(screen.getByText(/Start a Scan/i)).toBeTruthy();
   });
 
@@ -62,8 +68,10 @@ describe("Results page weight units", () => {
         status: "complete",
         createdAt: new Date(),
         // Simulate the legacy bug shape: ambiguous `weight` holds kg, not lb.
+        input: { currentWeightKg: 85.3, heightCm: 180 },
         metrics: { weightKg: 85.3, weight: 85.3 },
         estimate: { bodyFatPercent: 18.2 },
+        nutritionPlan: { caloriesPerDay: 2300, proteinGrams: 160 },
       },
       loading: false,
       error: null,

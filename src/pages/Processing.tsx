@@ -16,8 +16,6 @@ const Processing = () => {
   const { user } = useAuthUser();
   const [showTip, setShowTip] = useState(false);
   const [lastStep, setLastStep] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [errorReason, setErrorReason] = useState<string | null>(null);
   const [lastUpdatedAtMs, setLastUpdatedAtMs] = useState<number | null>(null);
   const [watchdog, setWatchdog] = useState<{
     triggered: boolean;
@@ -58,12 +56,6 @@ const Processing = () => {
             : rawStatus;
         setStatus(normalized);
         setLastStep(typeof data?.lastStep === "string" ? data.lastStep : null);
-        setErrorMessage(
-          typeof data?.errorMessage === "string" ? data.errorMessage : null
-        );
-        setErrorReason(
-          typeof data?.errorReason === "string" ? data.errorReason : null
-        );
         const updatedAtRaw = data?.updatedAt ?? data?.lastStepAt ?? null;
         let updatedAtMs: number | null = null;
         try {
@@ -191,15 +183,8 @@ const Processing = () => {
       {status === "error" && (
         <div className="mt-8 text-center space-y-4">
           <p className="text-sm text-muted-foreground">
-            {errorMessage
-              ? errorMessage
-              : "Something went wrong during processing. Please try again."}
+            We could not complete this scan. Please try again or contact support if this keeps happening.
           </p>
-          {errorReason ? (
-            <p className="text-xs text-muted-foreground">
-              reason: {errorReason}
-            </p>
-          ) : null}
           <Button
             variant="secondary"
             onClick={() => navigate("/scan/new")}
