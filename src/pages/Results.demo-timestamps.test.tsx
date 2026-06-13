@@ -36,8 +36,11 @@ vi.mock("@/lib/demoDataset", () => ({
     status: "complete",
     // Intentionally omit createdAt/updatedAt/completedAt to prevent regressions like
     // "undefined is not an object (evaluating 'p.updatedAt')".
-    metrics: { bodyFatPct: 20.1, weightLb: 180.2, bmi: 25.1 },
+    input: { currentWeightKg: 81.7, heightCm: 180 },
+    estimate: { bodyFatPercent: 20.1, bmi: 25.1, leanMassKg: 65.3 },
+    metrics: { bodyFatPct: 20.1, weightKg: 81.7, weightLb: 180.2, bmi: 25.1 },
     results: { bodyFatPct: 20.1, weightLb: 180.2, bmi: 25.1 },
+    nutritionPlan: { caloriesPerDay: 2200, proteinGrams: 160, carbsGrams: 220, fatsGrams: 70 },
   },
 }));
 
@@ -60,6 +63,6 @@ describe("Results (demo timestamps)", () => {
         </MemoryRouter>
       )
     ).not.toThrow();
-    expect(screen.getByText(/Results/i)).toBeTruthy();
+    expect(screen.getByText(/Your Body Scan/i)).toBeTruthy();
   });
 });

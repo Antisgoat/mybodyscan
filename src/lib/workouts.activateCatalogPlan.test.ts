@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.useFakeTimers();
 
-const fnJsonMock = vi.fn();
+const callRequestFunctionMock = vi.fn();
 
-vi.mock("./fnCall", () => ({
-  fnJson: (...args: any[]) => fnJsonMock(...args),
+vi.mock("@/lib/backend/callBackend", () => ({
+  callRequestFunction: (...args: any[]) => callRequestFunctionMock(...args),
 }));
 
 // Minimal firestore stubs used by activateCatalogPlan.
@@ -39,7 +39,7 @@ vi.mock("@/auth/mbs-auth", () => ({
 
 describe("activateCatalogPlan", () => {
   it("polls Firestore briefly until activation propagates", async () => {
-    fnJsonMock.mockResolvedValue({ planId: "plan123" });
+    callRequestFunctionMock.mockResolvedValue({ planId: "plan123" });
 
     let pollIndex = 0;
     getDocMock.mockImplementation(async (ref: any) => {
@@ -71,7 +71,7 @@ describe("activateCatalogPlan", () => {
     await vi.advanceTimersByTimeAsync(300);
     const result = await promise;
     expect(result.planId).toBe("plan123");
-    expect(fnJsonMock).toHaveBeenCalled();
+    expect(callRequestFunctionMock).toHaveBeenCalled();
   });
 });
 

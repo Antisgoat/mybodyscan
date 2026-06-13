@@ -49,6 +49,7 @@ import {
 } from "@/lib/scanHeartbeat";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
+import { useClaims } from "@/lib/claims";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
 const HARD_PROCESSING_TIMEOUT_MS = 4 * 60 * 1000;
@@ -90,6 +91,7 @@ export default function ScanResultPage() {
   );
   const { units } = useUnits();
   const { user } = useAuthUser();
+  const { claims } = useClaims();
   const { profile, plan } = useUserProfile();
   const [processingStepIdx, setProcessingStepIdx] = useState(0);
   const [showLongProcessing, setShowLongProcessing] = useState(false);
@@ -104,12 +106,21 @@ export default function ScanResultPage() {
   const lastStatusMarkRef = useRef<string | null>(null);
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
-    try {
-      return new URLSearchParams(location.search).get("debug") === "1";
-    } catch {
-      return false;
-    }
-  }, [location.search]);
+    const role =
+      typeof (claims as any)?.role === "string"
+        ? (claims as any).role.toLowerCase()
+        : "";
+    return Boolean(
+      (claims as any)?.admin === true ||
+        (claims as any)?.dev === true ||
+        (claims as any)?.staff === true ||
+        (claims as any)?.unlimited === true ||
+        (claims as any)?.unlimitedCredits === true ||
+        role === "admin" ||
+        role === "dev" ||
+        role === "staff"
+    );
+  }, [claims]);
 
   const updatePipeline = useCallback(
     (patch: Partial<ScanPipelineState>) => {
@@ -605,12 +616,9 @@ export default function ScanResultPage() {
     scan.updatedAt ??
     scan.createdAt;
   const lastUpdateLabel = lastUpdateAt ? formatDateTime(lastUpdateAt) : null;
+  const resultVm = buildScanResultViewModel({ scan, profile, plan });
 
-  if (
-    statusMeta.recommendRescan &&
-    scan.status !== "error" &&
-    scan.status !== "failed"
-  ) {
+  if (statusMeta.recommendRescan && !resultVm.isFailedOrFallback) {
     const canResume =
       scan.status === "uploaded" ||
       scan.status === "pending" ||
@@ -621,21 +629,20 @@ export default function ScanResultPage() {
       <div className="mx-auto max-w-3xl space-y-3 p-4">
         <p className="text-sm text-red-700">{statusMeta.label}</p>
         <p className="text-xs text-red-700/90">
-          {scan.errorMessage ||
-            statusMeta.helperText ||
-            "We couldn't complete this scan."}
+          {statusMeta.helperText ||
+            "We couldn't complete this scan. Please try again."}
         </p>
-        {scan.errorReason ? (
+        {showDebug && scan.errorReason ? (
           <p className="text-xs text-muted-foreground">
             Error code: {scan.errorReason}
           </p>
         ) : null}
-        {scan.errorInfo?.message ? (
+        {showDebug && scan.errorInfo?.message ? (
           <p className="text-xs text-muted-foreground">
             Backend error: {scan.errorInfo.message}
           </p>
         ) : null}
-        {pipelineState?.lastError?.message ? (
+        {showDebug && pipelineState?.lastError?.message ? (
           <p className="text-xs text-muted-foreground">
             Last error: {pipelineState.lastError.message}
           </p>
@@ -985,7 +992,6 @@ export default function ScanResultPage() {
     );
   }
 
-  const resultVm = buildScanResultViewModel({ scan, profile, plan });
   const retryProcessing = () => {
     setLoading(true);
     retryScanProcessingClient(scanId)
@@ -1018,7 +1024,9 @@ export default function ScanResultPage() {
               <Badge variant="destructive">{resultVm.sourceLabel}</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              {resultVm.failureMessage}
+              No estimate was created for this scan, so we did not generate body
+              composition metrics or nutrition targets from it. You can retry
+              processing the same photos or start a new scan.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -1027,19 +1035,62 @@ export default function ScanResultPage() {
                 Your scan credit has been returned.
               </div>
             ) : null}
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2">
               <Button onClick={retryProcessing}>Retry processing</Button>
               <Button variant="outline" onClick={() => nav("/scan")}>
                 Re-upload scan
               </Button>
               <Button variant="outline" onClick={() => nav("/scan/history")}>
-                History
+                Scan history
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() =>
+                  window.open(
+                    `mailto:support@mybodyscanapp.com?subject=MyBodyScan%20Scan%20Help&body=${encodeURIComponent(
+                      `scanId=${scan.id}
+status=${scan.status}`
+                    )}`,
+                    "_blank"
+                  )
+                }
+              >
+                Contact support
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
               We do not display body fat, macros, body age, scores, or workout
               prescriptions unless the AI analysis succeeds.
             </p>
+            {showDebug ? (
+              <details className="rounded border bg-background/80 p-3 text-xs">
+                <summary className="cursor-pointer select-none font-medium">
+                  Debug details
+                </summary>
+                <div className="mt-2 space-y-2 text-muted-foreground">
+                  <div>errorReason: {scan.errorReason ?? "—"}</div>
+                  <div>backend error: {scan.errorInfo?.message ?? "—"}</div>
+                  <div>
+                    pipeline lastError: {pipelineState?.lastError?.message ?? "—"}
+                  </div>
+                  <pre className="whitespace-pre-wrap text-[11px]">
+                    {JSON.stringify(
+                      {
+                        scanId: scan.id,
+                        status: scan.status,
+                        photoPaths: scan.photoPaths,
+                        fields: docStatus.fields,
+                        pipelineLastError: pipelineState?.lastError ?? null,
+                        appCheckStatus,
+                        storageBucket: storage.app?.options?.storageBucket ?? null,
+                      },
+                      null,
+                      2
+                    )}
+                  </pre>
+                </div>
+              </details>
+            ) : null}
           </CardContent>
         </Card>
       </div>

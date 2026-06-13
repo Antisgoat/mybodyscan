@@ -21,7 +21,14 @@ vi.mock("@/hooks/useLatestScanForUser", () => ({
 }));
 
 vi.mock("@/lib/demoFlag", () => ({ isDemo: () => false }));
-vi.mock("@/lib/demoDataset", () => ({ demoLatestScan: null }));
+vi.mock("@/lib/demoDataset", () => ({
+  demoLatestScan: null,
+  demoMeals: {
+    date: "2026-01-01",
+    totals: { calories: 2100, protein: 160, carbs: 220, fat: 70 },
+    meals: [],
+  },
+}));
 vi.mock("@/components/DemoBanner", () => ({ DemoBanner: () => null }));
 vi.mock("@/components/Seo", () => ({ Seo: () => null }));
 
@@ -35,7 +42,7 @@ afterEach(() => {
 });
 
 describe("Results page weight units", () => {
-  it("renders an empty state for signed-in users with no scans (no crash)", () => {
+  it("renders a load fallback for signed-in users with no scans (no crash)", () => {
     mockUnits = "us";
     mockLatest = {
       scan: null,
@@ -50,7 +57,7 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/No scans yet/i)).toBeTruthy();
+    expect(screen.getByText(/Unable to load results/i)).toBeTruthy();
     expect(screen.getByText(/Start a Scan/i)).toBeTruthy();
   });
 
@@ -62,8 +69,10 @@ describe("Results page weight units", () => {
         status: "complete",
         createdAt: new Date(),
         // Simulate the legacy bug shape: ambiguous `weight` holds kg, not lb.
+        input: { currentWeightKg: 85.3, heightCm: 180 },
         metrics: { weightKg: 85.3, weight: 85.3 },
-        estimate: { bodyFatPercent: 18.2 },
+        estimate: { bodyFatPercent: 18.2, bmi: 26.3, leanMassKg: 69.8 },
+        nutritionPlan: { caloriesPerDay: 2200, proteinGrams: 170, carbsGrams: 220, fatsGrams: 70 },
       },
       loading: false,
       error: null,
@@ -88,7 +97,10 @@ describe("Results page weight units", () => {
         id: "scan_2",
         status: "complete",
         createdAt: new Date(),
+        input: { currentWeightKg: 85.3, heightCm: 180 },
         metrics: { weightKg: 85.3, weightLb: 85.3 },
+        estimate: { bodyFatPercent: 18.2, bmi: 26.3, leanMassKg: 69.8 },
+        nutritionPlan: { caloriesPerDay: 2200, proteinGrams: 170, carbsGrams: 220, fatsGrams: 70 },
       },
       loading: false,
       error: null,
