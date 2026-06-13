@@ -3,10 +3,12 @@ import { db } from "@/lib/firebase";
 import { getCurrentUser } from "@/auth/mbs-auth";
 import { setDoc } from "@/lib/dbWrite";
 import { generateWorkoutPlan } from "@/lib/workouts";
+import { deriveNutritionGoals, type NutritionGoal } from "@/lib/nutritionGoals";
 import {
   normalizeProgramPreferences,
   type ProgramPreferences,
 } from "@/lib/programs/preferences";
+import { cmToIn, inToFtIn, kgToLb } from "@/lib/units";
 
 type RawCoachOnboarding = Record<string, unknown>;
 
@@ -34,18 +36,29 @@ const asStringArray = (value: unknown) => {
   return single ? [single] : [];
 };
 
+function nutritionGoalFromRaw(goal: string): NutritionGoal {
+  if (goal === "lose_fat") return "lose_fat";
+  if (goal === "gain_muscle") return "gain_muscle";
+  if (goal === "recomp") return "recomp";
+  return "maintain";
+}
+
 function toProgramPreferences(raw: RawCoachOnboarding): ProgramPreferences {
   const goal = asString(raw.goal, "lose_fat");
   const equipment = asString(raw.equipment, "full_gym");
   const experience = asString(raw.experience, "beginner");
+  const days = clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4);
+  const hasInjuries = asStringArray(raw.injuries).length > 0;
   return normalizeProgramPreferences({
-    daysPerWeek: clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4) as ProgramPreferences["daysPerWeek"],
+    daysPerWeek: days as ProgramPreferences["daysPerWeek"],
     goal:
       goal === "gain_muscle"
         ? "hypertrophy"
         : goal === "improve_heart"
           ? "athletic"
-          : "fat_loss",
+          : goal === "recomp"
+            ? "hypertrophy"
+            : "fat_loss",
     equipment:
       equipment === "bodyweight" || equipment === "none"
         ? "bodyweight"
@@ -58,12 +71,12 @@ function toProgramPreferences(raw: RawCoachOnboarding): ProgramPreferences {
         : "beginner",
     timePerWorkout: 45,
     focus:
-      clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4) >= 6 &&
+      days >= 6 &&
       experience !== "beginner" &&
       (equipment === "full_gym" || equipment === "gym") &&
-      asStringArray(raw.injuries).length === 0
+      !hasInjuries
         ? "push_pull_legs"
-        : clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4) <= 3
+        : days <= 3
           ? "full_body"
           : "upper_lower",
   });
@@ -77,14 +90,28 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
   const heightCm = asNumber(raw.height_cm ?? raw.heightCm);
   const trainingDays = clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4);
   const injuries = asStringArray(raw.injuries ?? raw.medical_flags);
+  const goal = asString(raw.goal, "lose_fat");
+  const activityLevel = asString(raw.activity_level, "light");
+  const sex = asString(raw.sex, "unspecified");
+  const age = asNumber(raw.age);
+  const targetWeightKg = asNumber(raw.target_weight_kg ?? raw.goal_weight_kg);
   const programPreferences = toProgramPreferences({
     ...raw,
     training_days_per_week: trainingDays,
     injuries,
   });
+  const nutritionGoals = deriveNutritionGoals({
+    weightKg,
+    goal: nutritionGoalFromRaw(goal),
+    goalWeightKg: targetWeightKg,
+    activityLevel: activityLevel as any,
+    sex: sex as any,
+    age,
+    heightCm,
+  });
 
   const profile = {
-    goal: asString(raw.goal, "lose_fat"),
+    goal,
     timeframe_weeks: clamp(raw.timeframe_weeks, 4, 52, 12),
     transformation_intensity: asString(
       raw.transformation_intensity ?? raw.style,
@@ -95,18 +122,21 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
     weightKg,
     height_cm: heightCm,
     heightCm,
-    activity_level: asString(raw.activity_level, "light"),
+    activity_level: activityLevel,
     training_days_per_week: trainingDays,
     experience: asString(raw.experience, "beginner"),
     equipment: asString(raw.equipment, "full_gym"),
     injuries,
     diet_preference: asString(raw.diet_preference ?? raw.diet, "balanced"),
-    target_weight_kg: asNumber(raw.target_weight_kg ?? raw.goal_weight_kg),
+    target_weight_kg: targetWeightKg,
     target_body_fat_percent: asNumber(raw.target_body_fat_percent),
     visual_goal: asString(raw.visual_goal),
-    sex: asString(raw.sex, "unspecified"),
-    age: asNumber(raw.age),
-    medical_flags: raw.medical_flags && typeof raw.medical_flags === "object" ? raw.medical_flags : {},
+    sex,
+    age,
+    medical_flags:
+      raw.medical_flags && typeof raw.medical_flags === "object"
+        ? raw.medical_flags
+        : {},
     programPreferences,
     onboardingCompleted: true,
     onboardingCompletedAt: serverTimestamp(),
@@ -117,12 +147,8 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
     Object.entries(profile).filter(([, value]) => value !== undefined)
   );
 
-  await setDoc(doc(db, "users", user.uid, "coach", "profile"), safeProfile, {
-    merge: true,
-  });
-
-  const plan = await generateWorkoutPlan({
-    focus: programPreferences.focus === "push_pull_legs" ? "full" : "full",
+  const workoutPlan = await generateWorkoutPlan({
+    focus: "full",
     equipment:
       programPreferences.equipment === "bodyweight"
         ? "none"
@@ -133,5 +159,55 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
     injuries,
   });
 
-  return { profile, plan };
+  const heightFtIn = heightCm ? inToFtIn(cmToIn(heightCm)) : null;
+  const plan = {
+    days: trainingDays,
+    split:
+      programPreferences.focus === "push_pull_legs"
+        ? "Push / Pull / Legs"
+        : programPreferences.focus === "upper_lower"
+          ? "Upper / Lower"
+          : "Full Body",
+    workoutPlanId:
+      typeof (workoutPlan as any)?.planId === "string"
+        ? (workoutPlan as any).planId
+        : null,
+    workoutSource: (workoutPlan as any)?.source ?? "generated",
+    target_kcal: nutritionGoals.calories,
+    calorieTarget: nutritionGoals.calories,
+    protein_g: nutritionGoals.proteinGrams,
+    proteinFloor: nutritionGoals.proteinGrams,
+    carbs_g: nutritionGoals.carbsGrams,
+    fat_g: nutritionGoals.fatGrams,
+    tdee: nutritionGoals.tdee,
+    bmr: nutritionGoals.bmr,
+    weight_lb: weightKg ? kgToLb(weightKg) : undefined,
+    height_ft: heightFtIn?.ft,
+    height_in: heightFtIn?.inches,
+    disclaimer: "Fitness and nutrition guidance only — not medical advice.",
+    updatedAt: serverTimestamp(),
+  };
+
+  await Promise.all([
+    setDoc(doc(db, "users", user.uid, "coach", "profile"), safeProfile, {
+      merge: true,
+    }),
+    setDoc(doc(db, "users", user.uid, "coachPlans", "current"), plan, {
+      merge: true,
+    }),
+    setDoc(
+      doc(db, "users", user.uid),
+      {
+        onboardingCompleted: true,
+        onboarding: {
+          completed: true,
+          completedAt: serverTimestamp(),
+          version: 2,
+        },
+      },
+      { merge: true }
+    ),
+  ]);
+
+  return { profile: safeProfile, plan, workoutPlan };
 }
