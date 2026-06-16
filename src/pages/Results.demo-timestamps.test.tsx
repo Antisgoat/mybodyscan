@@ -60,6 +60,6 @@ describe("Results (demo timestamps)", () => {
         </MemoryRouter>
       )
     ).not.toThrow();
-    expect(screen.getByText(/Results/i)).toBeTruthy();
+    expect(screen.getAllByText(/We could not complete this scan/i).length).toBeGreaterThan(0);
   });
 });

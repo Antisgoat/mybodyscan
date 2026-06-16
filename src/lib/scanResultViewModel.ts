@@ -157,9 +157,7 @@ export function buildScanResultViewModel(args: {
               : "Processing",
     failureTitle: "We could not complete this scan",
     failureMessage:
-      scan.errorMessage ||
-      scan.aiProcessing?.errorMessage ||
-      "The scan engine did not return a trustworthy analysis. Please retry processing or re-upload the scan photos.",
+      "We could not complete this scan. Please retry processing or re-upload the scan photos.",
     status: canonical,
     primary: {
       bodyFatPercent: isValidResult ? round(bf, 1) : null,

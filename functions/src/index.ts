@@ -14,6 +14,7 @@ import { systemRouter } from "./systemRouter.js";
 export { health } from "./health.js";
 export { systemHealth } from "./systemHealth.js";
 export { coachChat } from "./coachChat.js";
+export { generatePlan } from "./coachPlan.js";
 export { nutritionSearch, nutritionSearchHttp } from "./nutritionSearch.js";
 export { nutritionBarcode } from "./nutrition/barcode.js";
 export { startScanSession } from "./scan/start.js";

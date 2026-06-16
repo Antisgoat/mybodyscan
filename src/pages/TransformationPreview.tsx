@@ -144,8 +144,7 @@ export default function TransformationPreviewPage() {
             </Badge>
           </div>
           <p className="text-xs text-zinc-400">
-            See a realistic motivational visualization of your goal physique
-            once your scan and plan are ready.
+            A realistic motivational visualization based on your scan, goal, and plan.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

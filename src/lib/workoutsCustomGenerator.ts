@@ -658,9 +658,29 @@ export function generateCustomPlanDaysFromLibrary(
 ): CatalogPlanDay[] {
   const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
   const weekdays = (Array.isArray(prefs.preferredDays) && prefs.preferredDays.length ? prefs.preferredDays : pickWeekdays(daysPerWeek)).slice(0, daysPerWeek) as CatalogPlanDay["day"][];
-  const focus = (prefs.focus ?? "full_body") as Focus;
   const goal = (prefs.goal ?? "build_muscle") as Goal;
   const experience = (prefs.experience ?? "beginner") as Experience;
+  const requestedFocus = (prefs.focus ?? "full_body") as Focus;
+  const hasInjuryConstraint = Boolean(
+    (typeof prefs.injuries === "string" && prefs.injuries.trim()) ||
+      (typeof prefs.avoidExercises === "string" && prefs.avoidExercises.trim())
+  );
+  const equipmentList = Array.isArray(prefs.equipment) ? prefs.equipment : [];
+  const hasFullGym = equipmentList.some((item) =>
+    /gym|barbell|machine|cable/i.test(String(item))
+  );
+  const focus: Focus =
+    requestedFocus === "push_pull_legs" &&
+    daysPerWeek === 6 &&
+    experience !== "beginner" &&
+    hasFullGym &&
+    !hasInjuryConstraint
+      ? "push_pull_legs"
+      : requestedFocus === "push_pull_legs"
+        ? daysPerWeek <= 3
+          ? "full_body"
+          : "upper_lower"
+        : requestedFocus;
   const { mode, allowed } = allowedEquipFromPrefs(prefs);
   const maxMoves = maxMovesForTime(prefs.timePerWorkout);
   const targets = volumeTargets({ goal, experience, daysPerWeek, focus });

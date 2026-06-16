@@ -28,6 +28,7 @@ import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
 import { db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
 import { getIdToken } from "@/auth/mbs-auth";
+import { useClaims } from "@/lib/claims";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
@@ -61,14 +62,25 @@ export default function ScanPage() {
   const nav = useNavigate();
   const location = useLocation();
   const appCheckStatus = useAppCheckStatus();
+  const { claims } = useClaims();
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
+    const c = (claims || {}) as Record<string, unknown>;
+    const internal = Boolean(
+      c.admin === true ||
+        c.dev === true ||
+        c.staff === true ||
+        c.unlimited === true ||
+        c.unlimitedCredits === true ||
+        c.creditsUnlimited === true
+    );
+    if (!internal) return false;
     try {
       return new URLSearchParams(location.search).get("debug") === "1";
     } catch {
       return false;
     }
-  }, [location.search]);
+  }, [claims, location.search]);
   const [currentWeight, setCurrentWeight] = useState("");
   const [goalWeight, setGoalWeight] = useState("");
   const [photos, setPhotos] = useState<PhotoInputs>({

@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate, Link } from "react-router-dom";
 import { ChevronRight, Target, Clock, User } from "lucide-react";
 import HeightInputUS from "@/components/HeightInputUS";
+import { completeCoachOnboarding } from "@/lib/onboarding/coachOnboarding";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -22,6 +23,14 @@ const CoachOnboarding = () => {
     height_cm: 170,
     weight_kg: 70,
     activity_level: "light",
+    training_days_per_week: 3,
+    experience: "beginner",
+    equipment: "full_gym",
+    injuries: "",
+    diet_preference: "balanced",
+    target_weight_kg: undefined,
+    target_body_fat_percent: undefined,
+    visual_goal: "",
     medical_flags: {},
     ack: { disclaimer: false },
   });
@@ -39,9 +48,9 @@ const CoachOnboarding = () => {
     payload.height_ft = ft;
     payload.height_in = inch;
     payload.weight_lb = kgToLb(weightKg);
-    await call("saveOnboarding", payload);
-    const { data } = await call("computePlan", {});
-    setPlan(data);
+    payload.transformation_intensity = form.style;
+    const result = await completeCoachOnboarding(payload);
+    setPlan(result.plan);
     setStep(4);
   }
 
@@ -247,6 +256,47 @@ const CoachOnboarding = () => {
                 <option value="extra">
                   Extremely active (2x/day or physical job)
                 </option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium">Training days per week</span>
+              <select
+                className="mt-1 w-full p-2 border rounded-md"
+                value={form.training_days_per_week}
+                onChange={(e) => update("training_days_per_week", Number(e.target.value))}
+              >
+                {[2, 3, 4, 5, 6].map((days) => (
+                  <option key={days} value={days}>
+                    {days} days/week
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium">Training experience</span>
+              <select
+                className="mt-1 w-full p-2 border rounded-md"
+                value={form.experience}
+                onChange={(e) => update("experience", e.target.value)}
+              >
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="text-sm font-medium">Equipment</span>
+              <select
+                className="mt-1 w-full p-2 border rounded-md"
+                value={form.equipment}
+                onChange={(e) => update("equipment", e.target.value)}
+              >
+                <option value="full_gym">Full gym</option>
+                <option value="dumbbells">Dumbbells</option>
+                <option value="bodyweight">Bodyweight</option>
               </select>
             </label>
 

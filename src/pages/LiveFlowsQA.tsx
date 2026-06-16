@@ -28,6 +28,26 @@ type Result = {
 
 const todayISO = new Date().toISOString().slice(0, 10);
 
+
+const redactScanForQa = (scan: any) => {
+  if (!scan || typeof scan !== "object") return scan;
+  const {
+    photoPaths: _photoPaths,
+    errorInfo: _errorInfo,
+    raw: _raw,
+    backendError: _backendError,
+    ...rest
+  } = scan;
+  return {
+    ...rest,
+    photoPathCount:
+      scan.photoPaths && typeof scan.photoPaths === "object"
+        ? Object.keys(scan.photoPaths).length
+        : 0,
+    hasBackendError: Boolean(scan.errorInfo || scan.backendError),
+  };
+};
+
 const normalizeError = (error: unknown): string => {
   if (!error) return "unknown_error";
   const e = error as any;
@@ -271,7 +291,7 @@ export default function LiveFlowsQA() {
                 </summary>
                 <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap text-xs">
                   {JSON.stringify(
-                    latestScan,
+                    redactScanForQa(latestScan),
                     (_key, value) => {
                       if (value && typeof value.toDate === "function")
                         return value.toDate().toISOString();
