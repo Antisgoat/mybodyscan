@@ -4,8 +4,8 @@ vi.useFakeTimers();
 
 const fnJsonMock = vi.fn();
 
-vi.mock("./fnCall", () => ({
-  fnJson: (...args: any[]) => fnJsonMock(...args),
+vi.mock("@/lib/backend/callBackend", () => ({
+  callRequestFunction: (...args: any[]) => fnJsonMock(...args),
 }));
 
 // Minimal firestore stubs used by activateCatalogPlan.
@@ -71,7 +71,11 @@ describe("activateCatalogPlan", () => {
     await vi.advanceTimersByTimeAsync(300);
     const result = await promise;
     expect(result.planId).toBe("plan123");
-    expect(fnJsonMock).toHaveBeenCalled();
+    expect(fnJsonMock).toHaveBeenCalledWith(
+      "applyCatalogPlan",
+      expect.objectContaining({ programId: "p1" }),
+      { method: "POST" }
+    );
   });
 });
 

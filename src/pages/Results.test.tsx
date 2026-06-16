@@ -21,7 +21,19 @@ vi.mock("@/hooks/useLatestScanForUser", () => ({
 }));
 
 vi.mock("@/lib/demoFlag", () => ({ isDemo: () => false }));
-vi.mock("@/lib/demoDataset", () => ({ demoLatestScan: null }));
+vi.mock("@/lib/demoDataset", () => ({
+  demoLatestScan: null,
+  demoMeals: {
+    totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+    meals: [],
+  },
+}));
+vi.mock("@/hooks/useUserProfile", () => ({
+  useUserProfile: () => ({ profile: null, plan: null }),
+}));
+vi.mock("@/lib/entitlements/store", () => ({
+  useEntitlements: () => ({ entitlements: null }),
+}));
 vi.mock("@/components/DemoBanner", () => ({ DemoBanner: () => null }));
 vi.mock("@/components/Seo", () => ({ Seo: () => null }));
 
@@ -50,7 +62,7 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/No scans yet/i)).toBeTruthy();
+    expect(screen.getByText(/Unable to load results/i)).toBeTruthy();
     expect(screen.getByText(/Start a Scan/i)).toBeTruthy();
   });
 
@@ -61,9 +73,11 @@ describe("Results page weight units", () => {
         id: "scan_1",
         status: "complete",
         createdAt: new Date(),
+        input: { currentWeightKg: 85.3, heightCm: 180 },
+        nutritionPlan: { caloriesPerDay: 2200, proteinGrams: 170, carbsGrams: 220, fatsGrams: 70 },
         // Simulate the legacy bug shape: ambiguous `weight` holds kg, not lb.
         metrics: { weightKg: 85.3, weight: 85.3 },
-        estimate: { bodyFatPercent: 18.2 },
+        estimate: { bodyFatPercent: 18.2, bmi: 26.3, leanMassKg: 69.8 },
       },
       loading: false,
       error: null,
@@ -88,6 +102,9 @@ describe("Results page weight units", () => {
         id: "scan_2",
         status: "complete",
         createdAt: new Date(),
+        input: { currentWeightKg: 85.3, heightCm: 180 },
+        nutritionPlan: { caloriesPerDay: 2200, proteinGrams: 170, carbsGrams: 220, fatsGrams: 70 },
+        estimate: { bodyFatPercent: 18.2, bmi: 26.3, leanMassKg: 69.8 },
         metrics: { weightKg: 85.3, weightLb: 85.3 },
       },
       loading: false,

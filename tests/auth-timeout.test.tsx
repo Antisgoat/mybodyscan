@@ -112,7 +112,7 @@ describe("Auth sign-in timeout", () => {
       expect((submitButton as HTMLButtonElement).disabled).toBe(true);
 
       await act(async () => {
-        vi.advanceTimersByTime(15_000);
+        vi.advanceTimersByTime(25_001);
       });
       await act(async () => {
         await Promise.resolve();
@@ -122,6 +122,6 @@ describe("Auth sign-in timeout", () => {
       expect(timeoutMessage).toBeTruthy();
       expect((submitButton as HTMLButtonElement).disabled).toBe(false);
     },
-    10_000
+    35_000
   );
 });

@@ -43,6 +43,7 @@ import {
   type ScanPipelineState,
 } from "@/lib/scanPipeline";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
+import { useClaims } from "@/lib/claims";
 import {
   computeProcessingTimeouts,
   latestHeartbeatMillis,
@@ -91,6 +92,7 @@ export default function ScanResultPage() {
   const { units } = useUnits();
   const { user } = useAuthUser();
   const { profile, plan } = useUserProfile();
+  const { claims } = useClaims();
   const [processingStepIdx, setProcessingStepIdx] = useState(0);
   const [showLongProcessing, setShowLongProcessing] = useState(false);
   const [hardProcessingTimeout, setHardProcessingTimeout] = useState(false);
@@ -104,12 +106,17 @@ export default function ScanResultPage() {
   const lastStatusMarkRef = useRef<string | null>(null);
   const showDebug = useMemo(() => {
     if (import.meta.env.DEV) return true;
+    const c = (claims || {}) as Record<string, unknown>;
+    const hasPrivilegedClaim = Boolean(
+      c.admin || c.dev || c.staff || c.unlimited || c.unlimitedCredits
+    );
+    if (!hasPrivilegedClaim) return false;
     try {
       return new URLSearchParams(location.search).get("debug") === "1";
     } catch {
       return false;
     }
-  }, [location.search]);
+  }, [claims, location.search]);
 
   const updatePipeline = useCallback(
     (patch: Partial<ScanPipelineState>) => {
@@ -606,71 +613,77 @@ export default function ScanResultPage() {
     scan.createdAt;
   const lastUpdateLabel = lastUpdateAt ? formatDateTime(lastUpdateAt) : null;
 
+  const retryProcessing = () => {
+    setLoading(true);
+    retryScanProcessingClient(scanId)
+      .then((result) => {
+        setLoading(false);
+        if (result.ok) return;
+        setError(result.error.message);
+      })
+      .catch((err) => {
+        setLoading(false);
+        setError(
+          typeof (err as any)?.message === "string"
+            ? (err as any).message
+            : "Retry failed."
+        );
+      });
+  };
+
+  const contactSupport = () => {
+    window.open(
+      `mailto:support@mybodyscanapp.com?subject=MyBodyScan%20Scan%20Failed&body=${encodeURIComponent(
+        `scanId=${scan.id}
+status=${scan.status}
+uid=${user?.uid ?? ""}
+`
+      )}`,
+      "_blank"
+    );
+  };
+
   if (
     statusMeta.recommendRescan &&
     scan.status !== "error" &&
     scan.status !== "failed"
   ) {
-    const canResume =
-      scan.status === "uploaded" ||
-      scan.status === "pending" ||
-      scan.status === "processing" ||
-      scan.status === "error" ||
-      scan.status === "failed";
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
-        <p className="text-sm text-red-700">{statusMeta.label}</p>
-        <p className="text-xs text-red-700/90">
-          {scan.errorMessage ||
-            statusMeta.helperText ||
-            "We couldn't complete this scan."}
+        <p className="text-sm font-medium text-red-700">
+          We could not complete this scan
         </p>
-        {scan.errorReason ? (
-          <p className="text-xs text-muted-foreground">
-            Error code: {scan.errorReason}
-          </p>
+        <p className="text-sm text-muted-foreground">
+          No estimate was created for this scan. Please retry processing or
+          re-upload the scan photos.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          No estimate, body composition, or macro targets were created.
+        </p>
+        {scan.refundedAt || scan.creditStatus === "refunded" ? (
+          <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
+            Your scan credit has been returned.
+          </div>
         ) : null}
-        {scan.errorInfo?.message ? (
-          <p className="text-xs text-muted-foreground">
-            Backend error: {scan.errorInfo.message}
-          </p>
-        ) : null}
-        {pipelineState?.lastError?.message ? (
-          <p className="text-xs text-muted-foreground">
-            Last error: {pipelineState.lastError.message}
-          </p>
-        ) : null}
-        <ScanPhotos photoUrls={photoUrls} />
-        <div className="flex gap-2">
-          <Button onClick={() => nav("/scan")}>Try again</Button>
-          {canResume ? (
-            <Button
-              variant="outline"
-              onClick={() => {
-                setLoading(true);
-                retryScanProcessingClient(scanId)
-                  .then((result) => {
-                    setLoading(false);
-                    if (result.ok) return;
-                    setError(result.error.message);
-                  })
-                  .catch((err) => {
-                    setLoading(false);
-                    setError(
-                      typeof (err as any)?.message === "string"
-                        ? (err as any).message
-                        : "Retry failed."
-                    );
-                  });
-              }}
-            >
-              Resume processing
-            </Button>
-          ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={retryProcessing}>Retry processing</Button>
+          <Button variant="outline" onClick={() => nav("/scan")}>
+            Re-upload scan
+          </Button>
           <Button variant="outline" onClick={() => nav("/scan/history")}>
-            History
+            Scan history
+          </Button>
+          <Button type="button" variant="outline" onClick={contactSupport}>
+            Contact support
           </Button>
         </div>
+        {showDebug ? (
+          <ScanFailureDebug
+            scan={scan}
+            scanId={scanId}
+            pipelineState={pipelineState}
+          />
+        ) : null}
       </div>
     );
   }
@@ -986,23 +999,7 @@ export default function ScanResultPage() {
   }
 
   const resultVm = buildScanResultViewModel({ scan, profile, plan });
-  const retryProcessing = () => {
-    setLoading(true);
-    retryScanProcessingClient(scanId)
-      .then((result) => {
-        setLoading(false);
-        if (result.ok) return;
-        setError(result.error.message);
-      })
-      .catch((err) => {
-        setLoading(false);
-        setError(
-          typeof (err as any)?.message === "string"
-            ? (err as any).message
-            : "Retry failed."
-        );
-      });
-  };
+
 
   if (resultVm.isFailedOrFallback) {
     return (
@@ -1033,13 +1030,24 @@ export default function ScanResultPage() {
                 Re-upload scan
               </Button>
               <Button variant="outline" onClick={() => nav("/scan/history")}>
-                History
+                Scan history
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              We do not display body fat, macros, body age, scores, or workout
+              No estimate, body composition, or macro targets were created. We
+              do not display body fat, macros, body age, scores, or workout
               prescriptions unless the AI analysis succeeds.
             </p>
+            <Button type="button" variant="outline" onClick={contactSupport}>
+              Contact support
+            </Button>
+            {showDebug ? (
+              <ScanFailureDebug
+                scan={scan}
+                scanId={scanId}
+                pipelineState={pipelineState}
+              />
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -1225,6 +1233,41 @@ export default function ScanResultPage() {
 
   return null;
 }
+function ScanFailureDebug({
+  scan,
+  scanId,
+  pipelineState,
+}: {
+  scan: ScanDocument;
+  scanId: string;
+  pipelineState: ScanPipelineState | null;
+}) {
+  return (
+    <details className="rounded border bg-background/60 p-3 text-xs">
+      <summary className="cursor-pointer select-none font-medium">
+        Debug details
+      </summary>
+      <pre className="mt-2 whitespace-pre-wrap text-[11px] text-muted-foreground">
+        {JSON.stringify(
+          {
+            scanId,
+            status: scan.status,
+            errorReason: scan.errorReason ?? null,
+            errorInfo: scan.errorInfo ?? null,
+            aiProcessing: scan.aiProcessing ?? null,
+            resultSource: scan.resultSource ?? null,
+            usedFallback: scan.usedFallback ?? null,
+            pipelineLastError: pipelineState?.lastError ?? null,
+            photoPaths: scan.photoPaths ?? null,
+          },
+          null,
+          2
+        )}
+      </pre>
+    </details>
+  );
+}
+
 function ScanPhotos({
   photoUrls,
 }: {
