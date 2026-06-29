@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
@@ -17,6 +18,7 @@ const Processing = () => {
   const [showTip, setShowTip] = useState(false);
   const [lastStep, setLastStep] = useState<string | null>(null);
   const [lastUpdatedAtMs, setLastUpdatedAtMs] = useState<number | null>(null);
+  const [refunded, setRefunded] = useState(false);
   const [watchdog, setWatchdog] = useState<{
     triggered: boolean;
     sinceMs?: number;
@@ -53,8 +55,11 @@ const Processing = () => {
           rawStatus === "complete" ||
           rawStatus === "done"
             ? "complete"
-            : rawStatus;
+            : rawStatus === "failed" || rawStatus === "error"
+              ? "error"
+              : rawStatus;
         setStatus(normalized);
+        setRefunded(Boolean(data?.refundedAt || data?.creditRefunded));
         setLastStep(typeof data?.lastStep === "string" ? data.lastStep : null);
         const updatedAtRaw = data?.updatedAt ?? data?.lastStepAt ?? null;
         let updatedAtMs: number | null = null;
@@ -76,6 +81,9 @@ const Processing = () => {
         }
         if (normalized === "complete") {
           navigate(`/results/${scanId}`, { replace: true });
+        }
+        if (normalized === "error") {
+          navigate(`/scans/${scanId}`, { replace: true });
         }
       },
       (err) => {
@@ -138,6 +146,62 @@ const Processing = () => {
     return () => undefined;
   }, [status]);
 
+  const retryProcessing = async () => {
+    if (!scanId) return;
+    const result = await retryScanProcessingClient(scanId);
+    if (result.ok) {
+      toast({
+        title: "Retry started",
+        description: "Processing restarted. We’ll keep updating automatically.",
+      });
+      setHardTimeout({ triggered: false });
+      setWatchdog({ triggered: false });
+      setStatus("processing");
+      return;
+    }
+    toast({
+      title: "Retry failed",
+      description: result.error.message,
+      variant: "destructive",
+    });
+  };
+
+  if (status === "error") {
+    return (
+      <main className="min-h-screen p-4 md:p-6 max-w-3xl mx-auto flex items-center justify-center">
+        <Seo
+          title="Scan recovery – MyBodyScan"
+          description="Recover a failed scan."
+          canonical={canonical}
+        />
+        <Card className="w-full border-destructive/30 bg-destructive/5">
+          <CardHeader className="space-y-2">
+            <CardTitle>We could not complete this scan</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              No estimate was created for this scan. Please retry processing or re-upload the scan photos.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {refunded ? (
+              <div className="rounded-lg border bg-background/80 p-3 text-sm text-muted-foreground">
+                Your scan credit has been returned.
+              </div>
+            ) : null}
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <Button onClick={retryProcessing}>Retry processing</Button>
+              <Button variant="outline" onClick={() => navigate("/scan")}>Re-upload scan</Button>
+              <Button variant="outline" onClick={() => navigate("/history")}>Scan history</Button>
+              <Button variant="outline" onClick={() => navigate("/support")}>Contact support</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              We do not display body fat, macros, body age, scores, or workout prescriptions unless the analysis succeeds.
+            </p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen p-6 max-w-md mx-auto flex flex-col items-center justify-center text-center">
       <Seo
@@ -180,20 +244,6 @@ const Processing = () => {
           This can take a bit. You can navigate; we’ll update automatically.
         </p>
       )}
-      {status === "error" && (
-        <div className="mt-8 text-center space-y-4">
-          <p className="text-sm text-muted-foreground">
-            We could not complete this scan. Please try again or contact support if this keeps happening.
-          </p>
-          <Button
-            variant="secondary"
-            onClick={() => navigate("/scan/new")}
-            aria-label="Start a new scan"
-          >
-            Try Again
-          </Button>
-        </div>
-      )}
 
       {watchdog.triggered && isActiveProcessing && !hardTimeout.triggered && (
         <div className="mt-8 w-full max-w-sm space-y-3 rounded border p-4 text-center">
@@ -204,44 +254,18 @@ const Processing = () => {
             You can retry processing without re-uploading.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                if (!scanId) return;
-                const result = await retryScanProcessingClient(scanId);
-                if (result.ok) {
-                  toast({
-                    title: "Retry started",
-                    description: "Processing restarted. Keep this tab open.",
-                  });
-                  setWatchdog({ triggered: false });
-                  return;
-                }
-                toast({
-                  title: "Retry failed",
-                  description: result.error.message,
-                  variant: "destructive",
-                });
-              }}
-            >
+            <Button variant="secondary" onClick={retryProcessing}>
               Retry processing
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => window.location.reload()}
-            >
+            <Button variant="outline" onClick={() => window.location.reload()}>
               Refresh
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => navigate("/scan")}
-            >
+            <Button variant="outline" onClick={() => navigate("/scan")}>
               Back to Scan
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            lastStep: {lastStep ?? "—"} · updatedAt:{" "}
-            {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+            Updated: {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
           </p>
         </div>
       )}
@@ -255,36 +279,16 @@ const Processing = () => {
             We won’t keep you stuck on this screen.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
-            <Button
-              variant="secondary"
-              onClick={async () => {
-                if (!scanId) return;
-                const result = await retryScanProcessingClient(scanId);
-                if (result.ok) {
-                  toast({
-                    title: "Retry started",
-                    description: "Processing restarted. Keep this tab open.",
-                  });
-                  setHardTimeout({ triggered: false });
-                  setWatchdog({ triggered: false });
-                  return;
-                }
-                toast({
-                  title: "Retry failed",
-                  description: result.error.message,
-                  variant: "destructive",
-                });
-              }}
-            >
+            <Button variant="secondary" onClick={retryProcessing}>
               Retry processing
             </Button>
-            <Button variant="outline" onClick={() => navigate("/scan/new")}>
+            <Button variant="outline" onClick={() => navigate("/scan")}>
               Start new scan
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            lastStep: {lastStep ?? "—"} · updatedAt:{" "}
-            {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+            Updated: {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+            {lastStep ? ` · ${lastStep}` : ""}
           </p>
         </div>
       )}
