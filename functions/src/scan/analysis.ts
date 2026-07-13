@@ -14,12 +14,13 @@ import type {
   ScanWorkoutPlan,
 } from "../types.js";
 import { scanPhotosPrefix } from "./paths.js";
+import { isValidBodyFatPercent } from "./contract.js";
 
 const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
 // Vision + structured output can take longer on cold starts / busy periods.
 // Keep this comfortably below the function timeout so we can still map errors cleanly.
-const OPENAI_TIMEOUT_MS = 45_000;
+const OPENAI_TIMEOUT_MS = 90_000;
 
 type Pose = (typeof POSES)[number];
 
@@ -50,11 +51,13 @@ function sanitizeEstimate(
   raw: Partial<ScanEstimate> | undefined
 ): ScanEstimate {
   const source = raw as any;
-  const bodyFatPercent = clamp(
-    Number(raw?.bodyFatPercent ?? source?.body_fat ?? source?.bodyFat),
-    3,
-    60
+  const rawBodyFatPercent = Number(
+    raw?.bodyFatPercent ?? source?.body_fat ?? source?.bodyFat
   );
+  if (!isValidBodyFatPercent(rawBodyFatPercent)) {
+    throw new Error("invalid_body_fat_percent");
+  }
+  const bodyFatPercent = rawBodyFatPercent;
   const bmiRaw = Number(source?.bmi);
   const bmi =
     Number.isFinite(bmiRaw) && bmiRaw > 0 ? Number(bmiRaw.toFixed(1)) : null;
@@ -145,20 +148,32 @@ function sanitizeNutrition(
   raw: Partial<ScanNutritionPlan> | undefined
 ): ScanNutritionPlan {
   const source = raw as any;
-  const calories = clamp(
-    Number(raw?.caloriesPerDay ?? source?.calories_per_day),
-    1000,
-    6000
-  );
-  const protein = Math.max(
-    0,
-    Number(raw?.proteinGrams ?? source?.protein_grams ?? 0)
-  );
-  const carbs = Math.max(
-    0,
-    Number(raw?.carbsGrams ?? source?.carbs_grams ?? 0)
-  );
-  const fats = Math.max(0, Number(raw?.fatsGrams ?? source?.fats_grams ?? 0));
+  const caloriesRaw = Number(raw?.caloriesPerDay ?? source?.calories_per_day);
+  const proteinRaw = Number(raw?.proteinGrams ?? source?.protein_grams);
+  const carbsRaw = Number(raw?.carbsGrams ?? source?.carbs_grams);
+  const fatsRaw = Number(raw?.fatsGrams ?? source?.fats_grams);
+  if (
+    !Number.isFinite(caloriesRaw) ||
+    caloriesRaw < 800 ||
+    caloriesRaw > 8000
+  ) {
+    throw new Error("invalid_calories");
+  }
+  if (!Number.isFinite(proteinRaw) || proteinRaw <= 0) {
+    throw new Error("invalid_protein");
+  }
+  if (
+    !Number.isFinite(carbsRaw) ||
+    carbsRaw < 0 ||
+    !Number.isFinite(fatsRaw) ||
+    fatsRaw < 0
+  ) {
+    throw new Error("invalid_macros");
+  }
+  const calories = clamp(caloriesRaw, 1000, 6000);
+  const protein = Math.max(0, proteinRaw);
+  const carbs = Math.max(0, carbsRaw);
+  const fats = Math.max(0, fatsRaw);
   const adjustmentRules = Array.isArray(source?.adjustmentRules)
     ? source.adjustmentRules
     : Array.isArray(source?.adjustments)
@@ -397,7 +412,7 @@ export async function callOpenAI(
     systemPrompt,
     userContent,
     temperature: 0.4,
-    maxTokens: 1100,
+    maxTokens: 1800,
     userId: input.uid,
     requestId,
     timeoutMs: OPENAI_TIMEOUT_MS,

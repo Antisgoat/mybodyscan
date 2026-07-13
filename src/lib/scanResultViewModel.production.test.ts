@@ -9,6 +9,9 @@ const baseScan = (overrides: Partial<ScanDocument> = {}): ScanDocument =>
     status: "complete",
     createdAt: new Date("2026-07-01T00:00:00Z"),
     updatedAt: new Date("2026-07-01T00:01:00Z"),
+    completedAt: new Date("2026-07-01T00:02:00Z"),
+    resultSource: "ai",
+    usedFallback: false,
     input: { currentWeightKg: 90, heightCm: 180 },
     estimate: { bodyFatPercent: 20, bmi: 27.8, leanMassKg: 72 } as any,
     nutritionPlan: {
@@ -17,7 +20,12 @@ const baseScan = (overrides: Partial<ScanDocument> = {}): ScanDocument =>
       carbsGrams: 230,
       fatsGrams: 65,
     } as any,
-    photoPaths: { front: "", back: "", left: "", right: "" },
+    photoPaths: {
+      front: "scans/user_1/scan_1/front.jpg",
+      back: "scans/user_1/scan_1/back.jpg",
+      left: "scans/user_1/scan_1/left.jpg",
+      right: "scans/user_1/scan_1/right.jpg",
+    },
     ...overrides,
   }) as ScanDocument;
 
