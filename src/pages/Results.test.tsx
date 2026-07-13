@@ -67,11 +67,25 @@ describe("Results page weight units", () => {
         id: "scan_1",
         status: "complete",
         createdAt: new Date(),
+        completedAt: new Date(),
+        resultSource: "ai",
+        usedFallback: false,
+        photoPaths: {
+          front: "scans/user_1/scan_1/front.jpg",
+          back: "scans/user_1/scan_1/back.jpg",
+          left: "scans/user_1/scan_1/left.jpg",
+          right: "scans/user_1/scan_1/right.jpg",
+        },
         // Simulate the legacy bug shape: ambiguous `weight` holds kg, not lb.
         input: { currentWeightKg: 85.3, heightCm: 180 },
         metrics: { weightKg: 85.3, weight: 85.3 },
         estimate: { bodyFatPercent: 18.2 },
-        nutritionPlan: { caloriesPerDay: 2300, proteinGrams: 160 },
+        nutritionPlan: {
+          caloriesPerDay: 2300,
+          proteinGrams: 160,
+          carbsGrams: 230,
+          fatsGrams: 70,
+        },
       },
       loading: false,
       error: null,
@@ -112,4 +126,3 @@ describe("Results page weight units", () => {
     expect(screen.queryByText(/85\.3 lb/)).toBeNull();
   });
 });
-

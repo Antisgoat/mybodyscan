@@ -9,11 +9,14 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { useBackNavigationGuard } from "@/lib/back";
 import { retryScanProcessingClient } from "@/lib/api/scan";
+import { normalizeScanStatus } from "@/lib/scanContract";
 
 const Processing = () => {
   const { scanId } = useParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<string>("queued");
+  const [status, setStatus] = useState<
+    "queued" | "processing" | "complete" | "error"
+  >("queued");
   const { user } = useAuthUser();
   const [showTip, setShowTip] = useState(false);
   const [lastStep, setLastStep] = useState<string | null>(null);
@@ -30,13 +33,9 @@ const Processing = () => {
   const lastUpdatedAtRef = useRef<number | null>(null);
   const canonical =
     typeof window !== "undefined" ? window.location.href : undefined;
-  useBackNavigationGuard(
-    () =>
-      status === "queued" || status === "processing" || status === "pending",
-    {
-      message: "Going back may cancel the current action. Continue?",
-    }
-  );
+  useBackNavigationGuard(() => status === "queued" || status === "processing", {
+    message: "Going back may cancel the current action. Continue?",
+  });
 
   useEffect(() => {
     const uid = user?.uid;
@@ -46,18 +45,7 @@ const Processing = () => {
       ref,
       (snap) => {
         const data: any = snap.data();
-        const rawStatus =
-          typeof data?.status === "string"
-            ? data.status.toLowerCase()
-            : "queued";
-        const normalized =
-          rawStatus === "completed" ||
-          rawStatus === "complete" ||
-          rawStatus === "done"
-            ? "complete"
-            : rawStatus === "failed" || rawStatus === "error"
-              ? "error"
-              : rawStatus;
+        const normalized = normalizeScanStatus(data?.status);
         setStatus(normalized);
         setRefunded(Boolean(data?.refundedAt || data?.creditRefunded));
         setLastStep(typeof data?.lastStep === "string" ? data.lastStep : null);
@@ -98,7 +86,7 @@ const Processing = () => {
   }, [scanId, navigate, user]);
 
   const isActiveProcessing = useMemo(() => {
-    return status === "processing" || status === "queued" || status === "pending";
+    return status === "processing" || status === "queued";
   }, [status]);
 
   useEffect(() => {
@@ -134,11 +122,7 @@ const Processing = () => {
   }, [isActiveProcessing]);
 
   useEffect(() => {
-    if (
-      status === "processing" ||
-      status === "queued" ||
-      status === "pending"
-    ) {
+    if (status === "processing" || status === "queued") {
       const timer = window.setTimeout(() => setShowTip(true), 60_000);
       return () => window.clearTimeout(timer);
     }
@@ -178,7 +162,8 @@ const Processing = () => {
           <CardHeader className="space-y-2">
             <CardTitle>We could not complete this scan</CardTitle>
             <p className="text-sm text-muted-foreground">
-              No estimate was created for this scan. Please retry processing or re-upload the scan photos.
+              No estimate was created for this scan. Please retry processing or
+              re-upload the scan photos.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -189,12 +174,19 @@ const Processing = () => {
             ) : null}
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <Button onClick={retryProcessing}>Retry processing</Button>
-              <Button variant="outline" onClick={() => navigate("/scan")}>Re-upload scan</Button>
-              <Button variant="outline" onClick={() => navigate("/history")}>Scan history</Button>
-              <Button variant="outline" onClick={() => navigate("/support")}>Contact support</Button>
+              <Button variant="outline" onClick={() => navigate("/scan")}>
+                Re-upload scan
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/history")}>
+                Scan history
+              </Button>
+              <Button variant="outline" onClick={() => navigate("/support")}>
+                Contact support
+              </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              We do not display body fat, macros, body age, scores, or workout prescriptions unless the analysis succeeds.
+              We do not display body fat, macros, body age, scores, or workout
+              prescriptions unless the analysis succeeds.
             </p>
           </CardContent>
         </Card>
@@ -228,15 +220,13 @@ const Processing = () => {
         <span className="text-sm font-medium">
           {status === "queued"
             ? "In queue..."
-            : status === "pending"
-              ? "Preparing..."
-              : status === "processing"
-                ? "Processing..."
-                : status === "complete"
-                  ? "Complete!"
-                  : status === "error"
-                    ? "Failed"
-                    : status}
+            : status === "processing"
+              ? "Processing..."
+              : status === "complete"
+                ? "Complete!"
+                : status === "error"
+                  ? "Failed"
+                  : status}
         </span>
       </div>
       {showTip && (
@@ -250,8 +240,10 @@ const Processing = () => {
           <p className="text-sm font-medium">Still working…</p>
           <p className="text-xs text-muted-foreground">
             No status update for{" "}
-            {watchdog.sinceMs ? `${Math.round(watchdog.sinceMs / 1000)}s` : "a while"}.
-            You can retry processing without re-uploading.
+            {watchdog.sinceMs
+              ? `${Math.round(watchdog.sinceMs / 1000)}s`
+              : "a while"}
+            . You can retry processing without re-uploading.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="secondary" onClick={retryProcessing}>
@@ -265,7 +257,10 @@ const Processing = () => {
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Updated: {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+            Updated:{" "}
+            {lastUpdatedAtMs
+              ? new Date(lastUpdatedAtMs).toLocaleTimeString()
+              : "—"}
           </p>
         </div>
       )}
@@ -275,8 +270,10 @@ const Processing = () => {
           <p className="text-sm font-medium">This is taking too long</p>
           <p className="text-xs text-muted-foreground">
             No update for{" "}
-            {hardTimeout.sinceMs ? `${Math.round(hardTimeout.sinceMs / 1000)}s` : "a while"}.
-            We won’t keep you stuck on this screen.
+            {hardTimeout.sinceMs
+              ? `${Math.round(hardTimeout.sinceMs / 1000)}s`
+              : "a while"}
+            . We won’t keep you stuck on this screen.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="secondary" onClick={retryProcessing}>
@@ -287,7 +284,10 @@ const Processing = () => {
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Updated: {lastUpdatedAtMs ? new Date(lastUpdatedAtMs).toLocaleTimeString() : "—"}
+            Updated:{" "}
+            {lastUpdatedAtMs
+              ? new Date(lastUpdatedAtMs).toLocaleTimeString()
+              : "—"}
             {lastStep ? ` · ${lastStep}` : ""}
           </p>
         </div>

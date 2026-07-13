@@ -17,4 +17,14 @@ describe("scanStatus", () => {
     expect(meta.showMetrics).toBe(true);
     expect(meta.canonical).toBe("complete");
   });
+
+  it("normalizes legacy pending to queued at the boundary", () => {
+    expect(canonicalizeScanStatus("pending")).toBe("queued");
+  });
+
+  it("normalizes legacy failed and completed aliases", () => {
+    expect(canonicalizeScanStatus("failed")).toBe("error");
+    expect(canonicalizeScanStatus("completed")).toBe("complete");
+    expect(canonicalizeScanStatus("done")).toBe("complete");
+  });
 });

@@ -20,12 +20,18 @@ import {
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
 import { refundCredit } from "./creditUtils.js";
+import {
+  hasAllRequiredPhotoPaths,
+  isSaneWeightKg,
+  normalizeScanStatus,
+} from "./contract.js";
 
 const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
   Timestamp.now() as FirebaseFirestore.Timestamp;
 const HEARTBEAT_MS = 25_000;
-const ANALYSIS_TIMEOUT_MS = 45_000;
+const ANALYSIS_TIMEOUT_MS = 110_000;
+const ANALYSIS_MAX_ATTEMPTS = 2;
 
 function round1(value: number): number {
   return Number(value.toFixed(1));
@@ -90,7 +96,7 @@ export const processQueuedScan = onDocumentWritten(
     const after = event.data?.after;
     if (!after?.exists) return;
     const scan = after.data() as ScanDocument;
-    if (!scan || scan.status !== "queued") return;
+    if (!scan || normalizeScanStatus(scan.status) !== "queued") return;
 
     const { uid, scanId } = event.params as { uid: string; scanId: string };
     const scanRef = db.doc(
@@ -103,7 +109,7 @@ export const processQueuedScan = onDocumentWritten(
       const snap = await tx.get(scanRef);
       if (!snap.exists) return false;
       const current = snap.data() as ScanDocument;
-      if (current.status !== "queued") return false;
+      if (normalizeScanStatus(current.status) !== "queued") return false;
       tx.set(
         scanRef,
         {
@@ -181,12 +187,12 @@ export const processQueuedScan = onDocumentWritten(
         | ScanDocument["photoPaths"]
         | undefined;
       const input = scan.input as ScanDocument["input"] | undefined;
-      if (!photoPaths) {
+      if (!hasAllRequiredPhotoPaths(photoPaths)) {
         throw new Error("missing_photo_paths");
       }
       const currentWeightKg = Number(input?.currentWeightKg);
       const goalWeightKg = Number(input?.goalWeightKg);
-      if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
+      if (!isSaneWeightKg(currentWeightKg) || !isSaneWeightKg(goalWeightKg)) {
         throw new Error("missing_scan_input");
       }
 
@@ -232,16 +238,39 @@ export const processQueuedScan = onDocumentWritten(
       });
       startHeartbeat("Analyzing body composition", 45);
       const openAiStartedAtMs = Date.now();
-      const result = await withTimeout(
-        callOpenAI(
-          images,
-          { currentWeightKg, goalWeightKg, uid, heightCm: heightOk },
-          correlationId,
-          engine
-        ),
-        ANALYSIS_TIMEOUT_MS,
-        "analysis"
-      );
+      let result: Awaited<ReturnType<typeof callOpenAI>> | null = null;
+      let lastAnalysisError: unknown = null;
+      for (let attempt = 1; attempt <= ANALYSIS_MAX_ATTEMPTS; attempt += 1) {
+        try {
+          result = await withTimeout(
+            callOpenAI(
+              images,
+              { currentWeightKg, goalWeightKg, uid, heightCm: heightOk },
+              `${correlationId}:attempt${attempt}`,
+              engine
+            ),
+            ANALYSIS_TIMEOUT_MS,
+            "analysis"
+          );
+          break;
+        } catch (analysisError) {
+          lastAnalysisError = analysisError;
+          const transient =
+            analysisError instanceof OpenAIClientError &&
+            (analysisError.status === 429 ||
+              analysisError.status >= 500 ||
+              analysisError.message.includes("timeout"));
+          if (!transient || attempt >= ANALYSIS_MAX_ATTEMPTS)
+            throw analysisError;
+          await updateStep({
+            lastStep: "Retrying scan analysis",
+            progress: 55,
+            processingHeartbeatAt: serverTimestamp(),
+          });
+          await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+        }
+      }
+      if (!result) throw lastAnalysisError ?? new Error("analysis_failed");
       const openAiElapsedMs = Date.now() - openAiStartedAtMs;
       stopHeartbeat();
 

@@ -4,7 +4,6 @@ export type CanonicalScanStatus =
   | "uploading"
   | "uploaded"
   | "queued"
-  | "pending"
   | "processing"
   | "complete"
   | "error";
@@ -79,7 +78,7 @@ export function canonicalizeScanStatus(
   ) {
     return "error";
   }
-  return "pending";
+  return "queued";
 }
 
 export function isScanStale(
@@ -88,7 +87,6 @@ export function isScanStale(
   now = Date.now()
 ): boolean {
   if (
-    status !== "pending" &&
     status !== "queued" &&
     status !== "processing" &&
     status !== "uploading" &&
@@ -127,7 +125,6 @@ export function buildScanStatusMeta(
       if (canonical === "uploading") return "Upload stalled";
       if (canonical === "uploaded") return "Upload complete, awaiting analysis";
       if (canonical === "queued") return "Queued longer than usual";
-      if (canonical === "pending") return "Preparing longer than usual";
       if (canonical === "processing") return "Still processing";
       return "Failed";
     })();
@@ -136,7 +133,7 @@ export function buildScanStatusMeta(
       if (canonical === "uploading") {
         return "Check your connection and retry the failed photo upload.";
       }
-      if (canonical === "uploaded" || canonical === "pending") {
+      if (canonical === "uploaded") {
         return "Processing will start shortly. You can also retry processing.";
       }
       if (canonical === "queued") {
@@ -183,14 +180,15 @@ export function buildScanStatusMeta(
     return {
       canonical,
       label: "Queued for processing…",
-      helperText: "We’re warming up the scan engine. This should start shortly.",
+      helperText:
+        "We’re warming up the scan engine. This should start shortly.",
       badgeVariant: "secondary",
       stale: false,
       showMetrics: false,
       recommendRescan: false,
     };
   }
-  // Pending / processing but still running
+  // Queued / processing but still running
   return {
     canonical,
     label: "Processing…",
