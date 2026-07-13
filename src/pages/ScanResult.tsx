@@ -1041,7 +1041,7 @@ export default function ScanResultPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               We do not display body fat, macros, body age, scores, or workout
-              prescriptions unless the AI analysis succeeds.
+              prescriptions unless the analysis succeeds.
             </p>
           </CardContent>
         </Card>

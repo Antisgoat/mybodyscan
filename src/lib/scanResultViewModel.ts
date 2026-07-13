@@ -157,7 +157,7 @@ export function buildScanResultViewModel(args: {
               : "Processing",
     failureTitle: "We could not complete this scan",
     failureMessage:
-      "We could not complete this scan. Please retry processing or re-upload the scan photos.",
+      "No estimate was created for this scan. Please retry processing or re-upload the scan photos.",
     status: canonical,
     primary: {
       bodyFatPercent: isValidResult ? round(bf, 1) : null,
