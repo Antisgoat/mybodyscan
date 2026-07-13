@@ -30,6 +30,18 @@ export type TransformationPreviewDocument = {
   failureReason?: string | null;
 };
 
+export function isPaidScanPreviewEligible(scan: unknown): boolean {
+  const data =
+    scan && typeof scan === "object" ? (scan as Record<string, unknown>) : {};
+  return Boolean(
+    data.charged === true ||
+      data.paid === true ||
+      data.creditConsumed === true ||
+      data.creditStatus === "consumed" ||
+      data.creditStatus === "charged"
+  );
+}
+
 function toDateOrNull(value: unknown): Date | null {
   if (!value) return null;
   if (value instanceof Date) return value;

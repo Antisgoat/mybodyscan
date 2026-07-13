@@ -10,7 +10,10 @@ import { useClaims } from "@/lib/claims";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
-import { subscribeTransformationPreview } from "@/lib/transformationPreview";
+import {
+  isPaidScanPreviewEligible,
+  subscribeTransformationPreview,
+} from "@/lib/transformationPreview";
 import { buildScanResultViewModel } from "@/lib/scanResultViewModel";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
@@ -32,7 +35,7 @@ export default function TransformationPreviewPage() {
       (claims as any)?.unlimited ||
       (claims as any)?.unlimitedCredits
   );
-  const paidScanPreviewEligible = Boolean((scan as any)?.charged);
+  const paidScanPreviewEligible = isPaidScanPreviewEligible(scan);
   const previewEligible = pro || paidScanPreviewEligible;
   const canAccessPreview = previewEligible || internalAccess;
   const [state, setState] = useState<any>(null);
