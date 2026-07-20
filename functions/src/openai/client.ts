@@ -2,6 +2,8 @@
  * Pipeline map — Shared OpenAI client:
  * - Centralizes key loading + retry/timeout logic for every OpenAI call (text + vision).
  * - Provides helpers for plain text completions and structured JSON responses.
+ * - Tolerates model/API parameter differences so production scans do not fail on
+ *   max_tokens / max_completion_tokens / temperature / response_format drift.
  */
 import { getOpenAIKey } from "./keys.js";
 
@@ -169,6 +171,116 @@ function normalizeMessages(
   }));
 }
 
+function stableBodyKey(body: Record<string, unknown>): string {
+  return JSON.stringify(body, Object.keys(body).sort());
+}
+
+function buildChatBodies(model: string, request: ChatRequest): Record<string, unknown>[] {
+  const maxTokens = clampMaxTokens(request.maxTokens);
+  const base: Record<string, unknown> = {
+    model,
+    messages: normalizeMessages(request.messages),
+  };
+  if (request.user) base.user = request.user;
+
+  const withTemperature: Record<string, unknown> = {
+    ...base,
+    temperature:
+      typeof request.temperature === "number" && Number.isFinite(request.temperature)
+        ? request.temperature
+        : DEFAULT_TEXT_TEMPERATURE,
+  };
+  if (typeof maxTokens === "number") withTemperature.max_tokens = maxTokens;
+  if (request.responseFormat === "json_object") {
+    withTemperature.response_format = { type: "json_object" };
+  }
+
+  const candidates: Record<string, unknown>[] = [withTemperature];
+
+  // Some current models reject max_tokens and require max_completion_tokens.
+  if (typeof maxTokens === "number") {
+    const alt = { ...withTemperature };
+    delete alt.max_tokens;
+    alt.max_completion_tokens = maxTokens;
+    candidates.push(alt);
+  }
+
+  // Some models only accept default temperature.
+  candidates.push(
+    ...candidates.map((candidate) => {
+      const next = { ...candidate };
+      delete next.temperature;
+      return next;
+    })
+  );
+
+  // Some endpoints/models reject response_format=json_object even when the prompt
+  // requests JSON. Keep the prompt strict and retry without the explicit parameter.
+  candidates.push(
+    ...candidates.map((candidate) => {
+      const next = { ...candidate };
+      delete next.response_format;
+      return next;
+    })
+  );
+
+  const seen = new Set<string>();
+  return candidates.filter((candidate) => {
+    const key = stableBodyKey(candidate);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function shouldTryNextBody(status: number, text: string): boolean {
+  if (status !== 400 && status !== 422) return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("unsupported") ||
+    lower.includes("unrecognized") ||
+    lower.includes("unknown parameter") ||
+    lower.includes("invalid parameter") ||
+    lower.includes("max_tokens") ||
+    lower.includes("max_completion_tokens") ||
+    lower.includes("temperature") ||
+    lower.includes("response_format")
+  );
+}
+
+function isModelUnavailable(status: number, text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    status === 404 ||
+    ((status === 400 || status === 422) &&
+      lower.includes("model") &&
+      (lower.includes("not found") ||
+        lower.includes("does not exist") ||
+        lower.includes("doesn't exist") ||
+        lower.includes("not supported") ||
+        lower.includes("unsupported model")))
+  );
+}
+
+function extractMessage(data: any): string | null {
+  const message = data?.choices?.[0]?.message?.content;
+  if (typeof message === "string" && message.trim()) return message.trim();
+  if (Array.isArray(message)) {
+    const joined = message
+      .map((part: any) =>
+        typeof part?.text === "string"
+          ? part.text
+          : typeof part?.content === "string"
+            ? part.content
+            : ""
+      )
+      .join("\n")
+      .trim();
+    return joined || null;
+  }
+  return null;
+}
+
 async function executeChat(
   model: string,
   key: string,
@@ -183,83 +295,84 @@ async function executeChat(
   );
 
   try {
-    const body: Record<string, unknown> = {
-      model,
-      temperature:
-        typeof request.temperature === "number" &&
-        Number.isFinite(request.temperature)
-          ? request.temperature
-          : DEFAULT_TEXT_TEMPERATURE,
-      messages: normalizeMessages(request.messages),
-    };
-
-    const maxTokens = clampMaxTokens(request.maxTokens);
-    if (typeof maxTokens === "number") {
-      body.max_tokens = maxTokens;
-    }
-    if (request.user) {
-      body.user = request.user;
-    }
-    if (request.responseFormat === "json_object") {
-      body.response_format = { type: "json_object" };
-    }
-
     const endpoint = resolveEndpoint(baseUrl);
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    const bodies = buildChatBodies(model, request);
+    let lastBadRequest: string | null = null;
 
-    if (response.status === 404) {
-      throw new InvalidModelError(`model_not_found_${model}`);
+    for (const body of bodies) {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (response.status === 429) {
+        throw new OpenAIClientError("openai_failed", 429, "status_429");
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        throw new OpenAIClientError("openai_failed", 401, "status_401");
+      }
+
+      if (response.status >= 500) {
+        throw new OpenAIClientError(
+          "openai_failed",
+          500,
+          `status_${response.status}`
+        );
+      }
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        if (isModelUnavailable(response.status, text)) {
+          throw new InvalidModelError(`model_unavailable_${model}`);
+        }
+        lastBadRequest = text || `status_${response.status}`;
+        if (shouldTryNextBody(response.status, lastBadRequest)) {
+          console.warn({
+            fn: "openai",
+            event: "retrying_with_compatible_parameters",
+            requestId: requestId ?? null,
+            model,
+            status: response.status,
+            reason: lastBadRequest.slice(0, 160),
+          });
+          continue;
+        }
+        throw new OpenAIClientError(
+          "openai_failed",
+          response.status,
+          lastBadRequest
+        );
+      }
+
+      let data: any;
+      try {
+        data = await response.json();
+      } catch {
+        throw new OpenAIClientError("openai_failed", 502, "invalid_json");
+      }
+
+      const message = extractMessage(data);
+      if (!message) {
+        throw new OpenAIClientError("openai_failed", 502, "empty_response");
+      }
+
+      return {
+        content: message,
+        usage: data?.usage,
+      };
     }
 
-    if (response.status === 429) {
-      throw new OpenAIClientError("openai_failed", 429, "status_429");
-    }
-
-    if (response.status === 401 || response.status === 403) {
-      throw new OpenAIClientError("openai_failed", 401, "status_401");
-    }
-
-    if (response.status >= 500) {
-      throw new OpenAIClientError(
-        "openai_failed",
-        500,
-        `status_${response.status}`
-      );
-    }
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new OpenAIClientError(
-        "openai_failed",
-        response.status,
-        text || `status_${response.status}`
-      );
-    }
-
-    let data: any;
-    try {
-      data = await response.json();
-    } catch {
-      throw new OpenAIClientError("openai_failed", 502, "invalid_json");
-    }
-
-    const message = data?.choices?.[0]?.message?.content;
-    if (typeof message !== "string" || !message.trim()) {
-      throw new OpenAIClientError("openai_failed", 502, "empty_response");
-    }
-
-    return {
-      content: message.trim(),
-      usage: data?.usage,
-    };
+    throw new OpenAIClientError(
+      "openai_failed",
+      400,
+      lastBadRequest || "invalid_request"
+    );
   } catch (error) {
     if (
       error instanceof OpenAIClientError ||
@@ -280,6 +393,14 @@ async function executeChat(
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function shouldTryNextModel(error: unknown): boolean {
+  if (error instanceof InvalidModelError) return true;
+  if (error instanceof OpenAIClientError) {
+    return error.status >= 500 || error.status === 429;
+  }
+  return false;
 }
 
 export async function chatOnce(
@@ -332,17 +453,15 @@ export async function chatOnce(
       );
       return result.content;
     } catch (error) {
-      if (error instanceof InvalidModelError) {
-        console.warn({
-          fn: "openai",
-          event: "model_unavailable",
-          requestId: opts.requestId ?? null,
-          model,
-        });
-        lastError = error;
-        continue;
-      }
+      console.warn({
+        fn: "openai",
+        event: "model_attempt_failed",
+        requestId: opts.requestId ?? null,
+        model,
+        message: (error as Error)?.message,
+      });
       lastError = error as Error;
+      if (shouldTryNextModel(error)) continue;
       break;
     }
   }
@@ -401,17 +520,15 @@ export async function chatWithMessages(
       );
       return { content: result.content, usage: result.usage, model };
     } catch (error) {
-      if (error instanceof InvalidModelError) {
-        console.warn({
-          fn: "openai",
-          event: "model_unavailable",
-          requestId: opts.requestId ?? null,
-          model,
-        });
-        lastError = error;
-        continue;
-      }
+      console.warn({
+        fn: "openai",
+        event: "model_attempt_failed",
+        requestId: opts.requestId ?? null,
+        model,
+        message: (error as Error)?.message,
+      });
       lastError = error as Error;
+      if (shouldTryNextModel(error)) continue;
       break;
     }
   }
@@ -484,17 +601,15 @@ export async function structuredJsonChat<T>(
 
       return { raw: response.content, data: validated };
     } catch (error) {
-      if (error instanceof InvalidModelError) {
-        console.warn({
-          fn: "openai",
-          event: "model_unavailable",
-          requestId: request.requestId ?? null,
-          model,
-        });
-        lastError = error;
-        continue;
-      }
+      console.warn({
+        fn: "openai",
+        event: "structured_model_attempt_failed",
+        requestId: request.requestId ?? null,
+        model,
+        message: (error as Error)?.message,
+      });
       lastError = error as Error;
+      if (shouldTryNextModel(error)) continue;
       break;
     }
   }
