@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { scrubUndefined } from "../src/lib/scrub.ts";
+// The test command builds TypeScript first; exercise the same JavaScript that is
+// deployed instead of relying on a runtime TypeScript loader.
+import { scrubUndefined } from "../lib/lib/scrub.js";
 
 function hasUndefined(value) {
   if (value === undefined) {

@@ -6,7 +6,16 @@ import { describeStorageRestPattern, STORAGE_REST_PATTERNS } from "./storage-res
 
 const ROOT = process.cwd();
 const DIST_DIR = path.resolve(ROOT, "dist");
-const ALLOWLIST_BASENAMES = [/^firebase-.*\.js$/i, /^vendor-.*\.js$/i];
+// Vite deliberately emits Firebase packages into the `fb` vendor chunk (see
+// vite.config.ts). The Storage SDK necessarily contains its own REST endpoint
+// implementation, so scanning that third-party chunk produces false positives.
+// App-owned chunks and source remain covered by this check and the source-level
+// Vitest guardrail.
+const ALLOWLIST_BASENAMES = [
+  /^fb-.*\.js$/i,
+  /^firebase-.*\.js$/i,
+  /^vendor-.*\.js$/i,
+];
 
 function collectBuildAssets(dir) {
   const entries = readdirSync(dir, { withFileTypes: true });
