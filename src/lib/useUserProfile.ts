@@ -7,6 +7,10 @@ export type UserProfile = {
   role?: string;
   unlimitedCredits?: boolean;
   credits?: number;
+  goal?: string;
+  onboarding?: {
+    goal?: string;
+  };
   // other fields allowed; keep type open
 };
 

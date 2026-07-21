@@ -61,4 +61,108 @@ describe("scan result production view model", () => {
     expect(vm.nutrition.calories).toBe(2300);
     expect(vm.nutrition.proteinGrams).toBe(180);
   });
+
+  it("calculates fat and lean mass from weight and the photo estimate", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        input: { currentWeightKg: 80, heightCm: 180, goalWeightKg: 75 },
+        estimate: { bodyFatPercent: 25, bmi: null } as any,
+      }),
+    });
+    expect(vm.primary.fatMassKg).toBe(20);
+    expect(vm.primary.leanMassKg).toBe(60);
+  });
+
+  it("omits BMI when height is missing", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        input: { currentWeightKg: 80, goalWeightKg: 75 },
+        estimate: { bodyFatPercent: 25, bmi: null } as any,
+      }),
+    });
+    expect(vm.primary.bmi).toBeNull();
+  });
+
+  it("does not trust provider-supplied BMI or mass values", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        input: { currentWeightKg: 80, heightCm: 200, goalWeightKg: 75 },
+        estimate: {
+          bodyFatPercent: 25,
+          bmi: 99,
+          fatMassKg: 2,
+          leanMassKg: 78,
+        } as any,
+      }),
+    });
+    expect(vm.primary.bmi).toBe(20);
+    expect(vm.primary.fatMassKg).toBe(20);
+    expect(vm.primary.leanMassKg).toBe(60);
+  });
+
+  it("keeps a successful estimate valid when optional nutrition is absent", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({ nutritionPlan: null }),
+    });
+    expect(vm.isValidResult).toBe(true);
+    expect(vm.isFailedOrFallback).toBe(false);
+    expect(vm.nutrition.available).toBe(false);
+  });
+
+  it("drops visual observations that make diagnostic or injury claims", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        metrics: {
+          postureObservation: "Possible scoliosis visible",
+          balanceObservation: "No meaningful visible imbalance detected",
+        },
+      }),
+    });
+    expect(vm.observations).toEqual([
+      {
+        label: "Visible left/right balance",
+        value: "No meaningful visible imbalance detected",
+      },
+    ]);
+  });
+
+  it("drops broader medical-condition language from visual observations", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        metrics: {
+          postureObservation:
+            "This posture indicates a painful spinal condition",
+          muscularDevelopment: "Visible muscular development is balanced",
+        },
+      }),
+    });
+    expect(vm.observations).toEqual([
+      {
+        label: "Muscular development",
+        value: "Visible muscular development is balanced",
+      },
+    ]);
+  });
+
+  it("exposes qualitative regions but never maps unsupported BIA fields", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        metrics: {
+          shouldersChest: "Strong development",
+          legs: "Primary growth focus",
+          visceralFat: 9,
+          totalBodyWater: 42,
+          biologicalAge: 31,
+          segmentalLeanMassKg: { leftArm: 4.2 },
+        },
+      }),
+    });
+    expect(vm.regions).toEqual([
+      { label: "Shoulders / chest", value: "Strong development" },
+      { label: "Legs", value: "Primary growth focus" },
+    ]);
+    expect(JSON.stringify(vm)).not.toMatch(
+      /visceral|bodyWater|biologicalAge|segmental/i
+    );
+  });
 });

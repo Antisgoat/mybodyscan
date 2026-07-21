@@ -1,6 +1,7 @@
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { coachPlanDocPath } from "./lib/paths.js";
+import { onCallWithOptionalAppCheck } from "./util/callable.js";
 
 interface CoachProfile {
   goal?: string;
@@ -40,7 +41,8 @@ const db = getFirestore();
 
 function resolveDays(profile: CoachProfile | null): number {
   const requested = Number(profile?.training_days_per_week);
-  if (Number.isFinite(requested)) return Math.max(2, Math.min(6, Math.round(requested)));
+  if (Number.isFinite(requested))
+    return Math.max(2, Math.min(6, Math.round(requested)));
   if (!profile) return 4;
   if (profile.style === "all_in") return 5;
   if (profile.activity_level === "sedentary") return 2;
@@ -49,7 +51,8 @@ function resolveDays(profile: CoachProfile | null): number {
 
 function hasInjuryConstraints(profile: CoachProfile | null): boolean {
   const injuries = profile?.injuries;
-  if (Array.isArray(injuries)) return injuries.some((item) => String(item).trim().length > 0);
+  if (Array.isArray(injuries))
+    return injuries.some((item) => String(item).trim().length > 0);
   return typeof injuries === "string" && injuries.trim().length > 0;
 }
 
@@ -209,8 +212,7 @@ function buildPlan(profile: CoachProfile | null): GeneratedPlan {
   };
 }
 
-export const generatePlan = onCall(
-  { region: "us-central1" },
+export const generatePlan = onCallWithOptionalAppCheck(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -224,5 +226,6 @@ export const generatePlan = onCall(
     await db.doc(coachPlanDocPath(uid)).set(plan);
 
     return { plan: { ...plan, updatedAt: plan.updatedAt.toMillis() } };
-  }
+  },
+  { region: "us-central1" }
 );

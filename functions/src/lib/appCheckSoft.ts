@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Request } from "express";
 import type { CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { getAppCheck } from "../firebase.js";
+import { getAppCheckMode } from "./env.js";
 
 type SoftAppCheckContext = {
   fn: string;
@@ -33,10 +35,17 @@ async function verifyToken(token: string, ctx: SoftAppCheckContext) {
   }
 }
 
+function rejectIfStrict(valid: boolean): void {
+  if (!valid && getAppCheckMode() === "strict") {
+    throw new HttpsError("permission-denied", "Valid App Check token required");
+  }
+}
+
 export async function ensureSoftAppCheckFromCallable(
   request: CallableRequest<any>,
   ctx: SoftAppCheckContext
 ): Promise<void> {
+  if (getAppCheckMode() === "disabled") return;
   const requestAny = request as CallableRequest<any> & {
     appCheck?: { token?: string };
   };
@@ -48,15 +57,17 @@ export async function ensureSoftAppCheckFromCallable(
   const context = { ...ctx, source: "callable" as const };
   if (!token) {
     logger.warn("appcheck.soft.missing", buildContext(context));
+    rejectIfStrict(false);
     return;
   }
-  await verifyToken(token, context);
+  rejectIfStrict(await verifyToken(token, context));
 }
 
 export async function ensureSoftAppCheckFromRequest(
   req: Request,
   ctx: SoftAppCheckContext
 ): Promise<void> {
+  if (getAppCheckMode() === "disabled") return;
   const token = (
     req.get("x-firebase-appcheck") ||
     req.get("X-Firebase-AppCheck") ||
@@ -65,7 +76,8 @@ export async function ensureSoftAppCheckFromRequest(
   const context = { ...ctx, source: "http" as const };
   if (!token) {
     logger.warn("appcheck.soft.missing", buildContext(context));
+    rejectIfStrict(false);
     return;
   }
-  await verifyToken(token, context);
+  rejectIfStrict(await verifyToken(token, context));
 }

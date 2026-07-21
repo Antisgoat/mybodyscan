@@ -14,7 +14,7 @@ const DIRECT_ENDPOINT_MAP: Record<string, string> = {
   "/api/scan/upload": "/scanUpload",
   "/api/scan/submit": "/submitScan",
   "/api/scan/delete": "/deleteScan",
-  "/api/createCheckout": "/createCheckout",
+  "/api/createCheckout": "/createCheckoutHttp",
   "/api/createCustomerPortal": "/createCustomerPortal",
   "/api/account/delete": "/deleteAccount",
 };

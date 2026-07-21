@@ -14,6 +14,24 @@ interface CreditBucket {
   context?: string | null;
 }
 
+function activeBuckets(data: any, now: Timestamp): CreditBucket[] {
+  return (Array.isArray(data?.creditBuckets) ? data.creditBuckets : [])
+    .map((bucket: any) => normalizeBucket(bucket, now))
+    .filter((bucket: CreditBucket) => {
+      const expiresAt =
+        bucket.expiresAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+      return bucket.amount > 0 && expiresAt > now.toMillis();
+    });
+}
+
+function totalCredits(buckets: CreditBucket[]): number {
+  return buckets.reduce(
+    (sum: number, bucket: CreditBucket) =>
+      sum + Math.max(0, bucket.amount || 0),
+    0
+  );
+}
+
 function normalizeBucket(raw: any, fallback: Timestamp): CreditBucket {
   return {
     amount: Number(raw?.amount || 0),
@@ -36,9 +54,7 @@ export async function consumeCreditBuckets(
   }
   const data = snap.data() as any;
   const now = Timestamp.now();
-  const buckets: CreditBucket[] = Array.isArray(data.creditBuckets)
-    ? data.creditBuckets.map((bucket: any) => normalizeBucket(bucket, now))
-    : [];
+  const buckets = activeBuckets(data, now);
   buckets.sort((a: CreditBucket, b: CreditBucket) => {
     const aTime = a.expiresAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
     const bTime = b.expiresAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
@@ -58,11 +74,49 @@ export async function consumeCreditBuckets(
   }
 
   const consumed = remaining <= 0;
-  const total = buckets.reduce(
-    (sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0),
-    0
+  const active = buckets.filter((bucket) => bucket.amount > 0);
+  const total = totalCredits(active);
+  return { buckets: active, consumed, total };
+}
+
+export async function grantCreditBuckets(
+  tx: Transaction,
+  ref: DocumentReference,
+  amount: number,
+  options: {
+    context: string;
+    sourcePriceId?: string | null;
+    expiresInMonths?: number;
+  }
+): Promise<number> {
+  const snap = await tx.get(ref);
+  const now = Timestamp.now();
+  const buckets = activeBuckets(snap.exists ? snap.data() : {}, now);
+  const months = Number(options.expiresInMonths);
+  const expiryDate = now.toDate();
+  if (Number.isFinite(months) && months > 0) {
+    expiryDate.setMonth(expiryDate.getMonth() + Math.floor(months));
+  }
+  buckets.push({
+    amount: Math.max(0, Math.floor(amount)),
+    grantedAt: now,
+    expiresAt:
+      Number.isFinite(months) && months > 0
+        ? Timestamp.fromDate(expiryDate)
+        : null,
+    sourcePriceId: options.sourcePriceId || null,
+    context: options.context,
+  });
+  const total = totalCredits(buckets);
+  tx.set(
+    ref,
+    {
+      creditBuckets: buckets,
+      creditsSummary: { totalAvailable: total, lastUpdated: now },
+    },
+    { merge: true }
   );
-  return { buckets, consumed, total };
+  return total;
 }
 
 export async function refundCredit(
@@ -73,9 +127,7 @@ export async function refundCredit(
   const snap = await tx.get(ref);
   const now = Timestamp.now();
   const data = snap.exists ? snap.data() : {};
-  const buckets: CreditBucket[] = Array.isArray(data?.creditBuckets)
-    ? data.creditBuckets.map((bucket: any) => normalizeBucket(bucket, now))
-    : [];
+  const buckets = activeBuckets(data, now);
   buckets.push({
     amount: 1,
     grantedAt: now,
@@ -83,10 +135,7 @@ export async function refundCredit(
     sourcePriceId: null,
     context,
   });
-  const total = buckets.reduce(
-    (sum: number, bucket: CreditBucket) => sum + (bucket.amount || 0),
-    0
-  );
+  const total = totalCredits(buckets);
   tx.set(
     ref,
     {

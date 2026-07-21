@@ -6,6 +6,8 @@ import {
   Square,
   Play,
   Loader2,
+  ShieldAlert,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,7 @@ import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
+import { deriveProductInsight } from "@/lib/productInsight";
 
 async function loadZXing() {
   try {
@@ -106,6 +109,10 @@ export default function BarcodeScan() {
   const [processing, setProcessing] = useState(false);
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [scannerUnavailable, setScannerUnavailable] = useState(false);
+  const insight = useMemo(
+    () => (item ? deriveProductInsight(item) : null),
+    [item]
+  );
 
   const unavailableMessage = "Scanner unavailable — enter barcode manually.";
   const insecureMessage = "Camera not available — enter barcode manually.";
@@ -554,6 +561,90 @@ export default function BarcodeScan() {
                   {item.per_serving?.fat_g ?? "—"}g F
                 </p>
               </div>
+              {insight && (
+                <section
+                  className="space-y-3 rounded-xl border bg-muted/30 p-4"
+                  aria-label="MBS Product Insight"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="flex items-center gap-2 font-semibold">
+                        <Sparkles className="h-4 w-4" /> MBS Product Insight
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Original, transparent nutrition comparison • {insight.basis}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold tabular-nums">
+                        {insight.score ?? "—"}
+                        {insight.score != null && (
+                          <span className="text-sm font-normal text-muted-foreground">/100</span>
+                        )}
+                      </p>
+                      <p className="text-xs font-medium">{insight.label}</p>
+                    </div>
+                  </div>
+
+                  {insight.factors.length > 0 && (
+                    <div className="space-y-2">
+                      {insight.factors.slice(0, 6).map((factor) => (
+                        <div key={factor.key} className="flex items-center justify-between gap-3 text-sm">
+                          <div>
+                            <span className="font-medium">{factor.label}</span>{" "}
+                            <span className="text-xs text-muted-foreground">{factor.detail}</span>
+                          </div>
+                          <span
+                            className={
+                              factor.impact > 0
+                                ? "font-semibold text-emerald-600"
+                                : "font-semibold text-amber-600"
+                            }
+                          >
+                            {factor.impact > 0 ? "+" : ""}{factor.impact}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {insight.missing.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Confidence: {insight.confidence}. Missing: {insight.missing.join(", ")}.
+                    </p>
+                  )}
+
+                  {(insight.allergens.length > 0 || insight.additives.length > 0) && (
+                    <div className="space-y-1 rounded-lg border bg-background/70 p-3 text-xs">
+                      {insight.allergens.length > 0 && (
+                        <p className="flex gap-2">
+                          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                          <span><strong>Reported allergens:</strong> {insight.allergens.join(", ")}</span>
+                        </p>
+                      )}
+                      {insight.additives.length > 0 && (
+                        <p><strong>Reported additives:</strong> {insight.additives.join(", ")}</p>
+                      )}
+                      <p className="text-muted-foreground">
+                        Presence does not by itself mean an ingredient is unsafe. Verify the package label.
+                      </p>
+                    </div>
+                  )}
+
+                  {insight.ingredients && (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer font-medium">Ingredient list</summary>
+                      <p className="mt-2 text-muted-foreground">{insight.ingredients}</p>
+                    </details>
+                  )}
+
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Informational only—not medical advice or a safety determination. Scores compare available
+                    nutrition data and can change when product data is corrected. Product data may be supplied
+                    by Open Food Facts or USDA; always confirm the package label.
+                  </p>
+                </section>
+              )}
               <ServingEditor
                 item={item}
                 entrySource="barcode"

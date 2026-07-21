@@ -15,12 +15,12 @@
       ]
     },
     {
-      "collectionId": "stripeEvents",
+      "collectionGroup": "stripeEvents",
       "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "created", "order": "DESCENDING" }]
     },
     {
-      "collectionId": "telemetryEvents",
+      "collectionGroup": "telemetryEvents",
       "queryScope": "COLLECTION",
       "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     }

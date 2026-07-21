@@ -16,7 +16,7 @@ export const APP_CONFIG = {
 export const BUILD_META = {
   "mode": "production",
   "isNative": false,
-  "commit": "0e05530",
-  "branch": "work",
+  "commit": "e285a8e",
+  "branch": "codex/fix-scan-engine-to-complete-reliably",
   "timestamp": null
 } as const;

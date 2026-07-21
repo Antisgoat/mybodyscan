@@ -40,7 +40,10 @@ export { stripeWebhook } from "./stripeWebhook.js";
 export { revenueCatWebhook } from "./revenueCatWebhook.js";
 export { legacyCreateCheckout } from "./createCheckout.js";
 export { createCheckout } from "./stripe/createCheckout.js";
-export { createCustomerPortal } from "./createCustomerPortal.js";
+export {
+  createCheckout as createCheckoutHttp,
+  createCustomerPortal,
+} from "./http/checkout.js";
 export { adminGateway } from "./http/admin.js";
 // IMPORTANT:
 // `telemetryLog` must remain a callable (onCall) for backwards compatibility.
@@ -79,7 +82,11 @@ const allowedOrigins = new Set([
   "http://localhost:5173",
 ]);
 
-function buildError(code: string, message: string, ref = randomUUID().slice(0, 8)) {
+function buildError(
+  code: string,
+  message: string,
+  ref = randomUUID().slice(0, 8)
+) {
   return { ok: false as const, error: { code, message, ref } };
 }
 
@@ -89,7 +96,10 @@ function applyGatewayCors(req: Request, res: Response) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
   }
-  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Firebase-AppCheck"
+  );
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
 }
 
@@ -109,7 +119,11 @@ app.options("*", (req: Request, res: Response) => {
 });
 app.use(allowCorsAndOptionalAppCheck);
 
-async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: string) {
+async function forwardLegacyFunctionRoute(
+  req: Request,
+  res: Response,
+  fnName: string
+) {
   try {
     const protocol = req.get("x-forwarded-proto") || "https";
     const host = req.get("host");
@@ -133,21 +147,47 @@ async function forwardLegacyFunctionRoute(req: Request, res: Response, fnName: s
     try {
       body = text ? JSON.parse(text) : {};
     } catch {
-      body = buildError("upstream_invalid_json", "Upstream returned invalid JSON");
+      body = buildError(
+        "upstream_invalid_json",
+        "Upstream returned invalid JSON"
+      );
     }
     if (response.ok) {
       res.status(response.status).json({ ok: true, data: body });
       return;
     }
     const ref = randomUUID().slice(0, 8);
-    console.error("api_gateway_forward_failed", { fnName, status: response.status, ref, body });
+    console.error("api_gateway_forward_failed", {
+      fnName,
+      status: response.status,
+      ref,
+      body,
+    });
     res
       .status(response.status)
-      .json(buildError(`upstream_${response.status}`, body?.message || body?.error || "Request failed", ref));
+      .json(
+        buildError(
+          `upstream_${response.status}`,
+          body?.message || body?.error || "Request failed",
+          ref
+        )
+      );
   } catch (error: any) {
     const ref = randomUUID().slice(0, 8);
-    console.error("legacy_route_forward_failed", { fnName, ref, message: error?.message });
-    res.status(502).json(buildError("legacy_route_forward_failed", error?.message || "forward_failed", ref));
+    console.error("legacy_route_forward_failed", {
+      fnName,
+      ref,
+      message: error?.message,
+    });
+    res
+      .status(502)
+      .json(
+        buildError(
+          "legacy_route_forward_failed",
+          error?.message || "forward_failed",
+          ref
+        )
+      );
   }
 }
 

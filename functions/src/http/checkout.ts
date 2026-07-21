@@ -17,6 +17,9 @@ const db = getFirestore();
 
 const allowOrigins = [
   "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
+  "https://mybodyscan.app",
+  "https://www.mybodyscan.app",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
 ];
@@ -181,7 +184,7 @@ function applyCors(
     res.setHeader("Access-Control-Allow-Methods", "POST,OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type,Authorization,X-UAT"
+      "Content-Type,Authorization,X-Firebase-AppCheck,X-UAT"
     );
     res.status(204).end();
     return { allowedOrigin, ended: true };

@@ -50,7 +50,6 @@ import ScanFlowResult from "./pages/Scan/Result";
 import ScanRefine from "./pages/Scan/Refine";
 import ScanFlowHistory from "./pages/Scan/History";
 import ScanFlowPage from "./pages/ScanFlow";
-import Report from "./pages/Report";
 import DebugCredits from "./pages/DebugCredits";
 import PreviewFrame from "./pages/PreviewFrame";
 import CoachOnboarding from "./pages/CoachOnboarding";
@@ -120,7 +119,8 @@ const LiveFlowsQA = lazy(() => import("./pages/LiveFlowsQA"));
 const queryClient = new QueryClient();
 const allowInternalTools =
   import.meta.env.DEV ||
-  ((import.meta as any)?.env?.VITE_INTERNAL_TOOLS === "1" && !__MBS_NATIVE_RELEASE__);
+  ((import.meta as any)?.env?.VITE_INTERNAL_TOOLS === "1" &&
+    !__MBS_NATIVE_RELEASE__);
 const nativeBuild = isNative();
 
 const PageSuspense = ({
@@ -246,6 +246,8 @@ const App = () => (
           path="/legal/disclaimer"
           element={withPublicLayout(<Disclaimer />)}
         />
+        <Route path="/medical" element={withPublicLayout(<Disclaimer />)} />
+        <Route path="/disclaimer" element={withPublicLayout(<Disclaimer />)} />
         <Route path="/support" element={withPublicLayout(<Support />)} />
         <Route path="/help" element={withPublicLayout(<Help />)} />
         <Route
@@ -1115,7 +1117,10 @@ const App = () => (
           <Route
             path="/scan/diagnostics"
             element={
-              <FeatureGate name="scan" fallback={<Navigate to="/home" replace />}>
+              <FeatureGate
+                name="scan"
+                fallback={<Navigate to="/home" replace />}
+              >
                 <ProtectedRoute>
                   <PersonalizationGate>
                     <AuthedLayout>
@@ -1174,7 +1179,7 @@ const App = () => (
             <ProtectedRoute>
               <PersonalizationGate>
                 <AuthedLayout>
-                  <Report />
+                  <Results />
                 </AuthedLayout>
               </PersonalizationGate>
             </ProtectedRoute>
@@ -1186,7 +1191,7 @@ const App = () => (
             <ProtectedRoute>
               <PersonalizationGate>
                 <AuthedLayout>
-                  <Report />
+                  <Results />
                 </AuthedLayout>
               </PersonalizationGate>
             </ProtectedRoute>
@@ -1275,9 +1280,15 @@ const App = () => (
           />
         )}
         {import.meta.env.DEV && <Route path="/__uat" element={<UATPage />} />}
-        {allowInternalTools && <Route path="/debug/credits" element={<DebugCredits />} />}
-        {allowInternalTools && <Route path="/debug/plan" element={<DebugPlan />} />}
-        {allowInternalTools && <Route path="/debug/health" element={<DebugHealth />} />}
+        {allowInternalTools && (
+          <Route path="/debug/credits" element={<DebugCredits />} />
+        )}
+        {allowInternalTools && (
+          <Route path="/debug/plan" element={<DebugPlan />} />
+        )}
+        {allowInternalTools && (
+          <Route path="/debug/health" element={<DebugHealth />} />
+        )}
         {/* MBS Onboarding */}
         <Route
           path="/onboarding-mbs"

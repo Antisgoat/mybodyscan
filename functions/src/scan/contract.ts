@@ -1,6 +1,12 @@
 export const REQUIRED_SCAN_POSES = ["front", "back", "left", "right"] as const;
 export type RequiredScanPose = (typeof REQUIRED_SCAN_POSES)[number];
-export type InternalScanStatus = "queued" | "processing" | "complete" | "error";
+export type InternalScanStatus =
+  | "uploading"
+  | "queued"
+  | "processing"
+  | "complete"
+  | "error"
+  | "unknown";
 
 export function normalizeScanStatus(
   rawStatus?: string | null
@@ -8,6 +14,14 @@ export function normalizeScanStatus(
   const normalized = String(rawStatus || "")
     .trim()
     .toLowerCase();
+  if (normalized === "uploading" || normalized === "upload") return "uploading";
+  if (
+    normalized === "queued" ||
+    normalized === "pending" ||
+    normalized === "ready" ||
+    normalized === "submitted"
+  )
+    return "queued";
   if (
     normalized === "processing" ||
     normalized === "in_progress" ||
@@ -28,7 +42,7 @@ export function normalizeScanStatus(
     normalized === "aborted"
   )
     return "error";
-  return "queued";
+  return "unknown";
 }
 
 export function hasAllRequiredPhotoPaths(

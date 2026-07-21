@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { attachConsoleGuard } from "../utils/consoleGuard";
+import {
+  acceptPoliciesIfShown,
+  attachConsoleGuard,
+} from "../utils/consoleGuard";
 
 test.describe("System check utilities", () => {
   test.beforeEach(({ page }) => {
@@ -10,6 +13,7 @@ test.describe("System check utilities", () => {
     page,
   }) => {
     const response = await page.goto("/system-check");
+    await acceptPoliciesIfShown(page);
 
     if (response && response.ok()) {
       await expect(page).toHaveURL(/\/system-check/);

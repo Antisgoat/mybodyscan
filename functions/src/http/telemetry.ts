@@ -7,6 +7,8 @@ const db = getFirestore();
 const ALLOWED_ORIGINS = new Set([
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",
+  "https://mybodyscan.app",
+  "https://www.mybodyscan.app",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   // Local dev / preview / emulators
@@ -68,7 +70,10 @@ function sanitizeString(value: unknown, limit: number): string | null {
 function normalizeExtra(extra: unknown): Record<string, unknown> | null {
   if (!extra) return null;
   if (typeof extra === "object" && !Array.isArray(extra)) {
-    const entries = Object.entries(extra as Record<string, unknown>).slice(0, 50);
+    const entries = Object.entries(extra as Record<string, unknown>).slice(
+      0,
+      50
+    );
     return Object.fromEntries(
       entries.map(([key, value]) => [key, normalizeExtraValue(value)])
     );
@@ -156,7 +161,9 @@ export const telemetryLogHttp = onRequest(
     }
 
     const events = eventsRaw
-      .filter((entry): entry is TelemetryBody => Boolean(entry && typeof entry === "object"))
+      .filter((entry): entry is TelemetryBody =>
+        Boolean(entry && typeof entry === "object")
+      )
       .slice(0, 20);
 
     if (!events.length) {
@@ -193,14 +200,19 @@ export const telemetryLogHttp = onRequest(
       }
     } catch (error) {
       // If rate limiting breaks for any reason, fail-open and keep telemetry best-effort.
-      console.warn("telemetry_rate_limit_error", { message: (error as Error)?.message });
+      console.warn("telemetry_rate_limit_error", {
+        message: (error as Error)?.message,
+      });
     }
 
     try {
       const batch = db.batch();
       const createdAt = Timestamp.now();
       const ua = sanitizeString(req.get("user-agent"), 300);
-      const referer = sanitizeString(req.get("referer") || req.get("referrer"), 500);
+      const referer = sanitizeString(
+        req.get("referer") || req.get("referrer"),
+        500
+      );
 
       for (const body of events) {
         const doc = {

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG_PATH="${ROOT_DIR}/infra/storage-cors.json"
-BUCKET="gs://mybodyscan-f3daf.appspot.com"
+BUCKET="gs://mybodyscan-f3daf.firebasestorage.app"
 
 if ! command -v gsutil >/dev/null 2>&1; then
   echo "gsutil is required to set bucket CORS. Please install the Google Cloud SDK." >&2

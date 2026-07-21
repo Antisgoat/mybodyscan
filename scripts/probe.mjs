@@ -45,7 +45,7 @@ const ENDPOINTS = [
   },
   {
     name: "createCheckout",
-    // Callable function exposed as an HTTP endpoint at /createCheckout
+    // Hardened HTTP fallback for the callable checkout flow.
     functionName: "createCheckout",
     path: "/",
     method: "POST",
@@ -57,20 +57,33 @@ const ENDPOINTS = [
     functionName: "startScanSession",
     path: "/",
     method: "POST",
-    body: { currentWeightKg: 80, goalWeightKg: 75, correlationId: `probe-${Date.now()}` },
+    body: {
+      currentWeightKg: 80,
+      goalWeightKg: 75,
+      correlationId: `probe-${Date.now()}`,
+    },
     expect: ({ status, parsed }) => {
-      if (status !== 200) return { ok: false, message: `expected 200, got ${status}` };
-      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      if (status !== 200)
+        return { ok: false, message: `expected 200, got ${status}` };
+      if (!isObject(parsed))
+        return { ok: false, message: "expected JSON object" };
       const scanId = isNonEmptyString(parsed.scanId) ? parsed.scanId : null;
       if (!scanId) return { ok: false, message: "missing scanId" };
-      const storagePaths = isObject(parsed.storagePaths) ? parsed.storagePaths : null;
+      const storagePaths = isObject(parsed.storagePaths)
+        ? parsed.storagePaths
+        : null;
       if (!storagePaths) return { ok: false, message: "missing storagePaths" };
       const uid = storagePaths.front?.split("/")[1];
-      if (!isNonEmptyString(uid)) return { ok: false, message: "unable to infer uid from storagePaths" };
+      if (!isNonEmptyString(uid))
+        return { ok: false, message: "unable to infer uid from storagePaths" };
       for (const pose of ["front", "back", "left", "right"]) {
-        if (!hasOwn(storagePaths, pose)) return { ok: false, message: `missing storagePaths.${pose}` };
+        if (!hasOwn(storagePaths, pose))
+          return { ok: false, message: `missing storagePaths.${pose}` };
         if (!isCanonicalScanPath(storagePaths[pose], uid, scanId, pose)) {
-          return { ok: false, message: `non-canonical path for ${pose}: ${String(storagePaths[pose])}` };
+          return {
+            ok: false,
+            message: `non-canonical path for ${pose}: ${String(storagePaths[pose])}`,
+          };
         }
       }
       return { ok: true };
@@ -85,10 +98,13 @@ const ENDPOINTS = [
     body: null,
     // We don't upload photos in the probe; submit should fail *cleanly* and as JSON.
     expect: ({ parsed }) => {
-      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      if (!isObject(parsed))
+        return { ok: false, message: "expected JSON object" };
       // Any structured error is acceptable, but we strongly prefer missing_photos.
-      if (isNonEmptyString(parsed.reason) && parsed.reason === "missing_photos") return { ok: true };
-      if (isNonEmptyString(parsed.code) && isNonEmptyString(parsed.message)) return { ok: true };
+      if (isNonEmptyString(parsed.reason) && parsed.reason === "missing_photos")
+        return { ok: true };
+      if (isNonEmptyString(parsed.code) && isNonEmptyString(parsed.message))
+        return { ok: true };
       return { ok: false, message: "unexpected submit response shape" };
     },
   },
@@ -100,7 +116,8 @@ const ENDPOINTS = [
     // Body is filled dynamically from scanStart response.
     body: null,
     expect: ({ parsed }) => {
-      if (!isObject(parsed)) return { ok: false, message: "expected JSON object" };
+      if (!isObject(parsed))
+        return { ok: false, message: "expected JSON object" };
       if (parsed.ok === true) return { ok: true };
       return { ok: false, message: "deleteScan did not return ok:true" };
     },
@@ -175,9 +192,14 @@ async function fetchWithTimeout(url, options) {
 async function probeEndpoint(base, endpoint, token) {
   const fn = String(endpoint.functionName || "").trim();
   if (!fn) {
-    throw new Error(`Missing functionName for probe endpoint "${endpoint.name}".`);
+    throw new Error(
+      `Missing functionName for probe endpoint "${endpoint.name}".`
+    );
   }
-  const url = new URL(`${fn}${endpoint.path || "/"}`.replace(/^\//, ""), ensureTrailingSlash(base));
+  const url = new URL(
+    `${fn}${endpoint.path || "/"}`.replace(/^\//, ""),
+    ensureTrailingSlash(base)
+  );
 
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -284,20 +306,35 @@ async function main() {
             correlationId: ctx.correlationId,
           };
         } else {
-          endpoint.body = { scanId: "missing", photoPaths: {}, currentWeightKg: 0, goalWeightKg: 0 };
+          endpoint.body = {
+            scanId: "missing",
+            photoPaths: {},
+            currentWeightKg: 0,
+            goalWeightKg: 0,
+          };
         }
       }
       if (endpoint.name === "scanDelete") {
-        endpoint.body = ctx.scanId ? { scanId: ctx.scanId } : { scanId: "missing" };
+        endpoint.body = ctx.scanId
+          ? { scanId: ctx.scanId }
+          : { scanId: "missing" };
       }
 
       const result = await probeEndpoint(base, endpoint, token);
       allOk = allOk && result.ok;
 
-      if (endpoint.name === "scanStart" && result.parsed && typeof result.parsed === "object") {
-        const scanId = typeof result.parsed.scanId === "string" ? result.parsed.scanId : null;
+      if (
+        endpoint.name === "scanStart" &&
+        result.parsed &&
+        typeof result.parsed === "object"
+      ) {
+        const scanId =
+          typeof result.parsed.scanId === "string"
+            ? result.parsed.scanId
+            : null;
         const storagePaths =
-          result.parsed.storagePaths && typeof result.parsed.storagePaths === "object"
+          result.parsed.storagePaths &&
+          typeof result.parsed.storagePaths === "object"
             ? result.parsed.storagePaths
             : null;
         if (scanId && storagePaths) {
@@ -308,7 +345,9 @@ async function main() {
             goalWeightKg: Number(endpoint.body?.goalWeightKg ?? 0),
           };
           ctx.correlationId =
-            typeof endpoint.body?.correlationId === "string" ? endpoint.body.correlationId : undefined;
+            typeof endpoint.body?.correlationId === "string"
+              ? endpoint.body.correlationId
+              : undefined;
         }
       }
     }

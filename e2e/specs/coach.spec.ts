@@ -1,7 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { attachConsoleGuard } from "../utils/consoleGuard";
+import {
+  acceptPoliciesIfShown,
+  attachConsoleGuard,
+  wasRedirectedToAuth,
+} from "../utils/consoleGuard";
 
 test.describe("Coach assistant", () => {
+  test.skip(
+    !process.env.PLAYWRIGHT_STORAGE_STATE,
+    "Coach smoke requires PLAYWRIGHT_STORAGE_STATE."
+  );
+
   test.beforeEach(({ page }) => {
     attachConsoleGuard(page);
   });
@@ -16,6 +25,11 @@ test.describe("Coach assistant", () => {
     });
 
     await page.goto("/coach");
+    await acceptPoliciesIfShown(page);
+    test.skip(
+      wasRedirectedToAuth(page),
+      "Coach page requires an authenticated storage state."
+    );
 
     // Open chat panel
     await page.getByRole("button", { name: /open chat/i }).click();

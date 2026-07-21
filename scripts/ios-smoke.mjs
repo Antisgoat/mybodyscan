@@ -73,7 +73,7 @@ async function fetchJson(url, init = {}, timeoutMs = 5000) {
   }
   console.log("[ios-smoke] health ok");
 
-  const nutrition = await fetchJson(`${origin}/nutrition/search?q=banana&page=1`, { method: "GET" }, 5000);
+  const nutrition = await fetchJson(`${origin}/nutritionSearchHttp?q=banana&page=1`, { method: "GET" }, 5000);
   const nutritionCount = Array.isArray(nutrition.json?.results) ? nutrition.json.results.length : 0;
   if (!nutrition.ok) {
     console.error("[ios-smoke] nutrition search failed", nutrition.status, nutrition.text || nutrition.json);

@@ -81,7 +81,7 @@ const checks = {
       hasRewrite("/api/system/health", "systemHealth") &&
       hasRewrite("/api/coach/chat", "coachChat") &&
       hasRewrite("/api/nutrition/search", "nutritionSearch") &&
-      hasRewrite("/api/createCheckout", "createCheckout") &&
+      hasRewrite("/api/createCheckout", "createCheckoutHttp") &&
       hasRewrite("/api/createCustomerPortal", "createCustomerPortal"),
   },
   indexNoStore: { ok: hasIndexNoStore() },

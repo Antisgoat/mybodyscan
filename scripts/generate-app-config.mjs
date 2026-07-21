@@ -14,7 +14,7 @@ const dotenv = {
       const key = trimmed.slice(0, idx).trim();
       let value = trimmed.slice(idx + 1).trim();
       if (
-        (value.startsWith("\"") && value.endsWith("\"")) ||
+        (value.startsWith('"') && value.endsWith('"')) ||
         (value.startsWith("'") && value.endsWith("'"))
       ) {
         value = value.slice(1, -1);
@@ -51,12 +51,7 @@ const buildEnvList = (envMode) => {
   const base = [".env", ".env.local"];
   const modeFiles = [`.env.${envMode}`, `.env.${envMode}.local`];
   if (envMode === "native") {
-    return [
-      ...base,
-      ".env.production",
-      ".env.production.local",
-      ...modeFiles,
-    ];
+    return [...base, ".env.production", ".env.production.local", ...modeFiles];
   }
   return [...base, ...modeFiles];
 };
@@ -129,9 +124,7 @@ if (forbiddenLineMatches.length) {
     ? loadedFiles.join(", ")
     : "(no env files found)";
   const details = forbiddenLineMatches
-    .map(
-      (match) => `- ${match.file}:${match.line} (${match.key})`
-    )
+    .map((match) => `- ${match.file}:${match.line} (${match.key})`)
     .join("\n");
   const uniqueKeys = [
     ...new Set(forbiddenLineMatches.map((match) => match.key)),
@@ -153,7 +146,7 @@ const readClientEnvValue = (key) => {
 
 const decodeXmlValue = (value) =>
   value
-    .replace(/&quot;/g, "\"")
+    .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -201,7 +194,14 @@ const readIosFirebaseConfig = () => {
 const readAndroidFirebaseConfig = () => {
   const paths = [
     path.join(ROOT_DIR, "android", "app", "google-services.json"),
-    path.join(ROOT_DIR, "android", "app", "src", "main", "google-services.json"),
+    path.join(
+      ROOT_DIR,
+      "android",
+      "app",
+      "src",
+      "main",
+      "google-services.json"
+    ),
   ];
   const jsonPath = paths.find((candidate) => fs.existsSync(candidate));
   if (!jsonPath) return null;
@@ -264,7 +264,9 @@ const isMissingValue = (value) =>
   value === undefined || value === null || String(value).trim() === "";
 
 const nativeConfig = isNative ? readNativeFirebaseConfig() : null;
-const nativePlatform = String(process.env.CAPACITOR_PLATFORM ?? "").toLowerCase();
+const nativePlatform = String(
+  process.env.CAPACITOR_PLATFORM ?? ""
+).toLowerCase();
 const buildNativeFileHint = () => {
   if (!isNative || nativeConfig?.sources?.length) return "";
   if (nativePlatform === "ios") {
@@ -310,7 +312,10 @@ if (nativeConfig) {
     measurementId: nativeConfig.measurementId,
   };
   for (const [key, value] of Object.entries(mergeMap)) {
-    if (isMissingValue(firebaseConfig[key]) && !isMissingValue(value)) {
+    if (
+      !isMissingValue(value) &&
+      (isNative || isMissingValue(firebaseConfig[key]))
+    ) {
       firebaseConfig[key] = value;
     }
   }
@@ -325,7 +330,14 @@ if (isNative && isMissingValue(firebaseConfig.authDomain)) {
 
 const requiredFirebaseConfigKeys = isNative
   ? ["apiKey", "projectId", "authDomain", "appId"]
-  : [];
+  : [
+      "apiKey",
+      "projectId",
+      "authDomain",
+      "storageBucket",
+      "messagingSenderId",
+      "appId",
+    ];
 
 const missingFirebaseConfig = requiredFirebaseConfigKeys.filter((key) =>
   isMissingValue(firebaseConfig[key])
@@ -418,7 +430,8 @@ const buildMeta = {
 const outputDir = path.dirname(OUTPUT_PATH);
 fs.mkdirSync(outputDir, { recursive: true });
 
-const fileContents = `// THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.\n` +
+const fileContents =
+  `// THIS FILE IS AUTO-GENERATED. DO NOT EDIT MANUALLY.\n` +
   `// Run: node scripts/generate-app-config.mjs\n` +
   `\n` +
   `export const APP_CONFIG = ${JSON.stringify({ firebase: firebaseConfig }, null, 2)} as const;\n` +

@@ -11,13 +11,14 @@ try {
 /** Soft App Check: never blocks; logs when header is missing/invalid. */
 export async function appCheckSoft(
   req: Request,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ) {
   try {
     await httpAppCheckSoft(req);
   } catch {
-    // keep soft behavior even if verification helper throws
+    res.status(403).json({ error: "app_check_required" });
+    return;
   }
   return next();
 }

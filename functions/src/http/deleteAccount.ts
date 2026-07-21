@@ -1,15 +1,14 @@
-import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
-import type { Firestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { appCheckSoft } from "../middleware/appCheckSoft.js";
+import { verifyAppCheck } from "../http.js";
 
 export const deleteAccount = onRequest(
   {
     cors: true,
+    region: "us-central1",
     timeoutSeconds: 540,
     memory: "1GiB",
   },
@@ -23,7 +22,7 @@ export const deleteAccount = onRequest(
       if (!idToken) return res.status(401).json({ error: "missing_token" });
 
       const decoded = await getAuth().verifyIdToken(idToken, true);
-      await runSoftAppCheck(req, res);
+      await verifyAppCheck(req);
 
       const now = Math.floor(Date.now() / 1000);
       const authAge = now - (decoded.auth_time || 0);
@@ -44,57 +43,21 @@ export const deleteAccount = onRequest(
       logger.error("deleteAccount_failed", {
         err: String(err?.message || err),
       });
+      if (err?.code === "permission-denied") {
+        return res.status(403).json({ error: "app_check_required" });
+      }
+      if (String(err?.code || "").startsWith("auth/")) {
+        return res.status(401).json({ error: "invalid_token" });
+      }
       return res.status(500).json({ error: "internal" });
     }
   }
 );
 
-async function runSoftAppCheck(req: Request, res: Response): Promise<void> {
-  await new Promise<void>((resolve) => {
-    try {
-      appCheckSoft(req, res, () => resolve());
-    } catch (error) {
-      logger.warn("deleteAccount_appcheck_error", {
-        message: (error as Error)?.message,
-      });
-      resolve();
-    }
-  });
-}
-
 async function deleteUserData(uid: string) {
   const db = getFirestore();
-
-  const subcols = [
-    `users/${uid}/scans`,
-    `users/${uid}/nutritionLogs`,
-    `users/${uid}/coach`,
-    `users/${uid}/healthDaily`,
-  ];
-
-  for (const path of subcols) {
-    await deleteCollectionBatched(db, path, 200);
-  }
-
-  await db
-    .doc(`users/${uid}`)
-    .delete()
-    .catch(() => {});
-
   const bucket = getStorage().bucket();
-  await bucket.deleteFiles({ prefix: `scans/${uid}/` }).catch(() => {});
-}
-
-async function deleteCollectionBatched(
-  db: Firestore,
-  collectionPath: string,
-  batchSize = 200
-) {
-  while (true) {
-    const snap = await db.collection(collectionPath).limit(batchSize).get();
-    if (snap.empty) return;
-    const batch = db.batch();
-    snap.docs.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
-  }
+  await bucket.deleteFiles({ prefix: `scans/${uid}/` });
+  await bucket.deleteFiles({ prefix: `user_uploads/${uid}/` });
+  await db.recursiveDelete(db.doc(`users/${uid}`));
 }

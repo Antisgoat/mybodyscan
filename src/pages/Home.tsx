@@ -34,6 +34,8 @@ import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import { useUnits } from "@/hooks/useUnits";
+import { useUserProfile } from "@/lib/useUserProfile";
+import { derivePlateauAlert } from "@/lib/plateauAlert";
 
 type LastScan = {
   id: string;
@@ -94,6 +96,7 @@ const Home = () => {
   const demo = useDemoMode();
   const { units } = useUnits();
   const onboardingStatus = useOnboardingStatus();
+  const { profile: rootProfile } = useUserProfile();
   const initialDemoScan = isDemo() ? buildDemoLastScan() : null;
   const [recentScans, setRecentScans] = useState<LastScan[]>(
     initialDemoScan ? [initialDemoScan] : []
@@ -167,6 +170,45 @@ const Home = () => {
     !demo &&
     !onboardingStatus.loading &&
     !onboardingStatus.personalizationCompleted;
+  const plateauAlert = useMemo(
+    () =>
+      derivePlateauAlert(
+        sortedScans.map((scan) => {
+          const meta = scanStatusLabel(
+            scan.status,
+            scan.raw?.updatedAt ?? scan.raw?.completedAt ?? scan.raw?.createdAt
+          );
+          const sortMillis = scanSortMillis(scan);
+          return {
+            id: scan.id,
+            date: sortMillis > 0 ? new Date(sortMillis) : scan.createdAt,
+            raw: scan.raw,
+            showMetrics: meta.showMetrics,
+          };
+        }),
+        rootProfile?.onboarding?.goal ?? rootProfile?.goal
+      ),
+    [rootProfile, sortedScans, statusTick]
+  );
+  const plateauDismissKey = plateauAlert && user?.uid
+    ? `mbs:plateau-dismissed:${user.uid}:${plateauAlert.signature}`
+    : null;
+  const [dismissedPlateauKey, setDismissedPlateauKey] = useState<string | null>(null);
+  const showPlateauAlert = Boolean(
+    plateauAlert && plateauDismissKey && dismissedPlateauKey !== plateauDismissKey
+  );
+
+  useEffect(() => {
+    if (!plateauDismissKey || typeof window === "undefined") {
+      setDismissedPlateauKey(null);
+      return;
+    }
+    setDismissedPlateauKey(
+      window.localStorage.getItem(plateauDismissKey) === "1"
+        ? plateauDismissKey
+        : null
+    );
+  }, [plateauDismissKey]);
   const nudgeDescription = onboardingStatus.hasAnyOnboardingData
     ? "Pick up where you left off to unlock personalized scans and workouts."
     : "Share your goals once to unlock personalized scans and workouts.";
@@ -400,6 +442,39 @@ const Home = () => {
             )}
           </CardContent>
         </Card>
+
+        {showPlateauAlert && plateauAlert && plateauDismissKey && (
+          <Card className="border-amber-300 bg-amber-50/60">
+            <CardHeader>
+              <CardTitle className="text-base">{plateauAlert.title}</CardTitle>
+              <CardDescription>{plateauAlert.description}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="font-medium">Try a measured check-in:</p>
+              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                <li>Review workout and nutrition consistency for the last two weeks.</li>
+                <li>Check sleep, recovery, and whether training is still progressing.</li>
+                <li>Change one small variable, then keep it consistent before rescanning.</li>
+              </ul>
+              <p className="text-xs text-muted-foreground">
+                Avoid extreme calorie cuts or sudden training jumps. If you feel unwell or have health concerns, talk with a qualified clinician.
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => navigate("/plans")}>Review plan</Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    window.localStorage.setItem(plateauDismissKey, "1");
+                    setDismissedPlateauKey(plateauDismissKey);
+                  }}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid gap-3">
           {renderStartButton({ className: "w-full" })}

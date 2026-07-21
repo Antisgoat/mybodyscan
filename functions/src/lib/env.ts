@@ -24,15 +24,6 @@ export const getEnvBool = (k: string, d = false): boolean => {
 
 export const getHostBaseUrl = () => getEnv("HOST_BASE_URL");
 
-export const getAllowedOrigins = (): string[] => {
-  const raw = getEnv("APP_CHECK_ALLOWED_ORIGINS");
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-};
-
 export type AppCheckMode = "strict" | "soft" | "disabled";
 
 export const getAppCheckMode = (): AppCheckMode => {

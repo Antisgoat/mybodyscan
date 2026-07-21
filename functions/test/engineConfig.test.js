@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getEngineConfigOrThrow } from "../lib/scan/engineConfig.js";
+import {
+  getEngineConfigOrThrow,
+  normalizeBucketName,
+} from "../lib/scan/engineConfig.js";
 
 const ENV_KEYS = ["OPENAI_API_KEY", "STORAGE_BUCKET", "GCLOUD_PROJECT"];
 
@@ -61,4 +64,15 @@ test("engine config uses the vision-capable production model default", async () 
     if (previousModel == null) delete process.env.OPENAI_MODEL;
     else process.env.OPENAI_MODEL = previousModel;
   }
+});
+
+test("engine config preserves current Firebase Storage bucket names", () => {
+  assert.equal(
+    normalizeBucketName("mybodyscan-f3daf.firebasestorage.app"),
+    "mybodyscan-f3daf.firebasestorage.app"
+  );
+  assert.equal(
+    normalizeBucketName("gs://mybodyscan-f3daf.firebasestorage.app"),
+    "mybodyscan-f3daf.firebasestorage.app"
+  );
 });

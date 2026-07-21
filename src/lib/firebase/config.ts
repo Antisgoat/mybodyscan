@@ -11,7 +11,7 @@ type FirebaseRuntimeConfig = {
   measurementId?: string;
 };
 
-const normalizeStorageBucket = (value?: string): string | undefined => {
+export const normalizeStorageBucket = (value?: string): string | undefined => {
   if (value == null) return value;
   let bucket = String(value).trim();
   if (!bucket) return undefined;
@@ -32,9 +32,6 @@ const normalizeStorageBucket = (value?: string): string | undefined => {
     } catch {
       // ignore malformed URL
     }
-  }
-  if (bucket.endsWith(".firebasestorage.app")) {
-    bucket = bucket.replace(/\.firebasestorage\.app$/, ".appspot.com");
   }
   return bucket;
 };
@@ -84,11 +81,7 @@ function isMissing(value: unknown): boolean {
 }
 
 const requiredKeys = ["apiKey", "authDomain", "projectId"] as const;
-const nativeRequiredKeys = [
-  "apiKey",
-  "authDomain",
-  "projectId",
-] as const;
+const nativeRequiredKeys = ["apiKey", "authDomain", "projectId"] as const;
 const warningKeys = [
   "storageBucket",
   "messagingSenderId",
@@ -96,10 +89,12 @@ const warningKeys = [
   "measurementId",
 ] as const;
 
-export const firebaseConfigMissingKeys: string[] = requiredKeys.filter((key) => {
-  const value = (firebaseConfig as any)?.[key];
-  return isMissing(value);
-});
+export const firebaseConfigMissingKeys: string[] = requiredKeys.filter(
+  (key) => {
+    const value = (firebaseConfig as any)?.[key];
+    return isMissing(value);
+  }
+);
 
 export const firebaseConfigWarningKeys: string[] = warningKeys.filter((key) => {
   const value = (firebaseConfig as any)?.[key];
@@ -175,8 +170,6 @@ function buildFirebaseConfigSummary(): Record<string, string> {
   }
   return summary;
 }
-
-
 
 let loggedNativeOptionalWarning = false;
 function logNativeOptionalConfigWarning(): void {

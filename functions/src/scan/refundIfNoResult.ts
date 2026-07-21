@@ -52,11 +52,22 @@ async function handler(req: Request, res: Response) {
       if (!charged || completed) {
         return;
       }
-      await refundCredit(tx, creditRef, `refund:${scanId}`);
+      const refundContext = `refund:${scanId}`;
+      const balanceAfter = await refundCredit(tx, creditRef, refundContext);
+      tx.set(db.doc(`credits_ledger/refund:${uid}:${scanId}`), {
+        uid,
+        scanId,
+        amount: 1,
+        balanceAfter,
+        kind: "scan_credit_refunded",
+        context: refundContext,
+        createdAt: now,
+      });
       tx.set(
         scanRef,
         {
           charged: false,
+          creditStatus: "refunded",
           status: "error",
           errorReason: "refunded_no_result",
           errorMessage: "Scan did not produce a valid result. Credit refunded.",

@@ -3,6 +3,13 @@ import { getStripe, setSubscriptionStatus } from "./stripe/common.js";
 import * as logger from "firebase-functions/logger";
 import Stripe from "stripe";
 import { FieldValue, getFirestore } from "./firebase.js";
+import { resolveStripePlan } from "./stripe/plans.js";
+import {
+  stripeSecretKeyParam,
+  stripeSecretParam,
+  stripeWebhookSecretParam,
+} from "./stripe/keys.js";
+import { grantCreditBuckets } from "./scan/creditUtils.js";
 
 const db = getFirestore();
 
@@ -19,10 +26,16 @@ async function writeStripeProEntitlement(params: {
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(entRef);
     const current = snap.exists ? (snap.data() as any) : null;
-    const currentSource = typeof current?.source === "string" ? current.source : "";
-    const isAdminSource = currentSource === "admin" || currentSource === "admin_allowlist";
+    const currentSource =
+      typeof current?.source === "string" ? current.source : "";
+    const isAdminSource =
+      currentSource === "admin" || currentSource === "admin_allowlist";
     // Never let Stripe events revoke IAP/Admin access.
-    if (!params.pro && (currentSource === "iap" || isAdminSource) && current?.pro === true) {
+    if (
+      !params.pro &&
+      (currentSource === "iap" || isAdminSource) &&
+      current?.pro === true
+    ) {
       return;
     }
     // Never overwrite an admin-granted Pro with Stripe state.
@@ -71,44 +84,19 @@ const PLAN_ONE_CREDITS = parseCredits(process.env.PLAN_ONE_CREDITS, 1);
 const PLAN_MONTHLY_CREDITS = parseCredits(process.env.PLAN_MONTHLY_CREDITS, 3);
 const PLAN_YEARLY_CREDITS = parseCredits(process.env.PLAN_YEARLY_CREDITS, 36);
 
-const PRICE_ONE =
-  process.env.PRICE_ONE ||
-  process.env.VITE_PRICE_ONE ||
-  process.env.STRIPE_PRICE_ONE ||
-  process.env.STRIPE_PRICE_SUB_ONCE ||
-  "";
-const PRICE_MONTHLY =
-  process.env.PRICE_MONTHLY ||
-  process.env.VITE_PRICE_MONTHLY ||
-  process.env.STRIPE_PRICE_SUB_MONTHLY ||
-  "";
-const PRICE_YEARLY =
-  process.env.PRICE_YEARLY ||
-  process.env.VITE_PRICE_YEARLY ||
-  process.env.STRIPE_PRICE_SUB_ANNUAL ||
-  "";
-const PRICE_EXTRA =
-  process.env.PRICE_EXTRA || process.env.VITE_PRICE_EXTRA || "";
-
-type PlanInfo = {
-  plan: "one" | "monthly" | "yearly" | "extra";
-  credits: number;
-};
-
-const priceToPlan = new Map<string, PlanInfo>(
-  [
-    PRICE_ONE ? [PRICE_ONE, { plan: "one", credits: PLAN_ONE_CREDITS }] : null,
-    PRICE_MONTHLY
-      ? [PRICE_MONTHLY, { plan: "monthly", credits: PLAN_MONTHLY_CREDITS }]
-      : null,
-    PRICE_YEARLY
-      ? [PRICE_YEARLY, { plan: "yearly", credits: PLAN_YEARLY_CREDITS }]
-      : null,
-    PRICE_EXTRA
-      ? [PRICE_EXTRA, { plan: "extra", credits: PLAN_ONE_CREDITS }]
-      : null,
-  ].filter((entry): entry is [string, PlanInfo] => Boolean(entry?.[0]))
-);
+function resolveWebhookPlan(priceId: string) {
+  const configured = resolveStripePlan(priceId);
+  if (!configured) return null;
+  const credits =
+    configured.plan === "monthly"
+      ? PLAN_MONTHLY_CREDITS
+      : configured.plan === "yearly"
+        ? PLAN_YEARLY_CREDITS
+        : configured.plan === "one" || configured.plan === "extra"
+          ? PLAN_ONE_CREDITS
+          : configured.credits;
+  return { ...configured, credits };
+}
 
 async function uidFromCustomer(
   stripe: Stripe,
@@ -133,12 +121,16 @@ function asNumber(value: unknown): number | null {
   return null;
 }
 
-function subscriptionExpiresAtMs(sub: Stripe.Subscription | null | undefined): number | null {
+function subscriptionExpiresAtMs(
+  sub: Stripe.Subscription | null | undefined
+): number | null {
   const sec = asNumber((sub as any)?.current_period_end);
   return sec ? sec * 1000 : null;
 }
 
-function subscriptionProState(sub: Stripe.Subscription | null | undefined): boolean {
+function subscriptionProState(
+  sub: Stripe.Subscription | null | undefined
+): boolean {
   const status = String((sub as any)?.status || "").toLowerCase();
   if (status === "active" || status === "trialing") return true;
   // Stripe may keep a subscription in past_due while access is still allowed.
@@ -163,6 +155,7 @@ async function recordLedgerDeposit(
   if (!uid || !amount || amount <= 0) return false;
   const ledgerRef = db.collection("credits_ledger").doc(eventId);
   const userRef = db.collection("users").doc(uid);
+  const creditRef = db.doc(`users/${uid}/private/credits`);
 
   return await db.runTransaction(async (tx) => {
     const existing = await tx.get(ledgerRef);
@@ -175,11 +168,21 @@ async function recordLedgerDeposit(
       : undefined;
     const currentCredits =
       typeof snapshotData?.credits === "number" ? snapshotData.credits : 0;
+    const sourcePriceId =
+      typeof meta.priceId === "string" ? meta.priceId : null;
+    const expiresInMonths = Number(process.env.CREDIT_EXP_MONTHS || 24);
+    const totalAvailable = await grantCreditBuckets(tx, creditRef, amount, {
+      context: `stripe:${eventId}`,
+      sourcePriceId,
+      expiresInMonths,
+    });
     tx.set(
       ledgerRef,
       {
         uid,
         amount,
+        balanceAfter: totalAvailable,
+        kind: "stripe_credit_grant",
         meta,
         createdAt: FieldValue.serverTimestamp(),
       },
@@ -198,7 +201,16 @@ async function recordLedgerDeposit(
 }
 
 export const stripeWebhook = onRequest(
-  { cors: true, rawBody: true },
+  {
+    region: "us-central1",
+    cors: false,
+    rawBody: true,
+    secrets: [
+      stripeSecretParam,
+      stripeSecretKeyParam,
+      stripeWebhookSecretParam,
+    ],
+  },
   async (req, res) => {
     const sig = req.get("stripe-signature");
     const secret = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -235,16 +247,25 @@ export const stripeWebhook = onRequest(
             (session.client_reference_id as string) ||
             "";
           const priceId = (session.metadata?.priceId as string) || "";
-          const planInfo = priceToPlan.get(priceId);
+          const planInfo = resolveWebhookPlan(priceId);
           if (!uid) break;
 
           // One-time credit purchases (existing behavior).
-          if (session.mode === "payment" && session.payment_status === "paid" && planInfo) {
-            const granted = await recordLedgerDeposit(`checkout:${session.id}`, uid, planInfo.credits, {
-              plan: planInfo.plan,
-              priceId,
-              sessionId: session.id,
-            });
+          if (
+            session.mode === "payment" &&
+            session.payment_status === "paid" &&
+            planInfo
+          ) {
+            const granted = await recordLedgerDeposit(
+              `checkout:${session.id}`,
+              uid,
+              planInfo.credits,
+              {
+                plan: planInfo.plan,
+                priceId,
+                sessionId: session.id,
+              }
+            );
             if (granted) {
               logger.info("credits_deposited", {
                 uid,
@@ -258,7 +279,10 @@ export const stripeWebhook = onRequest(
 
           // Subscription checkouts: eagerly set entitlement based on the subscription object.
           if (session.mode === "subscription") {
-            const subId = typeof session.subscription === "string" ? session.subscription : "";
+            const subId =
+              typeof session.subscription === "string"
+                ? session.subscription
+                : "";
             if (!subId) break;
             try {
               const sub = await stripe.subscriptions.retrieve(subId);
@@ -266,9 +290,14 @@ export const stripeWebhook = onRequest(
               const subPriceId = (line0?.price?.id as string) || undefined;
               const subProduct =
                 typeof (line0?.price?.product as any) === "string"
-                  ? ((line0?.price?.product as any) as string)
+                  ? (line0?.price?.product as any as string)
                   : undefined;
-              await setSubscriptionStatus(uid, String((sub as any)?.status || "active"), subProduct, subPriceId);
+              await setSubscriptionStatus(
+                uid,
+                String((sub as any)?.status || "active"),
+                subProduct,
+                subPriceId
+              );
 
               const expiresAtMs = subscriptionExpiresAtMs(sub);
               const pro = subscriptionProState(sub);
@@ -301,7 +330,7 @@ export const stripeWebhook = onRequest(
           const sub = invoice.subscription as string | null;
           const line = invoice.lines?.data?.[0] ?? null;
           const priceId = (line?.price?.id as string) || "";
-          const planInfo = priceToPlan.get(priceId);
+          const planInfo = resolveWebhookPlan(priceId);
           const customerId = (invoice.customer as string) || "";
           const uid = await uidFromCustomer(stripe, customerId);
           if (uid) {
@@ -403,7 +432,7 @@ export const stripeWebhook = onRequest(
           const priceId = (line0?.price?.id as string) || undefined;
           const product =
             typeof (line0?.price?.product as any) === "string"
-              ? ((line0?.price?.product as any) as string)
+              ? (line0?.price?.product as any as string)
               : undefined;
           const status = String((sub as any)?.status || "");
           await setSubscriptionStatus(uid, status, product, priceId);

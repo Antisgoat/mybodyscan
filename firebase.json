@@ -21,17 +21,12 @@
         ]
       },
       {
-        "source": "/assets/**",
+        "source": "/**",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "public, max-age=31536000, immutable"
-          }
-        ]
-      },
-      {
-        "source": "/**",
-        "headers": [
+            "value": "no-store, max-age=0"
+          },
           {
             "key": "Strict-Transport-Security",
             "value": "max-age=31536000; includeSubDomains"
@@ -51,6 +46,15 @@
           {
             "key": "Permissions-Policy",
             "value": "camera=(self), microphone=()"
+          }
+        ]
+      },
+      {
+        "source": "/assets/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
           }
         ]
       },
@@ -103,7 +107,7 @@
       {
         "source": "/api/createCheckout",
         "function": {
-          "functionId": "createCheckout",
+          "functionId": "createCheckoutHttp",
           "region": "us-central1"
         }
       },
@@ -225,7 +229,6 @@
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ],
       "secrets": [
-        "ADMIN_EMAIL_ALLOWLIST",
         "OPENAI_API_KEY",
         "REVENUECAT_WEBHOOK_SIGNING_SECRET",
         "STRIPE_SECRET",
@@ -238,14 +241,18 @@
         "AUTH_APPLE_ENABLED": "true",
         "AUTH_EMAIL_ENABLED": "true",
         "AUTH_DEMO_ENABLED": "true",
-        "APPCHECK_MODE": "soft",
+        "APP_CHECK_MODE": "soft",
+        "HOST_BASE_URL": "https://mybodyscanapp.com",
+        "COACH_RPM": "10",
+        "NUTRITION_RPM": "30",
         "REVENUECAT_ENTITLEMENT_ID": "pro",
         "FIREBASE_WEB_API_KEY": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
       }
     }
   ],
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"

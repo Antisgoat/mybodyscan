@@ -1,6 +1,7 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
+import { defineSecret } from "firebase-functions/params";
 
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { getEnv } from "../lib/env.js";
@@ -14,63 +15,77 @@ if (!getApps().length) {
   initializeApp();
 }
 
-export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
-  const rawAllowlist = (getEnv("ADMIN_EMAIL_ALLOWLIST") || "").trim();
-  const fallback = ["developer@adlrlabs.com", "developer@adlerlabs.com"];
-  const allowlist = new Set(
-    [...rawAllowlist.split(","), ...fallback]
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-  );
+const adminEmailAllowlistParam = defineSecret("ADMIN_EMAIL_ALLOWLIST");
 
-  const auth = getAuth();
-  const db = getFirestore();
+function readAdminEmailAllowlist(): string {
+  try {
+    const secret = adminEmailAllowlistParam.value();
+    if (typeof secret === "string" && secret.trim()) return secret.trim();
+  } catch {
+    // The local emulator/test environment may provide the value as an env var.
+  }
+  return (getEnv("ADMIN_EMAIL_ALLOWLIST") || "").trim();
+}
 
-  const deps: GrantUnlimitedCreditsDeps = {
-    adminEmailAllowlist: allowlist,
-    nowIso: () => new Date().toISOString(),
-    getUserByEmail: async (email: string) => {
-      const record = await auth.getUserByEmail(email);
-      return {
-        uid: record.uid,
-        email: record.email ?? null,
-        customClaims: (record.customClaims || {}) as unknown,
-      };
-    },
-    getUserByUid: async (uid: string) => {
-      const record = await auth.getUser(uid);
-      return {
-        uid: record.uid,
-        email: record.email ?? null,
-        customClaims: (record.customClaims || {}) as unknown,
-      };
-    },
-    setCustomUserClaims: async (uid: string, claims: Record<string, unknown>) => {
-      await auth.setCustomUserClaims(uid, claims);
-    },
-    writeUnlimitedCreditsMirror: async (params) => {
-      const at = Timestamp.now();
-      const updatedAt = FieldValue.serverTimestamp();
-      const entitlementFields = params.enabled
-        ? { credits: 999_999_999 }
-        : null;
+export const grantUnlimitedCredits = onCallWithOptionalAppCheck(
+  async (req) => {
+    const rawAllowlist = readAdminEmailAllowlist();
+    const allowlist = new Set(
+      rawAllowlist
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    );
 
-      const payload = {
-        unlimitedCredits: params.enabled,
-        updatedAt,
-        ...(entitlementFields || null),
-        unlimitedCreditsUpdatedAt: at,
-        unlimitedCreditsGrantedBy: params.grantedByEmail,
-        unlimitedCreditsGrantedByUid: params.grantedByUid,
-        // Back-compat with existing admin gateway fields
-        unlimitedUpdatedAt: at,
-        unlimitedUpdatedBy: params.grantedByUid,
-      };
+    const auth = getAuth();
+    const db = getFirestore();
 
-      await Promise.all([
-        db
-          .doc(`users/${params.uid}/private/entitlements`)
-          .set(
+    const deps: GrantUnlimitedCreditsDeps = {
+      adminEmailAllowlist: allowlist,
+      nowIso: () => new Date().toISOString(),
+      getUserByEmail: async (email: string) => {
+        const record = await auth.getUserByEmail(email);
+        return {
+          uid: record.uid,
+          email: record.email ?? null,
+          customClaims: (record.customClaims || {}) as unknown,
+        };
+      },
+      getUserByUid: async (uid: string) => {
+        const record = await auth.getUser(uid);
+        return {
+          uid: record.uid,
+          email: record.email ?? null,
+          customClaims: (record.customClaims || {}) as unknown,
+        };
+      },
+      setCustomUserClaims: async (
+        uid: string,
+        claims: Record<string, unknown>
+      ) => {
+        await auth.setCustomUserClaims(uid, claims);
+      },
+      writeUnlimitedCreditsMirror: async (params) => {
+        const at = Timestamp.now();
+        const updatedAt = FieldValue.serverTimestamp();
+        const entitlementFields = params.enabled
+          ? { credits: 999_999_999 }
+          : null;
+
+        const payload = {
+          unlimitedCredits: params.enabled,
+          updatedAt,
+          ...(entitlementFields || null),
+          unlimitedCreditsUpdatedAt: at,
+          unlimitedCreditsGrantedBy: params.grantedByEmail,
+          unlimitedCreditsGrantedByUid: params.grantedByUid,
+          // Back-compat with existing admin gateway fields
+          unlimitedUpdatedAt: at,
+          unlimitedUpdatedBy: params.grantedByUid,
+        };
+
+        await Promise.all([
+          db.doc(`users/${params.uid}/private/entitlements`).set(
             {
               unlimitedCredits: params.enabled,
               updatedAt,
@@ -78,24 +93,31 @@ export const grantUnlimitedCredits = onCallWithOptionalAppCheck(async (req) => {
             },
             { merge: true }
           ),
-        db.doc(`users/${params.uid}/private/admin`).set(payload, { merge: true }),
-        db.doc(`users/${params.uid}`).set(payload, { merge: true }),
-        // If an admin grants unlimited credits, they must also have Pro access.
-        // Single source of truth: `users/{uid}/entitlements/current`.
-        params.enabled
-          ? ensureAdminGrantedProEntitlement(params.uid, { db })
-          : Promise.resolve(),
-      ]);
-    },
-  };
+          db
+            .doc(`users/${params.uid}/private/admin`)
+            .set(payload, { merge: true }),
+          db.doc(`users/${params.uid}`).set(payload, { merge: true }),
+          // If an admin grants unlimited credits, they must also have Pro access.
+          // Single source of truth: `users/{uid}/entitlements/current`.
+          params.enabled
+            ? ensureAdminGrantedProEntitlement(params.uid, { db })
+            : Promise.resolve(),
+        ]);
+      },
+    };
 
-  return await grantUnlimitedCreditsHandler(
-    {
-      auth: req.auth
-        ? { uid: req.auth.uid, token: (req.auth.token || {}) as any }
-        : undefined,
-      data: (req.data || {}) as any,
-    },
-    deps
-  );
-});
+    return await grantUnlimitedCreditsHandler(
+      {
+        auth: req.auth
+          ? { uid: req.auth.uid, token: (req.auth.token || {}) as any }
+          : undefined,
+        data: (req.data || {}) as any,
+      },
+      deps
+    );
+  },
+  {
+    region: "us-central1",
+    secrets: [adminEmailAllowlistParam],
+  }
+);

@@ -4,7 +4,7 @@ set -euo pipefail
 # Configure Firebase Storage CORS for browser uploads.
 # Usage: bash scripts/configureStorageCors.sh
 
-BUCKET="mybodyscan-f3daf.appspot.com"
+BUCKET="mybodyscan-f3daf.firebasestorage.app"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORS_FILE="${SCRIPT_DIR}/cors.json"
 

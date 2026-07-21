@@ -2,6 +2,11 @@ import { expect, test } from "@playwright/test";
 import { attachConsoleGuard } from "../utils/consoleGuard";
 
 test.describe("Scan workflow", () => {
+  test.skip(
+    !process.env.PLAYWRIGHT_STORAGE_STATE,
+    "Scan smoke requires PLAYWRIGHT_STORAGE_STATE."
+  );
+
   test.beforeEach(({ page }) => {
     attachConsoleGuard(page);
   });
@@ -12,7 +17,10 @@ test.describe("Scan workflow", () => {
     // Production requires auth; if we get redirected, skip this smoke check unless a storageState is provided.
     const url = page.url();
     if (url.includes("/auth")) {
-      test.skip(true, "Scan page requires authentication (redirected to /auth).");
+      test.skip(
+        true,
+        "Scan page requires authentication (redirected to /auth)."
+      );
     }
 
     await expect(page).toHaveURL(/\/scan/);

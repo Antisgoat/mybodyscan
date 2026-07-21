@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { attachConsoleGuard } from "../utils/consoleGuard";
+import {
+  acceptPoliciesIfShown,
+  attachConsoleGuard,
+} from "../utils/consoleGuard";
 
 test.describe("Demo experience", () => {
   test.beforeEach(({ page }) => {
@@ -7,7 +10,7 @@ test.describe("Demo experience", () => {
   });
 
   test("loads demo dashboard when available", async ({ page }) => {
-    const response = await page.goto("/today?demo=1");
+    const response = await page.goto("/demo");
 
     if (!response || response.status() >= 400) {
       test.skip(
@@ -15,8 +18,11 @@ test.describe("Demo experience", () => {
       );
     }
 
-    const todayShell = page.getByTestId("today-dashboard");
-    await expect(todayShell).toBeVisible();
-    await expect(page.getByText(/Demo lets you browse/i)).toBeVisible();
+    await acceptPoliciesIfShown(page);
+    await expect(page).toHaveURL(/\/demo/);
+    await expect(
+      page.getByRole("heading", { name: "MyBodyScan", exact: true })
+    ).toBeVisible();
+    await expect(page.getByText(/Demo preview.*read-only/i)).toBeVisible();
   });
 });

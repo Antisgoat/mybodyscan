@@ -9,8 +9,6 @@ export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
   const nav = useNavigate();
 
-  const [provider, setProvider] = useState<string | null>(null);
-  const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -18,7 +16,6 @@ export default function SettingsAccountPrivacyPage() {
 
   useEffect(() => {
     if (!loading && !user) nav("/auth?next=/settings/account");
-    if (user) setProvider(user.providerId || null);
   }, [user, loading, nav]);
 
   async function onDelete() {
@@ -88,21 +85,9 @@ export default function SettingsAccountPrivacyPage() {
         <h2 className="text-sm font-medium">Delete my account</h2>
         <p className="text-xs text-muted-foreground">
           Deleting your account will permanently remove your scans, notes, and
-          settings. This cannot be undone.
+          settings. This cannot be undone. For security, sign in again first if
+          your last authentication was more than five minutes ago.
         </p>
-
-        {provider?.includes("password") && (
-          <label className="text-xs block">
-            Password (required to confirm)
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded border px-2 py-1 text-sm"
-              autoComplete="current-password"
-            />
-          </label>
-        )}
 
         <label className="text-xs block">
           Type <span className="font-mono">DELETE</span> to confirm
