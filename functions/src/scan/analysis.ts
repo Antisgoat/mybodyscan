@@ -26,18 +26,12 @@ type Pose = (typeof POSES)[number];
 
 type OpenAIResult = {
   estimate?: Partial<ScanEstimate>;
-  workoutPlan?: Partial<ScanWorkoutPlan>;
-  nutritionPlan?: Partial<ScanNutritionPlan>;
   recommendations?: unknown;
-  goalRecommendations?: unknown;
-  keyObservations?: unknown;
   improvementAreas?: unknown;
 };
 
 type ParsedAnalysis = {
   estimate: ScanEstimate;
-  workoutPlan: ScanWorkoutPlan;
-  nutritionPlan: ScanNutritionPlan;
   recommendations: string[];
   improvementAreas: string[];
 };
@@ -92,8 +86,16 @@ function sanitizeEstimate(
     bmi,
     notes,
     bmiCategory,
-    keyObservations,
-    goalRecommendations,
+    keyObservations: keyObservations.length
+      ? keyObservations
+      : [
+          "Photo quality was sufficient for a visual body composition estimate.",
+        ],
+    goalRecommendations: goalRecommendations.length
+      ? goalRecommendations
+      : [
+          "Use consistent training, nutrition, sleep, and periodic scans to track progress.",
+        ],
   };
 }
 
@@ -296,14 +298,7 @@ function validateVisionPayload(raw: unknown): OpenAIResult {
       : undefined;
   return {
     estimate: coerce(payload.estimate),
-    workoutPlan: coerce(payload.workoutPlan),
-    nutritionPlan: coerce(payload.nutritionPlan),
     recommendations: payload.recommendations,
-    goalRecommendations:
-      (payload as any).goalRecommendations ??
-      (payload as any).goal_recommendations,
-    keyObservations:
-      (payload as any).keyObservations ?? (payload as any).key_observations,
     improvementAreas:
       (payload as any).improvementAreas ?? (payload as any).improvement_areas,
   };
@@ -357,27 +352,21 @@ export async function callOpenAI(
   engine: EngineConfig
 ): Promise<OpenAIResult> {
   const systemPrompt = [
-    "You are a fitness coach who analyzes body photos to estimate body fat percentage, BMI, and training needs.",
+    "You analyze four body photos to provide a cautious visual body-fat estimate and observations. Do not diagnose medical conditions.",
     "Respond with strict JSON matching:",
     [
       "{",
       '  "estimate": {',
       '    "bodyFatPercent": number,',
-      '    "bmi": number|null,',
-      '    "bmiCategory": string|null,',
       '    "notes": string,',
       '    "keyObservations": string[],',
       '    "goalRecommendations": string[]',
       "  },",
-      '  "workoutPlan": { "summary": string, "progressionRules": string[], "weeks": Week[] },',
-      '  "nutritionPlan": { "caloriesPerDay": number, "proteinGrams": number, "carbsGrams": number, "fatsGrams": number, "trainingDay": Day, "restDay": Day, "adjustmentRules": string[], "sampleDay": Meal[] },',
       '  "recommendations": string[],',
       '  "improvementAreas": string[]',
       "}",
     ].join("\n"),
-    "Workout plans should default to a 6-day push/pull/legs split with a rest day (8-week horizon).",
-    "Nutrition plans must include macro targets for both training days and rest days plus clear adjustment rules.",
-    "Use concise language for an intermediate trainee.",
+    "Return only the visual estimate; the server computes BMI, nutrition, and training plans deterministically.",
   ].join("\n");
 
   const userText = [
@@ -386,15 +375,12 @@ export async function callOpenAI(
     ...(Number.isFinite(input.heightCm ?? NaN) && (input.heightCm as number) > 0
       ? [`Height: ${(input.heightCm as number).toFixed(0)} cm`]
       : []),
-    "Use the four photos (front, back, left, right) to inform the estimate and plans.",
-    "If height is provided, compute BMI from weight and height; otherwise BMI can be null.",
+    "Use all four photos (front, back, left, right) to inform only the visual estimate.",
     "Notes must remind this is only an estimate.",
     "Key observations should capture posture/muscle balance/general notes (no medical diagnosis).",
     "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",
-    "Workout plan should span multiple weeks with daily splits and include progressionRules (3-6 bullets).",
-    "Nutrition plan must include daily calories/macros, trainingDay + restDay macros, adjustmentRules (3-6 bullets), and a sample day of meals.",
-    "Recommendations must be 3-5 short bullets (no numbering), focused on next steps for training and nutrition.",
+    "Recommendations must be 3-5 short, safe next-step bullets (no numbering).",
     "Respond with JSON only. Do not include markdown fences.",
   ].join("\n");
 
@@ -412,7 +398,7 @@ export async function callOpenAI(
     systemPrompt,
     userContent,
     temperature: 0.4,
-    maxTokens: 1800,
+    maxTokens: 700,
     userId: input.uid,
     requestId,
     timeoutMs: OPENAI_TIMEOUT_MS,
@@ -428,10 +414,8 @@ export async function callOpenAI(
 export function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
   try {
     const estimate = sanitizeEstimate(raw.estimate);
-    const workoutPlan = sanitizeWorkout(raw.workoutPlan);
-    const nutritionPlan = sanitizeNutrition(raw.nutritionPlan);
     const primaryRecommendations = sanitizeRecommendations(
-      raw.goalRecommendations ?? raw.recommendations
+      raw.estimate?.goalRecommendations ?? raw.recommendations
     );
     const fallbackRecommendations = sanitizeRecommendations(
       raw.recommendations
@@ -441,16 +425,22 @@ export function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
       : fallbackRecommendations;
     const improvementAreas = sanitizeRecommendations(
       (raw as any).improvementAreas ??
-        raw.keyObservations ??
-        raw.goalRecommendations ??
+        raw.estimate?.keyObservations ??
+        raw.estimate?.goalRecommendations ??
         raw.recommendations
     );
     return {
       estimate,
-      workoutPlan,
-      nutritionPlan,
-      recommendations,
-      improvementAreas,
+      recommendations: recommendations.length
+        ? recommendations
+        : [
+            "Follow the generated nutrition and training targets consistently, then reassess.",
+          ],
+      improvementAreas: improvementAreas.length
+        ? improvementAreas
+        : [
+            "Build consistency with progressive training, recovery, and nutrition.",
+          ],
     };
   } catch (error) {
     throw new Error(

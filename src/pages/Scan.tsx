@@ -21,8 +21,6 @@ import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { computeFeatureStatuses } from "@/lib/envStatus";
-import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
@@ -201,12 +199,6 @@ export default function ScanPage() {
     message?: string;
     scanId?: string;
   }>({ status: "idle" });
-  const { health: systemHealth, functionsOrigin, lastErrorStatus } = useSystemHealth();
-  const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
-  const openaiMissing =
-    systemHealth?.openaiConfigured === false ||
-    systemHealth?.openaiKeyPresent === false;
-  const backendUnavailableMessage = `Backend unavailable (Cloud Functions). origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
 
   const mapStatusToFlowState = useCallback((value: typeof status): ScanFlowState => {
     switch (value) {
@@ -504,14 +496,6 @@ export default function ScanPage() {
       setError("Please enter valid numbers for your weight goals.");
       return;
     }
-    if (!scanConfigured) {
-      setError(
-        openaiMissing
-          ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
-          : backendUnavailableMessage
-      );
-      return;
-    }
     try {
       const scanCorrelationId = createScanCorrelationId();
       setStatus("starting");
@@ -800,13 +784,16 @@ export default function ScanPage() {
       };
       const handleFailureStatus = (message: string) => {
         if (settled) return;
+        const customerMessage =
+          "Scan is temporarily unavailable. Please try again in a few minutes or contact support.";
+        const visibleMessage = showDebug ? message : customerMessage;
         setStatus("error");
-        setError(message);
+        setError(visibleMessage);
         setStatusDetail(null);
         updatePipeline(startedScanId, {
           stage: "failed",
           lastError: {
-            message,
+            message: visibleMessage,
             pose: undefined,
             stage: "failed",
             requestId: requestIdRef.current ?? undefined,
@@ -1426,16 +1413,7 @@ export default function ScanPage() {
         </Alert>
       ) : null}
 
-      {!scanConfigured && (
-        <Alert variant="destructive">
-          <AlertTitle>Scan unavailable</AlertTitle>
-          <AlertDescription>
-            {openaiMissing
-              ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured on the server."
-              : backendUnavailableMessage}
-          </AlertDescription>
-        </Alert>
-      )}
+
 
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="grid grid-cols-2 gap-4">
@@ -1518,9 +1496,7 @@ export default function ScanPage() {
         <button
           type="submit"
           disabled={
-            missingFields ||
-            (flowState !== "idle" && flowState !== "failed") ||
-            !scanConfigured
+            missingFields || (flowState !== "idle" && flowState !== "failed")
           }
           data-testid="scan-submit-button"
           className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
