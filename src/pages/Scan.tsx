@@ -21,8 +21,6 @@ import { useUnits } from "@/hooks/useUnits";
 import { lbToKg } from "@/lib/units";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { computeFeatureStatuses } from "@/lib/envStatus";
-import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { toast } from "@/hooks/use-toast";
 import { toProgressBarWidth, toVisiblePercent } from "@/lib/progress";
 import { apiFetch } from "@/lib/http";
@@ -34,7 +32,6 @@ import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
   clearScanPipelineState,
-  describeScanPipelineStage,
   readActiveScanPipelineState,
   updateScanPipelineState,
   type ScanPipelineStage,
@@ -121,7 +118,7 @@ export default function ScanPage() {
   const missingHeight = profileHeightCm == null;
   type Pose = "front" | "back" | "left" | "right";
   type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
-  type FileMeta = { name: string; size: number; type: string };
+  type FileMeta = { name: string; size: number; type: string; width?: number; height?: number };
   const [photoState, setPhotoState] = useState<
     Record<
       Pose,
@@ -201,12 +198,6 @@ export default function ScanPage() {
     message?: string;
     scanId?: string;
   }>({ status: "idle" });
-  const { health: systemHealth, functionsOrigin, lastErrorStatus } = useSystemHealth();
-  const { scanConfigured } = computeFeatureStatuses(systemHealth ?? undefined);
-  const openaiMissing =
-    systemHealth?.openaiConfigured === false ||
-    systemHealth?.openaiKeyPresent === false;
-  const backendUnavailableMessage = `Backend unavailable (Cloud Functions). origin=${functionsOrigin} status=${lastErrorStatus ?? "n/a"}`;
 
   const mapStatusToFlowState = useCallback((value: typeof status): ScanFlowState => {
     switch (value) {
@@ -504,14 +495,6 @@ export default function ScanPage() {
       setError("Please enter valid numbers for your weight goals.");
       return;
     }
-    if (!scanConfigured) {
-      setError(
-        openaiMissing
-          ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured."
-          : backendUnavailableMessage
-      );
-      return;
-    }
     try {
       const scanCorrelationId = createScanCorrelationId();
       setStatus("starting");
@@ -800,13 +783,16 @@ export default function ScanPage() {
       };
       const handleFailureStatus = (message: string) => {
         if (settled) return;
+        const customerMessage =
+          "Scan is temporarily unavailable. Please try again in a few minutes or contact support.";
+        const visibleMessage = showDebug ? message : customerMessage;
         setStatus("error");
-        setError(message);
+        setError(visibleMessage);
         setStatusDetail(null);
         updatePipeline(startedScanId, {
           stage: "failed",
           lastError: {
-            message,
+            message: visibleMessage,
             pose: undefined,
             stage: "failed",
             requestId: requestIdRef.current ?? undefined,
@@ -1390,6 +1376,12 @@ export default function ScanPage() {
         Upload four photos and your current/goal weight. We&apos;ll analyze your
         body composition and build a personalized workout and nutrition plan.
       </p>
+      <p className="text-sm text-muted-foreground">
+        For each angle, keep your full body visible from head to feet. Stand
+        several feet from the camera in a neutral pose with good lighting, a
+        plain background, no mirror obstruction, and fitted clothing where
+        comfortable.
+      </p>
 
       {persistedScan &&
       persistedScan.scanId &&
@@ -1398,10 +1390,10 @@ export default function ScanPage() {
           <AlertTitle>Resume your scan</AlertTitle>
           <AlertDescription className="space-y-2">
             <div>
-              Scan {persistedScan.scanId.slice(0, 8)}… ·{" "}
-              {describeScanPipelineStage(persistedScan.stage)}
+              Your previous scan was paused. Resume it or clear it and start
+              again.
             </div>
-            {persistedScan.lastError?.message ? (
+            {showDebug && persistedScan.lastError?.message ? (
               <div className="text-xs text-muted-foreground">
                 Last error: {persistedScan.lastError.message}
               </div>
@@ -1419,23 +1411,14 @@ export default function ScanPage() {
                 className="rounded border px-3 py-2 text-xs"
                 onClick={() => clearPipeline(persistedScan.scanId)}
               >
-                Clear in-flight scan
+                Start fresh / Clear previous scan
               </button>
             </div>
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {!scanConfigured && (
-        <Alert variant="destructive">
-          <AlertTitle>Scan unavailable</AlertTitle>
-          <AlertDescription>
-            {openaiMissing
-              ? "Scan is unavailable because the AI engine (OPENAI_API_KEY) is not configured on the server."
-              : backendUnavailableMessage}
-          </AlertDescription>
-        </Alert>
-      )}
+
 
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="grid grid-cols-2 gap-4">
@@ -1500,6 +1483,10 @@ export default function ScanPage() {
                         Prepared: {photoMeta[pose as Pose].compressed!.name} ·{" "}
                         {formatBytes(photoMeta[pose as Pose].compressed!.size)} ·{" "}
                         {photoMeta[pose as Pose].compressed!.type.toUpperCase()}
+                        {photoMeta[pose as Pose].compressed!.width &&
+                        photoMeta[pose as Pose].compressed!.height
+                          ? ` · ${photoMeta[pose as Pose].compressed!.width}×${photoMeta[pose as Pose].compressed!.height}px`
+                          : ""}
                       </span>
                     ) : null}
                   </span>
@@ -1518,9 +1505,7 @@ export default function ScanPage() {
         <button
           type="submit"
           disabled={
-            missingFields ||
-            (flowState !== "idle" && flowState !== "failed") ||
-            !scanConfigured
+            missingFields || (flowState !== "idle" && flowState !== "failed")
           }
           data-testid="scan-submit-button"
           className="w-full rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"

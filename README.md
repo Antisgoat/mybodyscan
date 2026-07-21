@@ -101,7 +101,6 @@ npm run sync:android
 
 Release checklist reference: see [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
 
-
 ### iOS native build (Capacitor) with generated Firebase public config
 
 The iOS build now generates `src/generated/appConfig.ts` from `ios/App/App/GoogleService-Info.plist` automatically, so native builds always receive a real Firebase `appId`/`projectId` without manually exporting `VITE_*` variables.
@@ -114,6 +113,7 @@ open ios/App/App.xcworkspace
 ```
 
 Notes:
+
 - `npm run build` (CI/web) still works without native files/secrets.
 - `npm run build:native:ios`/`npm run ios:sync` enforce native Firebase config and fail fast if the iOS plist is missing.
 
@@ -254,7 +254,8 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ### Scan engine configuration (Firebase Functions)
 
-- Required: `OPENAI_API_KEY` in Secret Manager (attach with `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`). Optional: `OPENAI_MODEL`, `OPENAI_BASE_URL`, and `OPENAI_PROVIDER` via `firebase-functions/params` or environment variables.
+- Required: `OPENAI_API_KEY` in Secret Manager (attach with `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`). `OPENAI_MODEL` is a Firebase string parameter with the vision-capable production default `gpt-4o-mini`; deployments may override it when prompted. `OPENAI_BASE_URL` and `OPENAI_PROVIDER` are optional parameters/environment variables.
+- Verify production scan configuration with `firebase functions:secrets:list --project mybodyscan-f3daf`. The Firebase CLI does not provide a portable `functions:params:get` command; inspect `.env.<projectId>` or the parameter prompt/output during `firebase deploy --only functions --project mybodyscan-f3daf` to confirm `OPENAI_MODEL`.
 - Deploy after setting the secret: `npm --prefix functions run build && firebase deploy --only functions --project <projectId>`.
 - Verify: call `/systemHealth` and confirm `engineConfigured=true`, `engineMissingConfig=[]`, and `storageBucket/projectId` are populated. Missing entries surface as a safe list so production UIs show “scan engine not configured” until the secret is present.
 
@@ -480,6 +481,7 @@ firebase deploy --only functions:processQueuedScan
 - The upload runtime logs a one-time sanity line with the Storage bucket + current origin; if the bucket or auth uid is missing, the flow fails fast with a clear UI error instead of hanging at 0%.
 
 **How to validate**
+
 - Safari Private Window on https://mybodyscanapp.com
 - Upload 4 photos (front/back/left/right)
 - No preflight 404s; progress starts within 1s and reaches 100% per pose
@@ -601,6 +603,7 @@ If you want the full reset flow instead:
 2. `npm run ios:open`
 
 Notes:
+
 - `ios:reset` cleans native/web artifacts, rebuilds the native bundle, syncs Capacitor, asserts iOS web assets exist, and reinstalls CocoaPods.
 - If you only need a fresh sync without deleting Pods, run `npm run ios:sync` instead.
 - Use `npm run ios:clean` to wipe iOS build artifacts and DerivedData before re-running the reset flow.

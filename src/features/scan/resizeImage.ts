@@ -6,6 +6,36 @@ const DEFAULT_MAX_EDGE_DESKTOP = 1600;
 const DEFAULT_MAX_EDGE_MOBILE = 1280;
 const DEFAULT_JPEG_QUALITY = 0.8;
 const WORKER_TIMEOUT_MS = 4500;
+export const MIN_SCAN_LONG_EDGE = 900;
+export const MIN_SCAN_SHORT_EDGE = 500;
+export const SCAN_PHOTO_TOO_SMALL_MESSAGE =
+  "This photo is too small for an accurate scan. Please choose a clearer full-body photo.";
+
+export function scanPhotoDimensionsAreValid(
+  width: number,
+  height: number
+): boolean {
+  return (
+    Number.isFinite(width) &&
+    Number.isFinite(height) &&
+    Math.max(width, height) >= MIN_SCAN_LONG_EDGE &&
+    Math.min(width, height) >= MIN_SCAN_SHORT_EDGE
+  );
+}
+
+export function orientedOutputDimensions(
+  sourceWidth: number,
+  sourceHeight: number,
+  orientation: number,
+  maxEdge: number
+): { width: number; height: number } {
+  const scale = Math.min(1, maxEdge / Math.max(sourceWidth, sourceHeight));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  return orientation >= 5 && orientation <= 8
+    ? { width: height, height: width }
+    : { width, height };
+}
 
 let sharedPreprocessWorker: Worker | null = null;
 
@@ -112,7 +142,12 @@ export async function resizeImageFile(
     (ctx as any).imageSmoothingEnabled = true;
     (ctx as any).imageSmoothingQuality = "high";
 
-    applyExifOrientationTransform(ctx, orientation, canvas.width, canvas.height);
+    applyExifOrientationTransform(
+      ctx,
+      orientation,
+      canvas.width,
+      canvas.height
+    );
     ctx.drawImage(source.el, 0, 0, outW, outH);
 
     // Encode with a small "keep under 3MB" loop.
@@ -136,7 +171,12 @@ export async function resizeImageFile(
       outH = Math.max(1, Math.round(outH * nextScale));
       canvas.width = swapDims ? outH : outW;
       canvas.height = swapDims ? outW : outH;
-      applyExifOrientationTransform(ctx, orientation, canvas.width, canvas.height);
+      applyExifOrientationTransform(
+        ctx,
+        orientation,
+        canvas.width,
+        canvas.height
+      );
       ctx.drawImage(source.el, 0, 0, outW, outH);
       blob = await canvasToJpeg(canvas, q);
     }
@@ -157,6 +197,8 @@ export type UploadPreprocessMeta = {
   name: string;
   size: number;
   type: string;
+  width?: number;
+  height?: number;
 };
 
 export type UploadPreprocessResult = {
@@ -174,6 +216,8 @@ export type UploadPreprocessResult = {
     orientation: number;
     srcWidth: number;
     srcHeight: number;
+    outputWidth: number;
+    outputHeight: number;
     maxEdgeInitial: number;
     maxEdgeFinal: number;
     qualityInitial: number;
@@ -188,11 +232,15 @@ export type UploadPreprocessResult = {
   };
 };
 
-function toMeta(file: File): UploadPreprocessMeta {
+function toMeta(
+  file: File,
+  dimensions?: { width: number; height: number }
+): UploadPreprocessMeta {
   return {
     name: file.name || "image",
     size: typeof file.size === "number" ? file.size : 0,
     type: (file.type || "").trim() || "application/octet-stream",
+    ...dimensions,
   };
 }
 
@@ -213,7 +261,8 @@ export function isProbablyMobileSafari(): boolean {
 export function isMobileUploadDevice(): boolean {
   // Aggressive preprocessing is required on iPhone / mobile Safari, and we also
   // apply it to "mobile-like" devices (touch + small viewport) to keep uploads fast.
-  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
+  if (typeof window === "undefined" || typeof navigator === "undefined")
+    return false;
   const ua = String(navigator.userAgent || "");
   const touchPoints =
     typeof (navigator as any).maxTouchPoints === "number"
@@ -224,7 +273,11 @@ export function isMobileUploadDevice(): boolean {
   const iosSafari = isProbablyMobileSafari();
   const isIOS = /iP(hone|ad|od)/i.test(ua);
   // If it walks like a phone (touch + small viewport), treat it as mobile for uploads.
-  return iosSafari || (touchPoints > 0 && smallViewport) || (isIOS && touchPoints > 0);
+  return (
+    iosSafari ||
+    (touchPoints > 0 && smallViewport) ||
+    (isIOS && touchPoints > 0)
+  );
 }
 
 type DrawParams = {
@@ -257,7 +310,12 @@ function drawToCanvas(params: DrawParams): {
   // Reduce interpolation artifacts when downscaling.
   (ctx as any).imageSmoothingEnabled = true;
   (ctx as any).imageSmoothingQuality = "high";
-  applyExifOrientationTransform(ctx, params.orientation, canvas.width, canvas.height);
+  applyExifOrientationTransform(
+    ctx,
+    params.orientation,
+    canvas.width,
+    canvas.height
+  );
   ctx.drawImage(params.source.el, 0, 0, outW, outH);
   return { canvas, ctx, outW, outH, swapDims };
 }
@@ -267,11 +325,7 @@ async function canvasToJpegMaybe(
   quality: number
 ): Promise<Blob | null> {
   return await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(
-      (b) => resolve(b ?? null),
-      "image/jpeg",
-      clamp01(quality)
-    );
+    canvas.toBlob((b) => resolve(b ?? null), "image/jpeg", clamp01(quality));
   });
 }
 
@@ -295,22 +349,39 @@ export async function preprocessImageForUpload(
 ): Promise<UploadPreprocessResult> {
   const original = toMeta(file);
   const maxEdgeDesktop = options?.maxEdgeDesktop ?? DEFAULT_MAX_EDGE_DESKTOP;
-  const maxEdgeMobileSafari = options?.maxEdgeMobileSafari ?? DEFAULT_MAX_EDGE_MOBILE;
+  const maxEdgeMobileSafari =
+    options?.maxEdgeMobileSafari ?? DEFAULT_MAX_EDGE_MOBILE;
   const mobile = isMobileUploadDevice();
   const maxEdgeInitial = mobile ? maxEdgeMobileSafari : maxEdgeDesktop;
-  const qualityInitial = clamp01(options?.jpegQualityStart ?? DEFAULT_JPEG_QUALITY);
+  const qualityInitial = clamp01(
+    options?.jpegQualityStart ?? DEFAULT_JPEG_QUALITY
+  );
   // Hard cap for scan uploads: <= 3MB (well under the 15MB guardrail).
-  const outputBytesLimit = options?.outputBytesLimit ?? Math.round(3 * 1024 * 1024);
+  const outputBytesLimit =
+    options?.outputBytesLimit ?? Math.round(3 * 1024 * 1024);
 
   const orientation = await readJpegExifOrientation(file).catch(() => 1);
-  const workerResult = await tryOffthreadPreprocess(file, maxEdgeInitial, qualityInitial);
+  const workerResult = await tryOffthreadPreprocess(
+    file,
+    maxEdgeInitial,
+    qualityInitial
+  );
   if (workerResult) {
+    if (!scanPhotoDimensionsAreValid(workerResult.width, workerResult.height)) {
+      throw new Error(SCAN_PHOTO_TOO_SMALL_MESSAGE);
+    }
     const outName = (options?.fileName || "upload.jpg").replace(
       /\.(png|webp|heic|heif|jpeg|jpg)$/i,
       ".jpg"
     );
-    const outFile = new File([workerResult.blob], outName, { type: "image/jpeg" });
-    const meta = toMeta(outFile);
+    const outFile = new File([workerResult.blob], outName, {
+      type: "image/jpeg",
+    });
+    const dimensions = {
+      width: workerResult.width,
+      height: workerResult.height,
+    };
+    const meta = toMeta(outFile, dimensions);
     return {
       original,
       compressed: meta,
@@ -320,20 +391,30 @@ export async function preprocessImageForUpload(
           isMobileUploadDevice: mobile,
           isProbablyMobileSafari: isProbablyMobileSafari(),
           userAgent:
-            typeof navigator !== "undefined" ? String(navigator.userAgent || "") : "",
+            typeof navigator !== "undefined"
+              ? String(navigator.userAgent || "")
+              : "",
           maxTouchPoints:
             typeof navigator !== "undefined" &&
             typeof (navigator as any).maxTouchPoints === "number"
               ? Number((navigator as any).maxTouchPoints)
               : 0,
           viewport: {
-            width: typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
-            height: typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
+            width:
+              typeof window !== "undefined"
+                ? Number(window.innerWidth || 0)
+                : 0,
+            height:
+              typeof window !== "undefined"
+                ? Number(window.innerHeight || 0)
+                : 0,
           },
         },
         orientation,
         srcWidth: workerResult.width,
         srcHeight: workerResult.height,
+        outputWidth: dimensions.width,
+        outputHeight: dimensions.height,
         maxEdgeInitial,
         maxEdgeFinal: Math.max(workerResult.width, workerResult.height),
         qualityInitial,
@@ -357,20 +438,26 @@ export async function preprocessImageForUpload(
       isMobileUploadDevice: mobile,
       isProbablyMobileSafari: isProbablyMobileSafari(),
       userAgent:
-        typeof navigator !== "undefined" ? String(navigator.userAgent || "") : "",
+        typeof navigator !== "undefined"
+          ? String(navigator.userAgent || "")
+          : "",
       maxTouchPoints:
         typeof navigator !== "undefined" &&
         typeof (navigator as any).maxTouchPoints === "number"
           ? Number((navigator as any).maxTouchPoints)
           : 0,
       viewport: {
-        width: typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
-        height: typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
+        width:
+          typeof window !== "undefined" ? Number(window.innerWidth || 0) : 0,
+        height:
+          typeof window !== "undefined" ? Number(window.innerHeight || 0) : 0,
       },
     },
     orientation,
     srcWidth: source.width,
     srcHeight: source.height,
+    outputWidth: 0,
+    outputHeight: 0,
     maxEdgeInitial,
     maxEdgeFinal: maxEdgeInitial,
     qualityInitial,
@@ -384,7 +471,9 @@ export async function preprocessImageForUpload(
   const edgeCandidates =
     "el" in source
       ? [maxEdgeInitial, Math.min(maxEdgeInitial, 1400), 1200, 1024, 900, 768]
-          .filter((n, i, arr) => Number.isFinite(n) && n > 0 && arr.indexOf(n) === i)
+          .filter(
+            (n, i, arr) => Number.isFinite(n) && n > 0 && arr.indexOf(n) === i
+          )
           .sort((a, b) => b - a)
       : [maxEdgeInitial];
 
@@ -479,15 +568,29 @@ export async function preprocessImageForUpload(
       }
     }
 
-    const outName = (options?.fileName || "upload.jpg").replace(/\.(png|webp|heic|heif|jpeg|jpg)$/i, ".jpg");
+    const outName = (options?.fileName || "upload.jpg").replace(
+      /\.(png|webp|heic|heif|jpeg|jpg)$/i,
+      ".jpg"
+    );
     const outFile = new File([bestBlob], outName, { type: "image/jpeg" });
 
     debug.maxEdgeFinal = bestEdge;
     debug.qualityFinal = bestQuality;
+    const dimensions = orientedOutputDimensions(
+      source.width,
+      source.height,
+      orientation,
+      bestEdge
+    );
+    debug.outputWidth = dimensions.width;
+    debug.outputHeight = dimensions.height;
+    if (!scanPhotoDimensionsAreValid(dimensions.width, dimensions.height)) {
+      throw new Error(SCAN_PHOTO_TOO_SMALL_MESSAGE);
+    }
 
     return {
       original,
-      compressed: toMeta(outFile),
+      compressed: toMeta(outFile, dimensions),
       file: outFile,
       debug,
     };
@@ -501,7 +604,14 @@ export type ScanPhotoView = "front" | "back" | "left" | "right";
 export async function prepareScanPhoto(
   file: File,
   view: ScanPhotoView
-): Promise<{ preparedFile: File; meta: { original: UploadPreprocessMeta; prepared: UploadPreprocessMeta; debug: UploadPreprocessResult["debug"] } }> {
+): Promise<{
+  preparedFile: File;
+  meta: {
+    original: UploadPreprocessMeta;
+    prepared: UploadPreprocessMeta;
+    debug: UploadPreprocessResult["debug"];
+  };
+}> {
   try {
     const processed = await preprocessImageForUpload(file, {
       fileName: `${view}.jpg`,
@@ -520,6 +630,7 @@ export async function prepareScanPhoto(
     };
   } catch (err) {
     // Do not fall back to original files (often huge PNGs / HEIC).
+    if ((err as Error)?.message === SCAN_PHOTO_TOO_SMALL_MESSAGE) throw err;
     throw new Error(
       (err as Error)?.message?.includes("Couldn’t prepare")
         ? (err as Error).message
@@ -570,7 +681,10 @@ function fileToImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-async function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+async function canvasToJpeg(
+  canvas: HTMLCanvasElement,
+  quality: number
+): Promise<Blob> {
   return await new Promise<Blob>((resolve) => {
     canvas.toBlob(
       (b) => resolve(b ?? new Blob()),

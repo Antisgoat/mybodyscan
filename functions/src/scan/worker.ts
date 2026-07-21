@@ -8,7 +8,11 @@ import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { HttpsError } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { deriveNutritionPlan } from "../lib/nutritionGoals.js";
-import type { ScanDocument } from "../types.js";
+import type {
+  ScanDocument,
+  ScanNutritionPlan,
+  ScanWorkoutPlan,
+} from "../types.js";
 import {
   OpenAIClientError,
   buildAnalysisFromResult,
@@ -45,6 +49,227 @@ function bmiCategory(bmi: number): string | null {
   if (bmi < 35) return "Obesity I";
   if (bmi < 40) return "Obesity II";
   return "Obesity III";
+}
+
+export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
+  const requested = Number(
+    profile?.training_days_per_week ??
+      profile?.trainingDaysPerWeek ??
+      profile?.programPreferences?.daysPerWeek ??
+      profile?.daysPerWeek ??
+      profile?.training_days
+  );
+  const daysPerWeek =
+    Number.isInteger(requested) && requested >= 2 && requested <= 6
+      ? requested
+      : 3;
+  const normalizeTextList = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : typeof value === "string" ? [value] : [])
+      .map((item) =>
+        typeof item === "string" ? item.trim().toLowerCase() : ""
+      )
+      .filter(Boolean);
+  const injuries = [
+    ...normalizeTextList(profile?.injuries),
+    ...normalizeTextList(profile?.limitations),
+    ...normalizeTextList(profile?.injury_limitations),
+    ...normalizeTextList(profile?.programPreferences?.injuries),
+  ].filter(
+    (item) => !/^(none|no|n\/a|no injuries?|no limitations?)$/.test(item)
+  );
+  const hasInjuryConflict = injuries.length > 0;
+  const goal = typeof profile?.goal === "string" ? profile.goal : null;
+  const experienceRaw = String(
+    profile?.experience ??
+      profile?.experience_level ??
+      profile?.programPreferences?.experience ??
+      ""
+  ).toLowerCase();
+  const experience = ["intermediate", "advanced"].includes(experienceRaw)
+    ? (experienceRaw as "intermediate" | "advanced")
+    : "beginner";
+  const equipmentValues = [
+    ...normalizeTextList(profile?.equipment),
+    ...normalizeTextList(profile?.programPreferences?.equipment),
+  ].flatMap((item) => item.split(/[,/|]+/).map((part) => part.trim()));
+  const equipment = new Set<string>();
+  for (const item of equipmentValues) {
+    const normalized = item.replace(/[\s-]+/g, "_");
+    if (/full_gym|commercial_gym|gym_access/.test(normalized))
+      equipment.add("full_gym");
+    else if (/home_gym/.test(normalized)) equipment.add("home_gym");
+    else if (/dumbbell|free_weight/.test(normalized))
+      equipment.add("dumbbells");
+    else if (/machine/.test(normalized)) equipment.add("machines");
+    else if (/band/.test(normalized)) equipment.add("bands");
+    else if (/bodyweight|none|no_equipment/.test(normalized))
+      equipment.add("bodyweight");
+  }
+  const adequateResistance = [
+    "full_gym",
+    "home_gym",
+    "dumbbells",
+    "machines",
+  ].some((capability) => equipment.has(capability));
+  const pplAllowed =
+    daysPerWeek === 6 &&
+    (experience === "intermediate" || experience === "advanced") &&
+    adequateResistance &&
+    !hasInjuryConflict;
+  const beginnerFiveDay = daysPerWeek === 5 && experience === "beginner";
+  const templates =
+    daysPerWeek === 2
+      ? ["Full Body A", "Full Body B"]
+      : daysPerWeek === 3
+        ? ["Full Body A", "Full Body B", "Full Body C"]
+        : daysPerWeek === 4
+          ? ["Upper A", "Lower A", "Upper B", "Lower B"]
+          : daysPerWeek === 5
+            ? beginnerFiveDay
+              ? [
+                  "Upper",
+                  "Lower",
+                  "Full Body",
+                  "Low-impact conditioning",
+                  "Mobility/recovery",
+                ]
+              : ["Upper", "Lower", "Push", "Pull", "Full Body"]
+            : pplAllowed
+              ? ["Push A", "Pull A", "Legs A", "Push B", "Pull B", "Legs B"]
+              : [
+                  "Full Body A",
+                  "Low-impact conditioning",
+                  "Full Body B",
+                  "Mobility/recovery",
+                  "Full Body C",
+                  "Low-impact conditioning",
+                ];
+  const exercisesFor = (focus: string) => {
+    if (/conditioning/i.test(focus)) {
+      return [
+        {
+          name: "Brisk walk, bike, or easy cardio",
+          sets: 1,
+          reps: "20-30 min",
+          notes: "Keep a conversational pace and choose a pain-free option.",
+        },
+      ];
+    }
+    if (/mobility|recovery/i.test(focus)) {
+      return [
+        {
+          name: "Gentle mobility and breathing",
+          sets: 1,
+          reps: "15-20 min",
+          notes: "Move comfortably; this is recovery, not heavy training.",
+        },
+      ];
+    }
+    const lower = /lower|legs/i.test(focus);
+    const upper = /upper|push|pull/i.test(focus);
+    return (
+      lower
+        ? ["Squat pattern", "Hip hinge", "Split squat", "Calf raise"]
+        : upper
+          ? ["Horizontal press", "Row", "Vertical press", "Pulldown"]
+          : ["Squat pattern", "Horizontal press", "Row", "Hip hinge"]
+    ).map((name) => ({
+      name,
+      sets: 3,
+      reps: "6-12",
+      notes: "Use a pain-free range of motion.",
+    }));
+  };
+  const structureName = pplAllowed
+    ? "push/pull/legs split"
+    : daysPerWeek === 6 || beginnerFiveDay
+      ? "mixed strength, conditioning, and recovery schedule"
+      : daysPerWeek <= 3
+        ? "full-body plan"
+        : "upper/lower balanced split";
+  return {
+    summary: `${daysPerWeek}-day ${structureName} based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""} (${experience} level)${equipment.size ? " using your available equipment" : ""}.`,
+    progressionRules: [
+      "Leave 2-3 repetitions in reserve while learning each movement.",
+      "Add repetitions before increasing load by 2-5%.",
+      "Stop painful movements and substitute a comfortable variation; never train through pain.",
+      ...(injuries.length
+        ? [
+            "Use conservative exercise selection around the limitations listed in your profile.",
+          ]
+        : []),
+    ],
+    weeks: Array.from({ length: 8 }, (_, weekIndex) => ({
+      weekNumber: weekIndex + 1,
+      days: templates.map((focus, dayIndex) => ({
+        day: `Day ${dayIndex + 1}`,
+        focus,
+        exercises: exercisesFor(focus),
+      })),
+    })),
+  };
+}
+
+export function deriveDeterministicNutritionPlan(args: {
+  currentWeightKg: number;
+  goalWeightKg?: number | null;
+  bodyFatPercent: number;
+  profile?: any;
+}): ScanNutritionPlan {
+  const derived = deriveNutritionPlan({
+    weightKg: args.currentWeightKg,
+    goalWeightKg: args.goalWeightKg,
+    bodyFatPercent: args.bodyFatPercent,
+    goal: args.profile?.goal,
+    activityLevel: args.profile?.activityLevel ?? args.profile?.activity_level,
+  });
+  const calories = Math.min(4500, Math.max(1200, derived.caloriesPerDay));
+  const protein = derived.proteinGrams;
+  const fats = derived.fatsGrams;
+  const carbs = Math.max(
+    0,
+    Math.round((calories - protein * 4 - fats * 9) / 4)
+  );
+  const trainingDay = {
+    calories,
+    proteinGrams: protein,
+    carbsGrams: carbs,
+    fatsGrams: fats,
+  };
+  const restCalories = Math.max(1200, calories - 150);
+  const restCarbs = Math.max(
+    0,
+    Math.round((restCalories - protein * 4 - fats * 9) / 4)
+  );
+  const portions = [0.25, 0.3, 0.15, 0.3];
+  const names = ["Breakfast", "Lunch", "Snack", "Dinner"];
+  return {
+    caloriesPerDay: calories,
+    proteinGrams: protein,
+    carbsGrams: carbs,
+    fatsGrams: fats,
+    trainingDay,
+    restDay: {
+      calories: restCalories,
+      proteinGrams: protein,
+      carbsGrams: restCarbs,
+      fatsGrams: fats,
+    },
+    adjustmentRules: [
+      "Review the weekly weight trend after two consistent weeks.",
+      "Adjust by 100-200 calories if progress is outside the intended range.",
+      "Keep protein stable and avoid crash diets.",
+    ],
+    sampleDay: portions.map((portion, index) => ({
+      mealName: names[index],
+      description:
+        "Choose minimally processed foods, a lean protein, and produce.",
+      calories: Math.round(calories * portion),
+      proteinGrams: Math.round(protein * portion),
+      carbsGrams: Math.round(carbs * portion),
+      fatsGrams: Math.round(fats * portion),
+    })),
+  };
 }
 
 function toMillis(value: any): number | null {
@@ -133,7 +358,7 @@ export const processQueuedScan = onDocumentWritten(
     if (!claimed) return;
 
     const correlationId = scan.correlationId || processingAttemptId;
-    const engine = getEngineConfigOrThrow(correlationId);
+    let engine: ReturnType<typeof getEngineConfigOrThrow> | null = null;
     const queueRequestedAtMs = toMillis((scan as any).processingRequestedAt);
     const queueDurationMs =
       queueRequestedAtMs != null
@@ -177,6 +402,9 @@ export const processQueuedScan = onDocumentWritten(
     };
 
     try {
+      // Resolve runtime secrets inside the failure boundary so configuration errors
+      // are persisted and refunded instead of leaving a scan stuck in processing.
+      engine = getEngineConfigOrThrow(correlationId);
       await updateStep({
         lastStep: "Validating uploads",
         progress: 10,
@@ -191,10 +419,13 @@ export const processQueuedScan = onDocumentWritten(
         throw new Error("missing_photo_paths");
       }
       const currentWeightKg = Number(input?.currentWeightKg);
-      const goalWeightKg = Number(input?.goalWeightKg);
-      if (!isSaneWeightKg(currentWeightKg) || !isSaneWeightKg(goalWeightKg)) {
+      const goalWeightCandidate = Number(input?.goalWeightKg);
+      if (!isSaneWeightKg(currentWeightKg)) {
         throw new Error("missing_scan_input");
       }
+      const goalWeightKg = isSaneWeightKg(goalWeightCandidate)
+        ? goalWeightCandidate
+        : currentWeightKg;
 
       // Pull height (and other profile details later) to compute BMI deterministically.
       const profileSnap = await db
@@ -239,6 +470,7 @@ export const processQueuedScan = onDocumentWritten(
       startHeartbeat("Analyzing body composition", 45);
       const openAiStartedAtMs = Date.now();
       let result: Awaited<ReturnType<typeof callOpenAI>> | null = null;
+      let analysis: ReturnType<typeof buildAnalysisFromResult> | null = null;
       let lastAnalysisError: unknown = null;
       for (let attempt = 1; attempt <= ANALYSIS_MAX_ATTEMPTS; attempt += 1) {
         try {
@@ -252,14 +484,21 @@ export const processQueuedScan = onDocumentWritten(
             ANALYSIS_TIMEOUT_MS,
             "analysis"
           );
+          // Validate the only required model output inside the retry boundary.
+          analysis = buildAnalysisFromResult(result as any);
           break;
         } catch (analysisError) {
           lastAnalysisError = analysisError;
+          const reason = deriveErrorReason(analysisError);
           const transient =
-            analysisError instanceof OpenAIClientError &&
-            (analysisError.status === 429 ||
-              analysisError.status >= 500 ||
-              analysisError.message.includes("timeout"));
+            (analysisError instanceof OpenAIClientError &&
+              (analysisError.status === 429 ||
+                analysisError.status >= 500 ||
+                analysisError.message.includes("timeout") ||
+                reason === "invalid_json_payload")) ||
+            reason.includes("invalid_body_fat_percent") ||
+            analysisError instanceof DOMException ||
+            (analysisError as any)?.name === "AbortError";
           if (!transient || attempt >= ANALYSIS_MAX_ATTEMPTS)
             throw analysisError;
           await updateStep({
@@ -270,7 +509,8 @@ export const processQueuedScan = onDocumentWritten(
           await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
         }
       }
-      if (!result) throw lastAnalysisError ?? new Error("analysis_failed");
+      if (!result || !analysis)
+        throw lastAnalysisError ?? new Error("analysis_failed");
       const openAiElapsedMs = Date.now() - openAiStartedAtMs;
       stopHeartbeat();
 
@@ -280,7 +520,6 @@ export const processQueuedScan = onDocumentWritten(
         processingHeartbeatAt: serverTimestamp(),
       });
 
-      const analysis = buildAnalysisFromResult(result as any);
       const leanMassKg = Number.isFinite(currentWeightKg)
         ? Number(
             (
@@ -328,66 +567,13 @@ export const processQueuedScan = onDocumentWritten(
               ? analysis.estimate.goalRecommendations
               : analysis.recommendations;
 
-      const nutritionPlan = (() => {
-        const derived = deriveNutritionPlan({
-          weightKg: currentWeightKg,
-          bodyFatPercent: analysis.estimate.bodyFatPercent,
-          goalWeightKg,
-        });
-        const baseDay = {
-          calories: derived.caloriesPerDay,
-          proteinGrams: derived.proteinGrams,
-          carbsGrams: derived.carbsGrams,
-          fatsGrams: derived.fatsGrams,
-        };
-        const coerceDay = (
-          day: any,
-          fallback: {
-            calories: number;
-            proteinGrams: number;
-            carbsGrams: number;
-            fatsGrams: number;
-          }
-        ) => ({
-          calories: Math.round(
-            Number.isFinite(day?.calories) ? day.calories : fallback.calories
-          ),
-          proteinGrams: Math.round(
-            Number.isFinite(day?.proteinGrams)
-              ? day.proteinGrams
-              : fallback.proteinGrams
-          ),
-          carbsGrams: Math.round(
-            Number.isFinite(day?.carbsGrams)
-              ? day.carbsGrams
-              : fallback.carbsGrams
-          ),
-          fatsGrams: Math.round(
-            Number.isFinite(day?.fatsGrams) ? day.fatsGrams : fallback.fatsGrams
-          ),
-        });
-        const restFallback = {
-          calories: Math.max(1200, Math.round(baseDay.calories - 150)),
-          proteinGrams: baseDay.proteinGrams,
-          carbsGrams: Math.max(0, Math.round(baseDay.carbsGrams * 0.85)),
-          fatsGrams: Math.max(0, Math.round(baseDay.fatsGrams + 8)),
-        };
-        return {
-          ...analysis.nutritionPlan,
-          caloriesPerDay: derived.caloriesPerDay,
-          proteinGrams: derived.proteinGrams,
-          carbsGrams: derived.carbsGrams,
-          fatsGrams: derived.fatsGrams,
-          trainingDay: coerceDay(
-            (analysis as any)?.nutritionPlan?.trainingDay,
-            baseDay
-          ),
-          restDay: coerceDay(
-            (analysis as any)?.nutritionPlan?.restDay,
-            restFallback
-          ),
-        };
-      })();
+      const nutritionPlan = deriveDeterministicNutritionPlan({
+        currentWeightKg,
+        goalWeightKg,
+        bodyFatPercent: analysis.estimate.bodyFatPercent,
+        profile,
+      });
+      const workoutPlan = deriveDeterministicWorkoutPlan(profile);
 
       await scanRef.set(
         {
@@ -405,17 +591,17 @@ export const processQueuedScan = onDocumentWritten(
             heightCm: heightOk,
           },
           estimate: analysis.estimate,
-          workoutPlan: analysis.workoutPlan,
+          workoutPlan,
           nutritionPlan,
           recommendations: analysis.recommendations.length
             ? analysis.recommendations
             : null,
           improvementAreas: improvementAreas?.length ? improvementAreas : null,
           disclaimer: "Estimates only. Not medical advice.",
-          workoutProgram: analysis.workoutPlan,
+          workoutProgram: workoutPlan,
           planMarkdown: buildPlanMarkdown({
             estimate: analysis.estimate,
-            workoutPlan: analysis.workoutPlan,
+            workoutPlan,
             nutritionPlan,
             recommendations: analysis.recommendations,
             improvementAreas,
@@ -467,12 +653,24 @@ export const processQueuedScan = onDocumentWritten(
         typeof error?.message === "string" && error.message.length
           ? error.message
           : null;
+      const missingConfig = Array.isArray(errorDetails?.missing)
+        ? errorDetails.missing.filter(
+            (item: unknown) => typeof item === "string"
+          )
+        : [];
       const effectiveReason = (() => {
         if (rawMessage?.startsWith("missing_photo_")) return "missing_photos";
         if (rawMessage?.startsWith("invalid_photo_path_"))
           return "invalid_photo_paths";
         if (rawMessage === "missing_photo_paths") return "missing_photo_paths";
         if (rawMessage === "missing_scan_input") return "missing_scan_input";
+        if (missingConfig.includes("OPENAI_API_KEY"))
+          return "openai_missing_key";
+        if (missingConfig.includes("OPENAI_MODEL"))
+          return "openai_missing_model";
+        if (missingConfig.includes("STORAGE_BUCKET"))
+          return "missing_storage_bucket";
+        if (missingConfig.includes("PROJECT_ID")) return "missing_project_id";
         if (errorDetails?.reason === "scan_engine_not_configured")
           return "scan_engine_not_configured";
         if (error instanceof OpenAIClientError && error.code) return error.code;
@@ -493,17 +691,21 @@ export const processQueuedScan = onDocumentWritten(
         }
         if (error instanceof OpenAIClientError) {
           if (error.code === "openai_missing_key") {
-            return "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions.";
+            return "Scan is temporarily unavailable. Please try again in a few minutes or contact support.";
           }
           if (error.status === 429) {
             return "Scan engine is busy. Please try again shortly.";
           }
           return "Scan engine is temporarily unavailable. Please try again.";
         }
-        if (effectiveReason === "scan_engine_not_configured") {
-          return rawMessage?.length
-            ? rawMessage
-            : "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions.";
+        if (
+          effectiveReason === "scan_engine_not_configured" ||
+          effectiveReason === "openai_missing_key" ||
+          effectiveReason === "openai_missing_model" ||
+          effectiveReason === "missing_storage_bucket" ||
+          effectiveReason === "missing_project_id"
+        ) {
+          return "Scan is temporarily unavailable. Please try again in a few minutes or contact support.";
         }
         return rawMessage ?? "Unexpected error while processing scan.";
       })();
@@ -588,6 +790,7 @@ export const processQueuedScan = onDocumentWritten(
         processingAttemptId,
         message: error?.message,
         reason: effectiveReason,
+        missingConfig,
       });
     } finally {
       stopHeartbeat();

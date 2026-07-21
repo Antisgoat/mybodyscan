@@ -668,13 +668,6 @@ function ensureVisibleProgress(value: number, hasBytes: boolean): number {
   return clampProgressFraction(baseline);
 }
 
-function ensureJpegFile(file: File, pose: string): File {
-  const type = (file.type || "").toLowerCase();
-  if (type === SCAN_UPLOAD_CONTENT_TYPE) return file;
-  const name = file.name && file.name.trim().length ? file.name : `${pose}.jpg`;
-  return new File([file], name, { type: SCAN_UPLOAD_CONTENT_TYPE });
-}
-
 function mergeAbortSignals(...signals: AbortSignal[]): AbortSignal {
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -867,22 +860,7 @@ export async function submitScanClient(
           preprocessDebug: prepResult.meta.debug,
         });
       } else {
-        const fallbackFile = ensureJpegFile(original, pose);
-        const meta = {
-          name: fallbackFile.name || `${pose}.jpg`,
-          size: fallbackFile.size,
-          type: fallbackFile.type || "image/jpeg",
-        };
-        preparedFiles[pose] = {
-          file: fallbackFile,
-          meta: { original: meta, prepared: meta },
-        };
-        options?.onPhotoState?.({
-          pose,
-          status: "preparing",
-          original: meta,
-          compressed: meta,
-        });
+        throw new Error("Photo preparation timed out. Please try again.");
       }
       console.info("scan.preprocess", {
         pose,
@@ -893,9 +871,12 @@ export async function submitScanClient(
       options?.onPhotoState?.({
         pose,
         status: "failed",
-        message: "Couldn’t prepare photo on this device",
+        message:
+          (err as Error)?.message || "Couldn’t prepare photo on this device",
       });
-      const e: any = new Error("Couldn’t prepare photo on this device");
+      const e: any = new Error(
+        (err as Error)?.message || "Couldn’t prepare photo on this device"
+      );
       e.code = "preprocess_failed";
       e.pose = pose;
       clearTimeout(overallTimer);
