@@ -221,6 +221,10 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Runbook (envs, demo, App Check, rewrites)
 
+> Production source of truth: [`docs/PRODUCTION_RELEASE.md`](docs/PRODUCTION_RELEASE.md).
+> The detail below is developer background and may mention legacy aliases; do
+> not use it in place of the release runbook.
+
 ### Required web environment variables
 
 - `VITE_FIREBASE_API_KEY` – Firebase Web API key consumed by `src/lib/firebase.ts`.
@@ -236,7 +240,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 - `VITE_ENABLE_APPLE` – Set to `true` to force-render Apple sign-in alongside provider autodetect.
 - `VITE_ENABLE_DEMO` – Set to `true` to expose the hosted demo sign-in on any origin.
-- `VITE_APPCHECK_SITE_KEY` – reCAPTCHA v3 site key used by Firebase App Check (soft enforcement when unset).
+- `VITE_APPCHECK_SITE_KEY` – reCAPTCHA v3 site key used by Firebase App Check. Functions remain soft until real production tokens are validated.
 - `VITE_FUNCTIONS_BASE_URL` – Override Cloud Functions origin (defaults to `https://${region}-${project}.cloudfunctions.net`).
 - `VITE_STRIPE_PK` / `VITE_STRIPE_PUBLISHABLE_KEY` – Stripe publishable key; drives test/live banners and diagnostics.
 - `VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS` – Comma-separated origins allowed to load external scripts in native iOS builds.
@@ -245,17 +249,17 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ### Cloud Functions secrets (attach via `firebase functions:secrets:set`)
 
-| Function                                 | Secret name(s)                              | Purpose                                                           |
-| ---------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------- |
-| `createCheckout`, `createCustomerPortal` | `STRIPE_SECRET` (alias `STRIPE_SECRET_KEY`) | Stripe API key for hosted checkout + portal.                      |
-| `stripeWebhook`                          | `STRIPE_SECRET`, `STRIPE_WEBHOOK`           | Stripe API key and webhook signing secret.                        |
-| `coachChat`                              | `OPENAI_API_KEY`                            | Grants access to OpenAI chat models.                              |
-| `nutritionSearch`, `nutritionBarcode`    | `USDA_FDC_API_KEY`                          | USDA FoodData Central lookups (Open Food Facts handles fallback). |
+| Function                                 | Secret name(s)                               | Purpose                                                           |
+| ---------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------- |
+| `createCheckout`, `createCustomerPortal` | `STRIPE_SECRET` (alias `STRIPE_SECRET_KEY`)  | Stripe API key for hosted checkout + portal.                      |
+| `stripeWebhook`                          | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe API key and webhook signing secret.                        |
+| `coachChat`                              | `OPENAI_API_KEY`                             | Grants access to OpenAI chat models.                              |
+| `nutritionSearch`, `nutritionBarcode`    | `USDA_FDC_API_KEY`                           | USDA FoodData Central lookups (Open Food Facts handles fallback). |
 
 ### Scan engine configuration (Firebase Functions)
 
 - Required: `OPENAI_API_KEY` in Secret Manager (attach with `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`). `OPENAI_MODEL` is a Firebase string parameter with the vision-capable production default `gpt-4o-mini`; deployments may override it when prompted. `OPENAI_BASE_URL` and `OPENAI_PROVIDER` are optional parameters/environment variables.
-- Verify production scan configuration with `firebase functions:secrets:list --project mybodyscan-f3daf`. The Firebase CLI does not provide a portable `functions:params:get` command; inspect `.env.<projectId>` or the parameter prompt/output during `firebase deploy --only functions --project mybodyscan-f3daf` to confirm `OPENAI_MODEL`.
+- Verify secret metadata with `firebase functions:secrets:get OPENAI_API_KEY --project mybodyscan-f3daf`. The scan model has a tested production default; any override must pass the scan reliability suite.
 - Deploy after setting the secret: `npm --prefix functions run build && firebase deploy --only functions --project <projectId>`.
 - Verify: call `/systemHealth` and confirm `engineConfigured=true`, `engineMissingConfig=[]`, and `storageBucket/projectId` are populated. Missing entries surface as a safe list so production UIs show “scan engine not configured” until the secret is present.
 
@@ -321,7 +325,7 @@ Create a `.env.local` for development based on `.env.example` and a `.env.produc
 3. Copy the redirect handler URL(s) from Firebase (e.g., `https://<auth-domain>/__/auth/handler`) and add them to Apple Developer → **Identifiers** → your Services ID → **Return URLs**.
 4. Optional: place Apple's association file at `/.well-known/apple-developer-domain-association.txt` on Firebase Hosting (replace the placeholder committed in `public/.well-known/`).
 
-Cloud Functions read Stripe credentials from Firebase Secrets Manager entries named `STRIPE_SECRET` (Stripe API key) and `STRIPE_WEBHOOK` (signing secret). Configure them with `firebase functions:secrets:set` (see Deployment).
+Cloud Functions read Stripe credentials from Firebase Secret Manager entries named `STRIPE_SECRET_KEY` (API key) and `STRIPE_WEBHOOK_SECRET` (signing secret). Compatibility aliases are documented only in the production runbook.
 
 ### Functions environment and secrets
 
@@ -330,8 +334,7 @@ Set these secrets or environment variables via Firebase (preferred) or your depl
 - `OPENAI_API_KEY` _(HTTPS chat + nutrition features; mock mode activates if unset)_
 - `STRIPE_SECRET_KEY` or `STRIPE_SECRET` _(required for live payments; missing causes Stripe HTTPS endpoints to respond with 501)_
 - `HOST_BASE_URL` _(used for Stripe return URLs; defaults to `https://mybodyscanapp.com`)_
-- `APP_CHECK_ALLOWED_ORIGINS` _(comma-delimited allowlist for strict App Check enforcement; optional)_
-- `APP_CHECK_ENFORCE_SOFT` _(defaults to `true`; set to `false` to enforce App Check for allowed origins)_
+- `APP_CHECK_MODE` _(`soft` logs without blocking; `strict` rejects missing or invalid tokens)_
 
 ## Secrets & Deploy
 
@@ -344,20 +347,20 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 
 ### Inspect and manage Firebase secrets
 
-- List all secrets: `firebase functions:secrets:list --project <projectId>`
+- Inspect a secret without reading its value: `firebase functions:secrets:get SECRET_NAME --project <projectId>`
 - Describe a secret: `firebase functions:secrets:describe HOST_BASE_URL --project <projectId>`
 - Set or update a secret: `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
 
 ### Runtime behavior without optional secrets
 
 - `HOST_BASE_URL` is optional; HTTPS handlers fall back to each request's origin when it is not configured.
-- `APP_CHECK_ALLOWED_ORIGINS` may be empty. Keeping `APP_CHECK_ENFORCE_SOFT=true` allows soft enforcement so missing tokens log warnings instead of failing the request.
+- Keeping `APP_CHECK_MODE=soft` logs missing or invalid tokens without failing the request. Strict mode is enabled only after the production site key and all supported domains have been verified.
 - If `STRIPE_SECRET` is absent, Stripe-powered endpoints respond with HTTP 501 (`payments_disabled`) instead of crashing or blocking deploys.
 
 ### Payments config sources & troubleshooting
 
 - Stripe HTTPS handlers resolve secrets in order: Firebase Secret Manager entry `STRIPE_SECRET` → `process.env.STRIPE_SECRET`/`STRIPE_API_KEY` → `functions.config().stripe.secret`. If none are present, handlers return `501 { error: "payments_disabled", code: "no_secret" }` and log `{ "svc":"checkout", ... , "ok":false }`.
-- Webhook verification follows the same pattern for the `STRIPE_WEBHOOK` secret (Secret Manager first, then environment variables `STRIPE_WEBHOOK`/`STRIPE_SIGNING_SECRET`, followed by `functions.config().stripe.webhook_secret`).
+- Webhook verification uses the bound `STRIPE_WEBHOOK_SECRET`; legacy environment aliases are read only for backwards compatibility.
 - Allowlisted price IDs load from `stripe.prices.*` runtime config, matching plan keys `single`, `pack3`, `pack5`, `monthly`, `annual`, plus legacy keys (`one`, `extra`, `pro_monthly`, `elite_annual`). The default table includes:
   - `price_1RuOpKQQU5vuhlNjipfFBsR0` (`single` / `one`)
   - `price_1RuOr2QQU5vuhlNjcqTckCHL` (`pack3`)
@@ -371,8 +374,7 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 ### Example production secret values
 
 - `HOST_BASE_URL = https://mybodyscanapp.com`
-- `APP_CHECK_ALLOWED_ORIGINS = https://mybodyscanapp.com,https://www.mybodyscanapp.com,https://mybodyscan-f3daf.web.app,https://mybodyscan-f3daf.firebaseapp.com`
-- `APP_CHECK_ENFORCE_SOFT = true`
+- `APP_CHECK_MODE = soft`
 
 ## Firebase Web config (Lovable without env vars)
 
@@ -389,7 +391,7 @@ Authorized domains (Firebase Console → Auth → Settings):
 
 Notes:
 
-- The Storage bucket must be `mybodyscan-f3daf.appspot.com` (the canonical bucket), not `...firebasestorage.app` which is a download host.
+- Use the exact `storageBucket` returned by the registered Firebase Web app. Current Firebase projects may use a `.firebasestorage.app` bucket; do not rewrite it to a legacy hostname.
 
 ## Firestore & Storage rules quick reference
 
@@ -432,7 +434,7 @@ Run this sequence before shipping a release (desktop Chrome and iOS WebView/Safa
 
 - Route: `https://<host>/__uat` (also available at the Vite dev URL). Access requires a staff claim, the allowlisted `developer@adlrlabs.com`, or development mode.
 - Probes cover runtime config, auth redirect capability, Stripe dry-runs (`X-UAT: 1`), App Check enforcement for coach/nutrition, scan start/upload/submit idempotency, coach reply, nutrition search, barcode lookup, and diagnostics.
-- Expected PASS: init.json exposes `projectId`/`apiKey`/`authDomain`; checkout dry-run returns `{ url }`; portal dry-run returns `{ url }` or `{ error:"no_customer" }`; `/api/coach` rejects without App Check and passes with it (or returns a structured empty message error); duplicate scan submit yields `code: "duplicate_submit"`; nutrition probes return items; diagnostics clear caches and emit telemetry.
+- Expected in production soft mode: init.json exposes `projectId`/`apiKey`/`authDomain`; checkout dry-run returns `{ url }`; portal dry-run returns `{ url }` or `{ error:"no_customer" }`; missing App Check is logged without blocking; duplicate scan submission returns an idempotent response without a second debit; nutrition probes return items; diagnostics clear caches and emit telemetry. Missing/invalid App Check rejects only during an explicitly scheduled strict-mode validation.
 - The "Recent Logs" panel lists the last five runs and mirrors `[uat]` entries in the browser console for deeper triage.
 
 ## Final smoke checklist
@@ -474,7 +476,7 @@ firebase deploy --only functions:processQueuedScan
 
 ## Fixing Storage uploads on custom domain
 
-- Ensure the Storage bucket is **mybodyscan-f3daf.appspot.com** and apply the CORS policy in `scripts/cors.json`:
+- Use the exact registered Storage bucket and apply the CORS policy in `scripts/cors.json`:
   - `npm run storage:cors:set`
   - Verify with `npm run storage:cors:get`
 - Browser uploads must go through the Firebase Storage SDK (`uploadBytesResumable`) to `scans/{uid}/{scanId}/{pose}.jpg` only.
@@ -502,7 +504,7 @@ Deploy Functions and Hosting after setting Stripe keys and webhook secret via `f
 
 ```sh
 firebase functions:secrets:set STRIPE_SECRET
-firebase functions:secrets:set STRIPE_WEBHOOK
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
 firebase deploy --only functions,hosting
 ```
 
@@ -564,15 +566,14 @@ After deploying this PR, validate end-to-end:
 
 ## Secrets & Deploy Quick Reference
 
-- List secrets: `firebase functions:secrets:list --project <projectId>`
+- Inspect secret metadata: `firebase functions:secrets:get SECRET_NAME --project <projectId>`
 - Set secrets (one at a time):
   - `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
-  - `firebase functions:secrets:set APP_CHECK_ALLOWED_ORIGINS --project <projectId>`
-  - `firebase functions:secrets:set APP_CHECK_ENFORCE_SOFT --project <projectId>`
+  - App Check mode is the non-secret `APP_CHECK_MODE` value in `firebase.json`.
   - `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`
   - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
 - Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
-- Full go-live runbook: see [`docs/GO-LIVE.md`](docs/GO-LIVE.md)
+- Full production runbook: see [`docs/PRODUCTION_RELEASE.md`](docs/PRODUCTION_RELEASE.md)
 
 ## Reliable deploy (prod)
 

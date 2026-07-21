@@ -6,10 +6,17 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
+    environment: production
+    env:
+      FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
+      PROJECT_ID: mybodyscan-f3daf
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci && FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }} PROJECT_ID=mybodyscan-f3daf npm run probe
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run authenticated production probes
+        run: npm run probe

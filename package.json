@@ -40,6 +40,7 @@
     "lint": "eslint .",
     "check:bundle": "node scripts/check-bundle.js",
     "check:storage-rest": "node scripts/check-storage-rest.js",
+    "check:production-config": "node scripts/check-production-config.mjs",
     "preview": "vite preview",
     "cap:sync:ios": "npm run build:native:ios && npx cap sync ios",
     "sync:ios": "npm run ios:sync",

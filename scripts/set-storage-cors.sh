@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BUCKET="mybodyscan-f3daf.appspot.com"
+BUCKET="mybodyscan-f3daf.firebasestorage.app"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORS_FILE="${SCRIPT_DIR}/cors.json"
 
@@ -18,4 +18,3 @@ fi
 echo "Applying CORS policy from ${CORS_FILE} to gs://${BUCKET}..."
 gsutil cors set "${CORS_FILE}" "gs://${BUCKET}"
 echo "CORS configuration updated on ${BUCKET}."
-

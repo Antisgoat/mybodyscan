@@ -1,13 +1,10 @@
-import {
-  CallableRequest,
-  HttpsError,
-  onCall,
-} from "firebase-functions/v2/https";
+import { CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import type { Timestamp } from "firebase-admin/firestore";
 import type { File } from "@google-cloud/storage";
 
 import { getAuth, getFirestore, getStorage } from "./firebase.js";
 import { buildScanPhotoPath, isScanPose } from "./scan/paths.js";
+import { onCallWithOptionalAppCheck } from "./util/callable.js";
 
 const auth = getAuth();
 const db = getFirestore();
@@ -49,8 +46,7 @@ async function deleteStorageUser(
 ): Promise<void> {
   const bucket = storage.bucket();
   // Canonical scan photos live under `scans/{uid}/...`.
-  // Keep `user_uploads/{uid}/debug/...` for diagnostics only (non-scan uploads).
-  const prefixes = [`scans/${uid}/`, `user_uploads/${uid}/debug/`];
+  const prefixes = [`scans/${uid}/`, `user_uploads/${uid}/`];
   let pageToken: string | undefined;
   console.log("account_delete_storage_begin", { uid, requestId });
   try {
@@ -62,29 +58,18 @@ async function deleteStorageUser(
           autoPaginate: false,
           pageToken,
         });
-        const deletions = files.map(async (file: File) => {
-          try {
-            await file.delete();
-          } catch (err) {
-            console.warn("account_storage_delete_error", {
-              uid,
-              path: file.name,
-              requestId,
-              message: (err as Error)?.message,
-            });
-          }
-        });
-        await Promise.allSettled(deletions);
+        await Promise.all(files.map(async (file: File) => file.delete()));
         pageToken = (response as { nextPageToken?: string } | undefined)
           ?.nextPageToken;
       } while (pageToken);
     }
   } catch (err) {
-    console.warn("account_storage_list_error", {
+    console.error("account_storage_delete_error", {
       uid,
       requestId,
       message: (err as Error)?.message,
     });
+    throw err;
   }
   console.log("account_delete_storage_complete", { uid, requestId });
 }
@@ -139,8 +124,7 @@ async function buildImageExport(
   return results;
 }
 
-export const deleteMyAccount = onCall(
-  { region: "us-central1" },
+export const deleteMyAccount = onCallWithOptionalAppCheck(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -153,16 +137,19 @@ export const deleteMyAccount = onCall(
     const requestId = getRequestId(request);
     console.log("account_delete_begin", { uid, requestId });
 
+    const authTime = Number(request.auth?.token?.auth_time || 0);
+    const authAgeSeconds = Math.floor(Date.now() / 1000) - authTime;
+    if (!Number.isFinite(authAgeSeconds) || authAgeSeconds > 300) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Sign in again before deleting your account."
+      );
+    }
+
     try {
-      await auth.revokeRefreshTokens(uid).catch((err: unknown) => {
-        console.warn("account_revoke_error", {
-          uid,
-          requestId,
-          message: (err as Error)?.message,
-        });
-      });
-      await deleteFirestoreUser(uid, requestId);
       await deleteStorageUser(uid, requestId);
+      await deleteFirestoreUser(uid, requestId);
+      await auth.revokeRefreshTokens(uid);
       await auth.deleteUser(uid);
       console.log("account_delete_complete", { uid, requestId });
       return { ok: true } as const;
@@ -174,11 +161,11 @@ export const deleteMyAccount = onCall(
       });
       throw new HttpsError("internal", "Unable to delete account right now.");
     }
-  }
+  },
+  { region: "us-central1" }
 );
 
-export const exportMyData = onCall(
-  { region: "us-central1" },
+export const exportMyData = onCallWithOptionalAppCheck(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -251,5 +238,6 @@ export const exportMyData = onCall(
       });
       throw new HttpsError("internal", "Unable to export data right now.");
     }
-  }
+  },
+  { region: "us-central1" }
 );

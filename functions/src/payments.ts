@@ -6,6 +6,11 @@ import {
   getStripeSigningSecret,
 } from "./lib/env.js";
 import { getStripeSecret } from "./stripe/common.js";
+import {
+  stripeSecretKeyParam,
+  stripeSecretParam,
+  stripeWebhookSecretParam,
+} from "./stripe/keys.js";
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
   if (!hasStripe()) return res.status(501).json({ error: "payments_disabled" });
@@ -43,7 +48,15 @@ function methodNotAllowed(res: Response) {
 }
 
 export const stripeWebhook = onRequest(
-  { invoker: "public" },
+  {
+    invoker: "public",
+    region: "us-central1",
+    secrets: [
+      stripeSecretParam,
+      stripeSecretKeyParam,
+      stripeWebhookSecretParam,
+    ],
+  },
   async (req, res) => {
     if (req.method !== "POST") {
       methodNotAllowed(res as Response);

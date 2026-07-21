@@ -17,6 +17,12 @@ import { openAiSecretParam } from "../openai/keys.js";
 import type { ScanDocument } from "../types.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { buildScanPhotoPath, SCAN_POSES, type ScanPose } from "./paths.js";
+import { buildScanInput } from "./input.js";
+import {
+  authorizeScanCredit,
+  isScanCreditAuthorized,
+  resolveScanCreditAccess,
+} from "./creditAuthorization.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -95,13 +101,7 @@ async function parseMultipart(
       const chunks: Buffer[] = [];
       stream.on("data", (data: Buffer) => chunks.push(data));
       stream.on("limit", () =>
-        reject(
-          new HttpsError(
-            "invalid-argument",
-            "Photo too large.",
-            { pose }
-          )
-        )
+        reject(new HttpsError("invalid-argument", "Photo too large.", { pose }))
       );
       stream.on("end", () => {
         const buffer = (NodeBuffer as any).concat(chunks);
@@ -158,9 +158,10 @@ async function savePhoto(params: {
     pose: params.pose,
   });
   const file = storage.bucket().file(path);
-  const contentType = params.mimeType && params.mimeType.startsWith("image/")
-    ? params.mimeType
-    : "image/jpeg";
+  const contentType =
+    params.mimeType && params.mimeType.startsWith("image/")
+      ? params.mimeType
+      : "image/jpeg";
   await file.save(params.buffer, {
     contentType,
     resumable: false,
@@ -181,12 +182,14 @@ function buildResponseError(res: any, error: unknown, requestId: string) {
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
     const reason = details?.reason;
-    res.status(statusFromHttpsError(error)).json({
-      code: error.code,
-      message: error.message || "Unable to upload scan.",
-      debugId,
-      reason,
-    });
+    res
+      .status(reason === "no_credits" ? 402 : statusFromHttpsError(error))
+      .json({
+        code: reason === "no_credits" ? "no_credits" : error.code,
+        message: error.message || "Unable to upload scan.",
+        debugId,
+        reason,
+      });
     return;
   }
   console.error("scan_upload_unhandled", {
@@ -237,12 +240,8 @@ export const scanUpload = onRequest(
     try {
       const authContext = await requireAuthWithClaims(req as Request);
       const { uid } = authContext;
-      let correlationId =
-        req.get("x-correlation-id")?.trim() ||
-        (typeof req.body?.correlationId === "string"
-          ? req.body.correlationId
-          : undefined) ||
-        requestId;
+      const correlationHeader = req.get("x-correlation-id")?.trim() || "";
+      let correlationId = correlationHeader || requestId;
       await ensureSoftAppCheckFromRequest(req as Request, {
         fn: "scanUpload",
         uid,
@@ -250,12 +249,18 @@ export const scanUpload = onRequest(
       });
       // Ensure model + storage config exist before accepting uploads.
       getEngineConfigOrThrow(correlationId);
+      const creditAccess = await resolveScanCreditAccess(
+        uid,
+        authContext.claims
+      );
 
       const { fields, files } = await parseMultipart(req as Request);
-      if (!correlationId && typeof fields.correlationId === "string") {
-        correlationId = fields.correlationId;
+      if (!correlationHeader && typeof fields.correlationId === "string") {
+        correlationId = fields.correlationId.trim().slice(0, 64) || requestId;
       }
-      const unitRaw = (fields.unit || fields.units || "kg").toString().toLowerCase();
+      const unitRaw = (fields.unit || fields.units || "kg")
+        .toString()
+        .toLowerCase();
       const unit = unitRaw === "lb" || unitRaw === "lbs" ? "lb" : "kg";
 
       // Canonical kg fields (preferred when present).
@@ -274,8 +279,11 @@ export const scanUpload = onRequest(
         toNumber(fields.targetWeight);
 
       const heightRaw =
-        toNumber((fields as any).height ?? (fields as any).heightCm ?? (fields as any).height_cm) ??
-        null;
+        toNumber(
+          (fields as any).height ??
+            (fields as any).heightCm ??
+            (fields as any).height_cm
+        ) ?? null;
 
       const currentWeightKg =
         currentWeightKgField != null
@@ -285,7 +293,11 @@ export const scanUpload = onRequest(
                 // Back-compat heuristic: some older clients sent kg values while claiming unit="lb".
                 // If unit is lb but the numeric value is too small to plausibly be pounds,
                 // treat it as kg to avoid persisting "kg value + lb label" into Firestore.
-                if (unit === "lb" && currentWeightRaw > 0 && currentWeightRaw < 90) {
+                if (
+                  unit === "lb" &&
+                  currentWeightRaw > 0 &&
+                  currentWeightRaw < 90
+                ) {
                   return currentWeightRaw;
                 }
                 return toKg(currentWeightRaw, unit);
@@ -304,10 +316,14 @@ export const scanUpload = onRequest(
             : NaN;
 
       if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
-        throw new HttpsError("invalid-argument", "Missing or invalid weights.", {
-          debugId: requestId,
-          reason: "invalid_weights",
-        });
+        throw new HttpsError(
+          "invalid-argument",
+          "Missing or invalid weights.",
+          {
+            debugId: requestId,
+            reason: "invalid_weights",
+          }
+        );
       }
 
       // Ensure `weights.current/goal` always match `weights.unit` for display.
@@ -351,6 +367,37 @@ export const scanUpload = onRequest(
         (typeof fields.scanId === "string" && fields.scanId.trim().length
           ? fields.scanId.trim()
           : null) || randomUUID();
+      const docRef = db.doc(
+        `users/${uid}/scans/${scanId}`
+      ) as FirebaseFirestore.DocumentReference<ScanDocument>;
+      const existingSnap = await docRef.get();
+      const existing = existingSnap.exists
+        ? (existingSnap.data() as ScanDocument)
+        : null;
+      const existingStatus = String(existing?.status || "").toLowerCase();
+      if (
+        existing &&
+        isScanCreditAuthorized(existing, scanId) &&
+        ["queued", "processing", "complete", "completed"].includes(
+          existingStatus
+        )
+      ) {
+        res.json({
+          scanId,
+          status: existingStatus,
+          uploadedPoses: existing.uploadedPoses || {
+            front: true,
+            back: true,
+            left: true,
+            right: true,
+          },
+          debugId: requestId,
+          correlationId: existing.correlationId || correlationId,
+          idempotent: true,
+          creditsRemaining: (existing as any).creditsRemaining ?? null,
+        });
+        return;
+      }
       const paths: Record<Pose, string> = {
         front: buildScanPhotoPath({ uid, scanId, pose: "front" }),
         back: buildScanPhotoPath({ uid, scanId, pose: "back" }),
@@ -371,68 +418,113 @@ export const scanUpload = onRequest(
       await Promise.all(saves);
 
       const now = Timestamp.now() as FirebaseFirestore.Timestamp;
-      const docRef = db.doc(
-        `users/${uid}/scans/${scanId}`
-      ) as FirebaseFirestore.DocumentReference<ScanDocument>;
-      const existingSnap = await docRef.get();
-      const existing = existingSnap.exists ? (existingSnap.data() as ScanDocument) : null;
-
       const photoObjects = {
-        front: { bucket: storage.bucket().name, path: paths.front, downloadURL: null },
-        back: { bucket: storage.bucket().name, path: paths.back, downloadURL: null },
-        left: { bucket: storage.bucket().name, path: paths.left, downloadURL: null },
-        right: { bucket: storage.bucket().name, path: paths.right, downloadURL: null },
+        front: {
+          bucket: storage.bucket().name,
+          path: paths.front,
+          downloadURL: null,
+        },
+        back: {
+          bucket: storage.bucket().name,
+          path: paths.back,
+          downloadURL: null,
+        },
+        left: {
+          bucket: storage.bucket().name,
+          path: paths.left,
+          downloadURL: null,
+        },
+        right: {
+          bucket: storage.bucket().name,
+          path: paths.right,
+          downloadURL: null,
+        },
       };
 
-      await docRef.set(
-        {
-          id: scanId,
+      let creditsRemaining: number | null = null;
+      let idempotent = false;
+      let responseStatus = "queued";
+      await db.runTransaction(async (tx) => {
+        const latestSnap = await tx.get(docRef);
+        const latest = latestSnap.exists ? (latestSnap.data() as any) : {};
+        if (latest.uid && latest.uid !== uid) {
+          throw new HttpsError(
+            "permission-denied",
+            "Scan does not belong to this user.",
+            { debugId: requestId, reason: "scan_wrong_owner" }
+          );
+        }
+        const currentStatus = String(latest.status || "").toLowerCase();
+        idempotent =
+          isScanCreditAuthorized(latest, scanId) &&
+          ["queued", "processing", "complete", "completed"].includes(
+            currentStatus
+          );
+        if (idempotent) {
+          responseStatus = currentStatus || "queued";
+          return;
+        }
+        const credit = await authorizeScanCredit({
+          tx,
           uid,
-          createdAt: existing?.createdAt ?? now,
-          updatedAt: now,
-          completedAt: null,
-          status: "queued",
-          lastStep: "queued",
-          lastStepAt: now,
-          errorMessage: null,
-          errorReason: null,
-          errorInfo: null,
-          progress: 0,
-          correlationId,
-          processingRequestedAt: now,
-          submitRequestId: requestId,
-          photoPaths: paths,
-          photoObjects,
-          uploadedPoses: {
-            front: true,
-            back: true,
-            left: true,
-            right: true,
-          },
-          weights: {
-            current: storedCurrentRaw,
-            goal: storedGoalRaw,
-            unit,
-          },
-          input: {
-            currentWeightKg,
-            goalWeightKg,
-            heightCm: heightCm ?? undefined,
-          },
-        },
-        { merge: true }
-      );
+          scanId,
+          scan: latest,
+          requestId,
+          access: creditAccess,
+        });
+        creditsRemaining = credit.creditsRemaining;
+        tx.set(
+          docRef,
+          {
+            id: scanId,
+            uid,
+            createdAt: latest.createdAt ?? existing?.createdAt ?? now,
+            updatedAt: now,
+            completedAt: null,
+            status: "queued",
+            lastStep: "queued",
+            lastStepAt: now,
+            errorMessage: null,
+            errorReason: null,
+            errorInfo: null,
+            progress: 0,
+            correlationId,
+            processingRequestedAt: now,
+            submitRequestId: requestId,
+            photoPaths: paths,
+            photoObjects,
+            uploadedPoses: {
+              front: true,
+              back: true,
+              left: true,
+              right: true,
+            },
+            weights: {
+              current: storedCurrentRaw,
+              goal: storedGoalRaw,
+              unit,
+            },
+            input: buildScanInput(currentWeightKg, goalWeightKg, heightCm),
+            charged: credit.charged,
+            creditStatus: credit.creditStatus,
+            creditAuthorizationId: scanId,
+            creditsRemaining,
+          } as any,
+          { merge: true }
+        );
+      });
 
       console.info("scan_upload_complete", {
         uid,
         scanId,
         requestId,
         correlationId,
+        idempotent,
       });
 
       res.json({
         scanId,
-        status: "queued",
+        status: responseStatus,
         uploadedPoses: {
           front: true,
           back: true,
@@ -441,6 +533,8 @@ export const scanUpload = onRequest(
         },
         debugId: requestId,
         correlationId,
+        idempotent,
+        creditsRemaining,
       });
     } catch (error) {
       buildResponseError(res, error, requestId);

@@ -98,9 +98,46 @@ describe("Results page weight units", () => {
       </MemoryRouter>
     );
 
-    expect(screen.getByText(/Weight/i)).toBeTruthy();
+    expect(screen.getByText("Current weight")).toBeTruthy();
     expect(screen.getByText(/188\.1 lb/)).toBeTruthy();
     expect(screen.queryByText(/85\.3 lb/)).toBeNull();
+  });
+
+  it("labels photo and calculated estimates and omits unsupported metrics", () => {
+    mockLatest = {
+      scan: {
+        id: "scan_safe",
+        status: "complete",
+        createdAt: new Date(),
+        completedAt: new Date(),
+        resultSource: "ai",
+        usedFallback: false,
+        photoPaths: { front: "f", back: "b", left: "l", right: "r" },
+        input: { currentWeightKg: 80, heightCm: 180 },
+        estimate: { bodyFatPercent: 25 },
+        metrics: { visceralFat: 8, totalBodyWater: 40, biologicalAge: 29 },
+        nutritionPlan: {
+          caloriesPerDay: 2200,
+          proteinGrams: 160,
+          carbsGrams: 220,
+          fatsGrams: 65,
+        },
+      },
+      loading: false,
+      error: null,
+      user: { uid: "user_1" },
+    };
+    render(
+      <MemoryRouter>
+        <Results />
+      </MemoryRouter>
+    );
+    expect(screen.getByText("Estimated body fat")).toBeTruthy();
+    expect(screen.getAllByText("calculated").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/visceral fat/i)).toBeNull();
+    expect(screen.queryByText(/body water/i)).toBeNull();
+    expect(screen.queryByText(/biological age/i)).toBeNull();
+    expect(screen.getByText("How this estimate works")).toBeTruthy();
   });
 
   it("never prints a raw kg value with an lb label in us mode", () => {
@@ -124,5 +161,28 @@ describe("Results page weight units", () => {
     );
 
     expect(screen.queryByText(/85\.3 lb/)).toBeNull();
+  });
+
+  it("does not render report metrics before processing completes", () => {
+    mockLatest = {
+      scan: {
+        id: "scan_processing",
+        status: "processing",
+        createdAt: new Date(),
+        input: { currentWeightKg: 80, heightCm: 180 },
+      },
+      loading: false,
+      error: null,
+      user: { uid: "user_1" },
+    };
+
+    render(
+      <MemoryRouter>
+        <Results />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText(/still processing/i)).toBeTruthy();
+    expect(screen.queryByText(/Primary metrics/i)).toBeNull();
   });
 });

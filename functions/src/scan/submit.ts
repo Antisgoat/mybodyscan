@@ -14,6 +14,12 @@ import type { ScanDocument } from "../types.js";
 import { deriveErrorReason } from "./analysis.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { buildScanPhotoPath, SCAN_POSES, type ScanPose } from "./paths.js";
+import { buildScanInput } from "./input.js";
+import {
+  authorizeScanCredit,
+  isScanCreditAuthorized,
+  resolveScanCreditAccess,
+} from "./creditAuthorization.js";
 
 const db = getFirestore();
 const storage = getStorage();
@@ -67,7 +73,14 @@ function parsePayload(body: any): SubmitPayload | null {
     return null;
   if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg))
     return null;
-  return { scanId, photoPaths, currentWeightKg, goalWeightKg, heightCm, correlationId };
+  return {
+    scanId,
+    photoPaths,
+    currentWeightKg,
+    goalWeightKg,
+    heightCm,
+    correlationId,
+  };
 }
 
 async function verifyPhotoPathsAndBuildObjects(
@@ -87,14 +100,10 @@ async function verifyPhotoPathsAndBuildObjects(
     const expected = buildScanPhotoPath({ uid, scanId, pose });
     const actual = paths[pose];
     if (actual !== expected) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Invalid photo path supplied.",
-        {
-          reason: "invalid_photo_paths",
-          pose,
-        }
-      );
+      throw new HttpsError("invalid-argument", "Invalid photo path supplied.", {
+        reason: "invalid_photo_paths",
+        pose,
+      });
     }
     const file = bucket.file(actual);
     const [exists] = await file.exists().catch(() => [false]);
@@ -108,7 +117,11 @@ async function verifyPhotoPathsAndBuildObjects(
         }
       );
     }
-    photoObjects[pose] = { bucket: bucketName, path: actual, downloadURL: null };
+    photoObjects[pose] = {
+      bucket: bucketName,
+      path: actual,
+      downloadURL: null,
+    };
   }
   return photoObjects;
 }
@@ -122,7 +135,8 @@ export const submitScan = onRequest(
     secrets: [openAiSecretParam],
   },
   async (req, res) => {
-    let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null = null;
+    let scanRef: FirebaseFirestore.DocumentReference<ScanDocument> | null =
+      null;
     const requestId = req.get?.("x-request-id")?.trim() || randomUUID();
     res.set("Access-Control-Allow-Origin", "*");
     res.set(
@@ -189,6 +203,11 @@ export const submitScan = onRequest(
       }
       scanRef = docRef;
 
+      const creditAccess = await resolveScanCreditAccess(
+        uid,
+        authContext.claims
+      );
+
       const photoObjects = await verifyPhotoPathsAndBuildObjects(
         uid,
         payload.scanId,
@@ -198,46 +217,96 @@ export const submitScan = onRequest(
       const correlationId =
         payload.correlationId || existing.correlationId || requestId;
 
-      await scanRef.set(
-        {
-          status: "queued",
-          updatedAt: serverTimestamp(),
-          lastStep: "queued",
-          lastStepAt: serverTimestamp(),
-          completedAt: null,
-          errorMessage: null,
-          errorReason: null,
-          errorInfo: null,
-          progress: 0,
-          correlationId,
-          processingRequestedAt: serverTimestamp(),
-          submitRequestId: requestId,
-          photoPaths: payload.photoPaths,
-          photoObjects,
-          input: {
-            currentWeightKg: payload.currentWeightKg,
-            goalWeightKg: payload.goalWeightKg,
-            heightCm:
-              payload.heightCm ??
-              (existing.input as any)?.heightCm ??
-              (existing.input as any)?.height_cm ??
-              null,
-          },
-        },
-        { merge: true }
-      );
+      let creditsRemaining: number | null = null;
+      let idempotent = false;
+
+      await db.runTransaction(async (tx) => {
+        const latestSnap = await tx.get(scanRef!);
+        if (!latestSnap.exists) {
+          throw new HttpsError("not-found", "Scan not found.", {
+            debugId: requestId,
+            reason: "scan_not_found",
+          });
+        }
+        const latest = latestSnap.data() as any;
+        if (latest.uid && latest.uid !== uid) {
+          throw new HttpsError(
+            "permission-denied",
+            "Scan does not belong to this user.",
+            {
+              debugId: requestId,
+              reason: "scan_wrong_owner",
+            }
+          );
+        }
+
+        const alreadyAuthorized = isScanCreditAuthorized(
+          latest,
+          payload.scanId
+        );
+        const status = String(latest.status || "").toLowerCase();
+        idempotent =
+          alreadyAuthorized &&
+          ["queued", "processing", "complete", "completed"].includes(status);
+        if (idempotent) return;
+
+        const credit = await authorizeScanCredit({
+          tx,
+          uid,
+          scanId: payload.scanId,
+          scan: latest,
+          requestId,
+          access: creditAccess,
+        });
+        creditsRemaining = credit.creditsRemaining;
+
+        const heightCm =
+          payload.heightCm ?? latest.input?.heightCm ?? latest.input?.height_cm;
+        tx.set(
+          scanRef!,
+          {
+            status: "queued",
+            updatedAt: serverTimestamp(),
+            lastStep: "queued",
+            lastStepAt: serverTimestamp(),
+            completedAt: null,
+            errorMessage: null,
+            errorReason: null,
+            errorInfo: null,
+            progress: 0,
+            correlationId,
+            processingRequestedAt: serverTimestamp(),
+            submitRequestId: requestId,
+            photoPaths: payload.photoPaths,
+            photoObjects,
+            input: buildScanInput(
+              payload.currentWeightKg,
+              payload.goalWeightKg,
+              heightCm
+            ),
+            charged: credit.charged,
+            creditStatus: credit.creditStatus,
+            creditAuthorizationId: payload.scanId,
+            creditsRemaining,
+          } as any,
+          { merge: true }
+        );
+      });
 
       console.info("scan_submit_enqueued", {
         uid,
         scanId: payload.scanId,
         requestId,
         correlationId,
+        idempotent,
       });
 
       res.json({
         scanId: payload.scanId,
         debugId: requestId,
         correlationId,
+        idempotent,
+        creditsRemaining,
       });
     } catch (error) {
       if (scanRef) {
@@ -281,11 +350,21 @@ function respondWithSubmitError(
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
     const reason = details?.reason;
-    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const missing = Array.isArray(details?.missing)
+      ? details.missing
+      : undefined;
     const normalizedCode =
-      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : error.code;
+      reason === "scan_engine_not_configured"
+        ? "scan_engine_not_configured"
+        : reason === "no_credits"
+          ? "no_credits"
+          : error.code;
     const normalizedStatus =
-      reason === "scan_engine_not_configured" ? 503 : statusFromHttpsError(error);
+      reason === "scan_engine_not_configured"
+        ? 503
+        : reason === "no_credits"
+          ? 402
+          : statusFromHttpsError(error);
     res.status(normalizedStatus).json({
       code: normalizedCode,
       message:

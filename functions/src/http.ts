@@ -31,7 +31,7 @@ const ALLOW = [
 
 const express = expressModule as any;
 
-export const allowCorsAndOptionalAppCheck: RequestHandler = (
+export const allowCorsAndOptionalAppCheck: RequestHandler = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -47,11 +47,14 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = (
   );
   res.set("Access-Control-Max-Age", "3600");
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  if (!req.get("X-Firebase-AppCheck")) {
-    console.warn("appcheck_missing_soft", { path: req.path || req.url });
-  }
   if (req.method === "OPTIONS") return res.status(204).end();
-  next();
+  try {
+    const publicHealth = /^\/(?:api\/)?health\/?$/.test(req.url || req.path);
+    await verifyAppCheck(req, publicHealth ? "soft" : getAppCheckMode());
+    next();
+  } catch {
+    res.status(403).json({ error: "app_check_required" });
+  }
 };
 
 function getAuthHeader(req: Request): string | null {
@@ -130,17 +133,37 @@ export async function verifyAppCheck(
 
   const token = readAppCheckToken(req);
   if (!token) {
-    console.warn("appcheck_missing_soft", { path: req.path || req.url });
+    console.warn(
+      mode === "strict" ? "appcheck_missing_strict" : "appcheck_missing_soft",
+      {
+        path: req.path || req.url,
+      }
+    );
+    if (mode === "strict") {
+      throw new HttpsError(
+        "permission-denied",
+        "Valid App Check token required"
+      );
+    }
     return;
   }
 
   try {
     await verifyToken(token);
   } catch (err) {
-    console.warn("appcheck_invalid_soft", {
-      path: req.path || req.url,
-      message: (err as any)?.message,
-    });
+    console.warn(
+      mode === "strict" ? "appcheck_invalid_strict" : "appcheck_invalid_soft",
+      {
+        path: req.path || req.url,
+        message: (err as any)?.message,
+      }
+    );
+    if (mode === "strict") {
+      throw new HttpsError(
+        "permission-denied",
+        "Valid App Check token required"
+      );
+    }
     return;
   }
 }

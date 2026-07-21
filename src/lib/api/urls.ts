@@ -21,7 +21,7 @@ const DIRECT_FN: Record<Key, string> = {
   systemHealth: `${DEFAULT_FN_BASE}/systemHealth`,
   coachChat: `${DEFAULT_FN_BASE}/coachChat`,
   nutritionSearch: `${DEFAULT_FN_BASE}/nutritionSearch`,
-  createCheckout: `${DEFAULT_FN_BASE}/createCheckout`,
+  createCheckout: `${DEFAULT_FN_BASE}/createCheckoutHttp`,
   createCustomerPortal: `${DEFAULT_FN_BASE}/createCustomerPortal`,
   deleteAccount: `${DEFAULT_FN_BASE}/deleteAccount`,
 };

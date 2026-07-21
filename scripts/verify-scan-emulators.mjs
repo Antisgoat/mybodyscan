@@ -8,22 +8,10 @@
  */
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { initializeApp } from "firebase/app";
-import {
-  connectFirestoreEmulator,
-  doc,
-  getDoc,
-  getFirestore,
-} from "firebase/firestore";
-import {
-  connectStorageEmulator,
-  getMetadata,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from "firebase/storage";
 
 function readDefaultProjectId() {
   try {
@@ -66,18 +54,6 @@ async function waitForHttpReady(url, timeoutMs) {
     await delay(150);
   }
   throw new Error(`Emulator not reachable: ${url}`);
-}
-
-async function uploadOne(storage, path, bytes) {
-  const storageRef = ref(storage, path);
-  const blob = new Blob([bytes], { type: "image/jpeg" });
-  const task = uploadBytesResumable(storageRef, blob, {
-    contentType: "image/jpeg",
-  });
-  await new Promise((resolve, reject) => {
-    task.on("state_changed", () => undefined, reject, resolve);
-  });
-  await getMetadata(storageRef);
 }
 
 async function httpJson(url, { idToken, body }) {
@@ -124,10 +100,6 @@ async function main() {
   const bucket = process.env.STORAGE_BUCKET || `${projectId}.appspot.com`;
 
   const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST || "127.0.0.1:9099";
-  const { host: firestoreHost, port: firestorePort } = splitHostPort(
-    process.env.FIRESTORE_EMULATOR_HOST,
-    8080
-  );
   const { host: storageHost, port: storagePort } = splitHostPort(
     process.env.FIREBASE_STORAGE_EMULATOR_HOST,
     9199
@@ -147,94 +119,206 @@ async function main() {
   const auth = initializeAuth(app, { persistence: inMemoryPersistence });
   connectAuthEmulator(auth, `http://${authHost}`, { disableWarnings: true });
 
-  const firestore = getFirestore(app);
-  connectFirestoreEmulator(firestore, firestoreHost, firestorePort);
-
-  const storage = getStorage(app);
-  connectStorageEmulator(storage, storageHost, storagePort);
   await waitForHttpReady(`http://${storageHost}:${storagePort}/`, 10_000);
 
   const signedIn = await signInAnonymously(auth);
   const idToken = await signedIn.user.getIdToken();
   const uid = signedIn.user.uid;
-
-  const correlationId = `verify-scan-${randomUUID().slice(0, 8)}`;
-  const startUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/startScanSession`;
-  const submitUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/submitScan`;
-
-  const start = await httpJson(startUrl, {
-    idToken,
-    body: { currentWeightKg: 80, goalWeightKg: 75, correlationId },
-  });
-
-  const scanId = String(start?.scanId || "");
-  const storagePaths = start?.storagePaths;
-  if (
-    !scanId ||
-    !storagePaths?.front ||
-    !storagePaths?.back ||
-    !storagePaths?.left ||
-    !storagePaths?.right
-  ) {
-    throw new Error(
-      `startScanSession returned invalid payload: ${JSON.stringify(start)}`
-    );
-  }
-
-  const bytes = tinyJpegBytes();
-  await Promise.all([
-    uploadOne(storage, storagePaths.front, bytes),
-    uploadOne(storage, storagePaths.back, bytes),
-    uploadOne(storage, storagePaths.left, bytes),
-    uploadOne(storage, storagePaths.right, bytes),
-  ]);
-
-  await httpJson(submitUrl, {
-    idToken,
-    body: {
-      scanId,
-      photoPaths: storagePaths,
-      currentWeightKg: 80,
-      goalWeightKg: 75,
-      correlationId,
+  const functionsRequire = createRequire(
+    new URL("../functions/package.json", import.meta.url)
+  );
+  const { initializeApp: initializeAdminApp } =
+    functionsRequire("firebase-admin/app");
+  const { getFirestore: getAdminFirestore, Timestamp: AdminTimestamp } =
+    functionsRequire("firebase-admin/firestore");
+  const adminApp = initializeAdminApp(
+    { projectId, storageBucket: bucket },
+    `verify-scan-${randomUUID()}`
+  );
+  const adminDb = getAdminFirestore(adminApp);
+  const creditRef = adminDb.doc(`users/${uid}/private/credits`);
+  const initialCreditTime = AdminTimestamp.now();
+  await creditRef.set({
+    creditBuckets: [
+      {
+        amount: 2,
+        grantedAt: initialCreditTime,
+        expiresAt: null,
+        sourcePriceId: null,
+        context: "local-scan-verification",
+      },
+    ],
+    creditsSummary: {
+      totalAvailable: 2,
+      lastUpdated: initialCreditTime,
     },
   });
 
-  const scanRef = doc(firestore, "users", uid, "scans", scanId);
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    const snap = await getDoc(scanRef);
-    const data = snap.exists() ? snap.data() : null;
-    const status = data?.status;
-    if (status === "complete" || status === "completed") {
-      const workout = data?.workoutProgram || data?.workoutPlan;
-      const nutrition = data?.nutritionPlan;
-      if (!workout || !nutrition) {
-        throw new Error(
-          `Scan completed but missing plans: ${JSON.stringify({
-            workout: !!workout,
-            nutrition: !!nutrition,
-          })}`
-        );
-      }
-      console.log("[verify:scan] ok", {
-        uid,
-        scanId,
-        status,
-        usedFallback: Boolean(data?.usedFallback),
-        lastStep: data?.lastStep || null,
-      });
-      // Ensure `emulators:exec` sees a clean exit (avoid being SIGTERM'd during shutdown).
-      process.exit(0);
-    }
-    if (status === "error" || status === "failed") {
-      throw new Error(
-        `[verify:scan] scan failed: ${data?.errorMessage || "unknown_error"}`
+  const startUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/startScanSession`;
+  const uploadUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/scanUpload`;
+  const bytes = tinyJpegBytes();
+
+  async function uploadThroughFunction(session) {
+    const form = new FormData();
+    form.set("scanId", session.scanId);
+    form.set("correlationId", session.correlationId);
+    form.set("currentWeight", "80");
+    form.set("goalWeight", "75");
+    form.set("currentWeightKg", "80");
+    form.set("goalWeightKg", "75");
+    form.set("unit", "kg");
+    for (const pose of ["front", "back", "left", "right"]) {
+      form.append(
+        pose,
+        new Blob([bytes], { type: "image/jpeg" }),
+        `${pose}.jpg`
       );
     }
-    await delay(1000);
+    const response = await fetch(uploadUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+        "X-Correlation-Id": session.correlationId,
+      },
+      body: form,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(
+        payload?.message || `Upload failed (${response.status})`
+      );
+      error.status = response.status;
+      error.data = payload;
+      throw error;
+    }
+    if (payload?.correlationId !== session.correlationId) {
+      throw new Error("scanUpload did not preserve the correlation ID");
+    }
+    return payload;
   }
-  throw new Error("[verify:scan] timed out waiting for scan completion");
+
+  async function startAndUpload(label) {
+    const correlationId = `${label}-${randomUUID().slice(0, 8)}`;
+    const start = await httpJson(startUrl, {
+      idToken,
+      body: { currentWeightKg: 80, goalWeightKg: 75, correlationId },
+    });
+    const scanId = String(start?.scanId || "");
+    const storagePaths = start?.storagePaths;
+    if (
+      !scanId ||
+      !storagePaths?.front ||
+      !storagePaths?.back ||
+      !storagePaths?.left ||
+      !storagePaths?.right
+    ) {
+      throw new Error("startScanSession returned an invalid payload");
+    }
+    const session = { scanId, storagePaths, correlationId };
+    const upload = await uploadThroughFunction(session);
+    return { ...session, upload };
+  }
+
+  async function waitForTerminal(scanId, expected) {
+    const scanRef = adminDb.doc(`users/${uid}/scans/${scanId}`);
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      const snap = await scanRef.get();
+      const data = snap.exists ? snap.data() : null;
+      const status = String(data?.status || "").toLowerCase();
+      if (expected.includes(status)) return data;
+      if (["complete", "completed", "error", "failed"].includes(status)) {
+        throw new Error(`Unexpected terminal scan status: ${status}`);
+      }
+      await delay(250);
+    }
+    throw new Error("Timed out waiting for scan completion");
+  }
+
+  async function creditBalance() {
+    const snap = await creditRef.get();
+    return Number(snap.data()?.creditsSummary?.totalAvailable ?? -1);
+  }
+
+  const successSession = await startAndUpload("verify-scan-success");
+  const firstSubmit = successSession.upload;
+  if (firstSubmit.creditsRemaining !== 1) {
+    throw new Error("Successful scan did not consume exactly one credit");
+  }
+  const completed = await waitForTerminal(successSession.scanId, [
+    "complete",
+    "completed",
+  ]);
+  if (
+    !(completed?.workoutProgram || completed?.workoutPlan) ||
+    !completed?.nutritionPlan
+  ) {
+    throw new Error("Completed scan is missing deterministic plans");
+  }
+  if ((await creditBalance()) !== 1) {
+    throw new Error("Credit balance mismatch after successful scan");
+  }
+  const debitLedger = await adminDb
+    .doc(`credits_ledger/scan:${uid}:${successSession.scanId}`)
+    .get();
+  if (!debitLedger.exists || debitLedger.data()?.amount !== -1) {
+    throw new Error("Successful scan is missing its debit ledger entry");
+  }
+
+  const duplicateSubmit = await uploadThroughFunction(successSession);
+  if (duplicateSubmit.idempotent !== true) {
+    throw new Error("Duplicate scan submission was not idempotent");
+  }
+  if ((await creditBalance()) !== 1) {
+    throw new Error("Duplicate submission consumed an extra credit");
+  }
+
+  const mockBaseUrl = process.env.VERIFY_OPENAI_BASE_URL;
+  if (!mockBaseUrl) throw new Error("Missing local OpenAI verifier URL");
+  const modeResponse = await fetch(`${mockBaseUrl}/__mode/fail`, {
+    method: "POST",
+  });
+  if (!modeResponse.ok)
+    throw new Error("Unable to enable failure verification");
+
+  const failureSession = await startAndUpload("verify-scan-failure");
+  const failureSubmit = failureSession.upload;
+  if (failureSubmit.creditsRemaining !== 0) {
+    throw new Error("Failure-path scan did not reserve exactly one credit");
+  }
+  await waitForTerminal(failureSession.scanId, ["error", "failed"]);
+  const refundDeadline = Date.now() + 15_000;
+  let failed = null;
+  while (Date.now() < refundDeadline) {
+    const snap = await adminDb
+      .doc(`users/${uid}/scans/${failureSession.scanId}`)
+      .get();
+    failed = snap.data();
+    if (failed?.charged === false && failed?.creditStatus === "refunded") break;
+    await delay(100);
+  }
+  if (failed?.charged !== false || failed?.creditStatus !== "refunded") {
+    throw new Error("Failed scan was not marked as refunded");
+  }
+  if ((await creditBalance()) !== 1) {
+    throw new Error("Failed scan did not restore its credit exactly once");
+  }
+  const refundLedger = await adminDb
+    .doc(`credits_ledger/refund:${uid}:${failureSession.scanId}`)
+    .get();
+  if (!refundLedger.exists || refundLedger.data()?.amount !== 1) {
+    throw new Error("Failed scan is missing its refund ledger entry");
+  }
+
+  console.log("[verify:scan] ok", {
+    successfulScan: successSession.scanId,
+    failedScan: failureSession.scanId,
+    finalCredits: await creditBalance(),
+    duplicateSubmitIdempotent: true,
+    refundVerified: true,
+  });
+  // Ensure `emulators:exec` sees a clean exit (avoid being SIGTERM'd during shutdown).
+  process.exit(0);
 }
 
 await main().catch((err) => {
@@ -245,4 +329,3 @@ await main().catch((err) => {
   });
   process.exit(1);
 });
-

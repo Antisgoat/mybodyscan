@@ -761,12 +761,27 @@ export const processQueuedScan = onDocumentWritten(
             const data = latest.exists ? (latest.data() as any) : null;
             if (!data?.charged || data?.refundedAt) return;
             const creditRef = db.doc(`users/${uid}/private/credits`);
-            await refundCredit(tx, creditRef, `scan-failed:${scanId}`);
+            const refundContext = `scan-failed:${scanId}`;
+            const balanceAfter = await refundCredit(
+              tx,
+              creditRef,
+              refundContext
+            );
+            const refundedAt = serverTimestamp();
+            tx.set(db.doc(`credits_ledger/refund:${uid}:${scanId}`), {
+              uid,
+              scanId,
+              amount: 1,
+              balanceAfter,
+              kind: "scan_credit_refunded",
+              context: refundContext,
+              createdAt: refundedAt,
+            });
             tx.set(
               scanRef,
               {
                 charged: false,
-                refundedAt: serverTimestamp(),
+                refundedAt,
                 refundReason: effectiveReason,
                 creditStatus: "refunded",
                 updatedAt: serverTimestamp(),

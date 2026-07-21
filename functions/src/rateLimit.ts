@@ -1,5 +1,5 @@
 import rateLimit from "../vendor/express-rate-limit/index.js";
-import { getEnv, getEnvInt } from "./lib/env.js";
+import { getEnvInt } from "./lib/env.js";
 
 export function createApiLimiter() {
   const windowMs = getEnvInt("RATE_LIMIT_WINDOW_MS", 60_000);
@@ -10,14 +10,6 @@ export function createApiLimiter() {
     limit,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req: any) => {
-      const allowed = (getEnv("APP_CHECK_ALLOWED_ORIGINS") || "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const origin = (req?.headers?.origin as string) || "";
-      return !!origin && allowed.includes(origin);
-    },
   });
 }
 

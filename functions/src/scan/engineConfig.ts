@@ -23,14 +23,11 @@ export type EngineConfig = {
   projectId: string;
 };
 
-function normalizeBucketName(raw?: string | null): string | null {
+export function normalizeBucketName(raw?: string | null): string | null {
   if (!raw) return null;
   let bucket = raw.trim();
   if (!bucket) return null;
   if (bucket.startsWith("gs://")) bucket = bucket.slice(5);
-  if (bucket.endsWith(".firebasestorage.app")) {
-    bucket = bucket.replace(/\.firebasestorage\.app$/, ".appspot.com");
-  }
   try {
     const url = new URL(bucket);
     if (url.hostname) {
@@ -42,14 +39,24 @@ function normalizeBucketName(raw?: string | null): string | null {
   return bucket || null;
 }
 
-function resolveBucket(): { bucket: string | null; source: EngineStatus["bucketSource"] } {
-  const envBucket = normalizeBucketName(process.env.STORAGE_BUCKET ?? process.env.FIREBASE_STORAGE_BUCKET);
+function resolveBucket(): {
+  bucket: string | null;
+  source: EngineStatus["bucketSource"];
+} {
+  const envBucket = normalizeBucketName(
+    process.env.STORAGE_BUCKET ?? process.env.FIREBASE_STORAGE_BUCKET
+  );
   if (envBucket) return { bucket: envBucket, source: "env" };
-  const appBucket = normalizeBucketName(getApp().options?.storageBucket as string | undefined);
+  const appBucket = normalizeBucketName(
+    getApp().options?.storageBucket as string | undefined
+  );
   if (appBucket) return { bucket: appBucket, source: "app" };
   try {
     const storageBucket = normalizeBucketName(getStorage().bucket().name);
-    return { bucket: storageBucket, source: storageBucket ? "storage" : "unknown" };
+    return {
+      bucket: storageBucket,
+      source: storageBucket ? "storage" : "unknown",
+    };
   } catch {
     return { bucket: null, source: "unknown" };
   }
@@ -61,7 +68,9 @@ function resolveProjectId(): string | null {
     (process.env.GCP_PROJECT || "").trim();
   if (envProject) return envProject;
   try {
-    const config = JSON.parse(process.env.FIREBASE_CONFIG || "{}") as { projectId?: string };
+    const config = JSON.parse(process.env.FIREBASE_CONFIG || "{}") as {
+      projectId?: string;
+    };
     if (config?.projectId) return config.projectId;
   } catch {
     // ignore
@@ -129,7 +138,9 @@ export function describeMissing(): string[] {
 export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
   const { status, config } = buildStatus();
   if (config) return config;
-  const missingList = status.missing.length ? status.missing.join(", ") : "unknown";
+  const missingList = status.missing.length
+    ? status.missing.join(", ")
+    : "unknown";
   const needsKey =
     status.missing.includes("OPENAI_API_KEY") ||
     status.missing.includes("OPENAI_MODEL");
@@ -153,6 +164,8 @@ export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
   );
 }
 
-export function assertScanEngineConfigured(correlationId?: string): EngineConfig {
+export function assertScanEngineConfigured(
+  correlationId?: string
+): EngineConfig {
   return getEngineConfigOrThrow(correlationId);
 }

@@ -24,6 +24,7 @@ export type CanonicalScanResultViewModel = {
     weightKg: number | null;
     bmi: number | null;
     leanMassKg: number | null;
+    fatMassKg: number | null;
     goalProgressText: string;
   };
   nutrition: {
@@ -32,7 +33,23 @@ export type CanonicalScanResultViewModel = {
     proteinGrams: number | null;
     carbsGrams: number | null;
     fatsGrams: number | null;
+    fiberGrams: number | null;
+    trainingDayCalories: number | null;
+    restDayCalories: number | null;
+    adjustmentRule: string | null;
   };
+  composition: {
+    heightCm: number | null;
+    age: number | null;
+    profileCategory: string | null;
+    goalWeightKg: number | null;
+    maintenanceCalories: number | null;
+    confidence: string | null;
+    estimateRange: string | null;
+    scanQuality: string | null;
+  };
+  observations: { label: string; value: string }[];
+  regions: { label: string; value: string }[];
   plan: {
     available: boolean;
     daysPerWeek: number | null;
@@ -53,6 +70,7 @@ export type CanonicalScanResultViewModel = {
 };
 
 function finite(value: unknown): number | null {
+  if (value == null || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -93,27 +111,83 @@ export function buildScanResultViewModel(args: {
     finite(profile?.height_cm) ??
     finite(profile?.heightCm);
   const bmi =
-    finite(scan.estimate?.bmi) ??
-    (weightKg && heightCm ? weightKg / Math.pow(heightCm / 100, 2) : null);
+    weightKg != null && heightCm != null && heightCm > 0
+      ? weightKg / Math.pow(heightCm / 100, 2)
+      : null;
+  const fatMassKg =
+    weightKg != null && bf != null ? weightKg * (bf / 100) : null;
   const leanMassKg =
-    finite(scan.estimate?.leanMassKg) ??
-    finite(scan.metrics?.leanMassKg) ??
-    (weightKg != null && bf != null ? weightKg * (1 - bf / 100) : null);
+    weightKg != null && fatMassKg != null ? weightKg - fatMassKg : null;
   const hasNutrition =
     Boolean(scan.nutritionPlan) &&
     finite(scan.nutritionPlan?.caloriesPerDay) != null;
   const isComplete = canonical === "complete";
   const isValidResult =
-    isSuccessfulPersistedScan(scan) &&
-    bf != null &&
-    Boolean(scan.estimate) &&
-    hasNutrition;
+    isSuccessfulPersistedScan(scan) && bf != null && Boolean(scan.estimate);
   const isFailedOrFallback =
     canonical === "error" || usedFallback || (isComplete && !isValidResult);
 
   const goalWeightKg =
     finite(scan.input?.goalWeightKg) ??
     finite((profile as any)?.goal_weight_kg);
+  const metrics = (scan.metrics ?? {}) as Record<string, unknown>;
+  const estimate = (scan.estimate ?? {}) as any;
+  const observationSource = Array.isArray(estimate.keyObservations)
+    ? estimate.keyObservations
+    : [];
+  const safeObservation = (value: unknown) => {
+    if (typeof value !== "string" || !value.trim()) return null;
+    const text = value.trim();
+    if (
+      /\b(diagnos(?:is|ed)|injur(?:y|ed)|tear|disease|disorder|syndrome|condition|scoliosis|kyphosis|lordosis|inflammation|hernia|surgery|tumou?r|lesion|fracture|arthritis|pain)\b/i.test(
+        text
+      )
+    ) {
+      return null;
+    }
+    return text;
+  };
+  const observations = [
+    ["Muscular development", metrics.muscularDevelopment],
+    ["Upper-body development", metrics.upperBodyDevelopment],
+    ["Lower-body development", metrics.lowerBodyDevelopment],
+    ["Midsection definition", metrics.midsectionDefinition],
+    ["Posture observation", metrics.postureObservation],
+    ["Visible left/right balance", metrics.balanceObservation],
+    ["Strongest areas", metrics.strongestAreas],
+    ["Priority improvement areas", metrics.priorityAreas],
+  ]
+    .map(([label, value]) => ({
+      label: String(label),
+      value: safeObservation(value),
+    }))
+    .filter(
+      (item): item is { label: string; value: string } => item.value != null
+    );
+  if (!observations.length) {
+    observationSource.slice(0, 4).forEach((value: unknown, index: number) => {
+      const safe = safeObservation(value);
+      if (safe)
+        observations.push({
+          label: `Visual observation ${index + 1}`,
+          value: safe,
+        });
+    });
+  }
+  const regions = [
+    ["Shoulders / chest", metrics.shouldersChest],
+    ["Arms", metrics.arms],
+    ["Torso / core", metrics.torsoCore],
+    ["Hips", metrics.hips],
+    ["Legs", metrics.legs],
+  ]
+    .map(([label, value]) => ({
+      label: String(label),
+      value: safeObservation(value),
+    }))
+    .filter(
+      (item): item is { label: string; value: string } => item.value != null
+    );
   const goalProgressText = (() => {
     if (weightKg == null || goalWeightKg == null)
       return "Add a goal to track progress";
@@ -127,7 +201,7 @@ export function buildScanResultViewModel(args: {
   const planDays = finite(plan?.days) ?? prefs?.daysPerWeek ?? null;
   const planFocus =
     plan?.split ||
-    (prefs ? prefs.focus.replaceAll("_", " ") : "Plan setup needed");
+    (prefs ? prefs.focus.replace(/_/g, " ") : "Plan setup needed");
   const planAvailable = Boolean(
     plan && planDays && Array.isArray(plan.sessions) && plan.sessions.length > 0
   );
@@ -164,6 +238,7 @@ export function buildScanResultViewModel(args: {
       weightKg: isValidResult ? round(weightKg, 1) : weightKg,
       bmi: isValidResult ? round(bmi, 1) : null,
       leanMassKg: isValidResult ? round(leanMassKg, 1) : null,
+      fatMassKg: isValidResult ? round(fatMassKg, 1) : null,
       goalProgressText,
     },
     nutrition: {
@@ -180,7 +255,38 @@ export function buildScanResultViewModel(args: {
       fatsGrams: isValidResult
         ? round(finite(scan.nutritionPlan?.fatsGrams))
         : null,
+      fiberGrams: isValidResult
+        ? round(finite((scan.nutritionPlan as any)?.fiberGrams))
+        : null,
+      trainingDayCalories: isValidResult
+        ? round(finite(scan.nutritionPlan?.trainingDay?.calories))
+        : null,
+      restDayCalories: isValidResult
+        ? round(finite(scan.nutritionPlan?.restDay?.calories))
+        : null,
+      adjustmentRule:
+        isValidResult && scan.nutritionPlan?.adjustmentRules?.length
+          ? scan.nutritionPlan.adjustmentRules[0]
+          : null,
     },
+    composition: {
+      heightCm: isValidResult ? round(heightCm, 1) : null,
+      age: isValidResult ? round(finite((profile as any)?.age)) : null,
+      profileCategory: isValidResult
+        ? safeObservation((profile as any)?.sex)
+        : null,
+      goalWeightKg: isValidResult ? round(goalWeightKg, 1) : null,
+      maintenanceCalories: isValidResult
+        ? round(finite((scan.nutritionPlan as any)?.maintenanceCalories))
+        : null,
+      confidence: isValidResult ? safeObservation(estimate.confidence) : null,
+      estimateRange: isValidResult
+        ? safeObservation(estimate.bodyFatRange)
+        : null,
+      scanQuality: isValidResult ? safeObservation(estimate.scanQuality) : null,
+    },
+    observations: isValidResult ? observations : [],
+    regions: isValidResult ? regions : [],
     plan: {
       available: isValidResult && planAvailable,
       daysPerWeek: planAvailable ? planDays : null,

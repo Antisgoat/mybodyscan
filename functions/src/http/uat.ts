@@ -2,7 +2,7 @@ import type { Request, Response } from "express";
 import { onRequest } from "firebase-functions/v2/https";
 
 import { getAuth } from "../firebase.js";
-import { requireAuthWithClaims } from "../http.js";
+import { requireAuthWithClaims, verifyAppCheck } from "../http.js";
 import { getPriceAllowlist } from "../lib/config.js";
 
 const PRICE_CONFIG = getPriceAllowlist();
@@ -12,6 +12,8 @@ const SUBSCRIPTION_PRICE_IDS = PRICE_CONFIG.subscriptionPriceIds;
 const ORIGIN_ALLOWLIST = new Set([
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",
+  "https://mybodyscan.app",
+  "https://www.mybodyscan.app",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   "http://localhost",
@@ -33,7 +35,10 @@ function applyCors(req: Request, res: Response): { ended: boolean } {
   }
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type,Authorization,X-Firebase-AppCheck"
+    );
     res.status(204).end();
     return { ended: true };
   }
@@ -92,6 +97,13 @@ export const uatHelper = onRequest(
   async (req: Request, res: Response) => {
     const cors = applyCors(req, res);
     if (cors.ended) return;
+
+    try {
+      await verifyAppCheck(req);
+    } catch {
+      res.status(403).json({ error: "app_check_required" });
+      return;
+    }
 
     let staff: { uid: string; email: string | null };
     try {

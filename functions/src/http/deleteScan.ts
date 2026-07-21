@@ -3,11 +3,9 @@ import { logger } from "firebase-functions";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-import { defineString } from "firebase-functions/params";
 import { getAppCheck } from "firebase-admin/app-check";
 import { scanScanIdPrefix } from "../scan/paths.js";
-
-const APP_CHECK_MODE = defineString("APP_CHECK_MODE"); // "SOFT" | "HARD" (default SOFT)
+import { getAppCheckMode } from "../lib/env.js";
 
 export const deleteScan = onRequest(
   { cors: true, timeoutSeconds: 540 },
@@ -22,15 +20,38 @@ export const deleteScan = onRequest(
       return jsonError(res, 401, "unauthorized", "Missing ID token");
 
     // App Check soft/hard
-    const mode = (APP_CHECK_MODE.value() || "SOFT").toUpperCase();
+    const mode = getAppCheckMode();
     const acToken = String(req.headers["x-firebase-app-check"] || "");
     if (!acToken) {
-      logger.warn("appcheck_missing_soft");
+      logger.warn(
+        mode === "strict" ? "appcheck_missing_strict" : "appcheck_missing_soft"
+      );
+      if (mode === "strict") {
+        return jsonError(
+          res,
+          403,
+          "app_check_required",
+          "Valid App Check token required"
+        );
+      }
     } else {
       try {
         await getAppCheck().verifyToken(acToken);
       } catch (e: any) {
-        logger.warn("appcheck_invalid_soft", { err: String(e?.message || e) });
+        logger.warn(
+          mode === "strict"
+            ? "appcheck_invalid_strict"
+            : "appcheck_invalid_soft",
+          { err: String(e?.message || e) }
+        );
+        if (mode === "strict") {
+          return jsonError(
+            res,
+            403,
+            "app_check_invalid",
+            "Valid App Check token required"
+          );
+        }
       }
     }
 

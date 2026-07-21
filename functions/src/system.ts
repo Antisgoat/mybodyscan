@@ -5,9 +5,13 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { uidFromAuth } from "./util/auth.js";
 import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
 import { ensureUnlimitedEntitlements } from "./lib/unlimitedEntitlements.js";
+import { verifyAppCheck } from "./http.js";
 
 const allow = [
   "https://mybodyscanapp.com",
+  "https://www.mybodyscanapp.com",
+  "https://mybodyscan.app",
+  "https://www.mybodyscan.app",
   "https://mybodyscan-f3daf.web.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   "http://localhost",
@@ -76,6 +80,13 @@ export const systemBootstrap = https.onRequest(
       if (cors(req, res)) return;
       if (req.method !== "POST") {
         res.status(405).json({ error: "method_not_allowed" });
+        return;
+      }
+
+      try {
+        await verifyAppCheck(req);
+      } catch {
+        res.status(403).json({ error: "app_check_required" });
         return;
       }
 

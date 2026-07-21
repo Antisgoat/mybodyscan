@@ -64,7 +64,7 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
           <li>
             <label>
               <input type="checkbox" defaultChecked readOnly /> I understand the{" "}
-              <a href="/medical" target="_blank" rel="noreferrer">
+              <a href="/legal/disclaimer" target="_blank" rel="noreferrer">
                 Medical Disclaimer
               </a>
             </label>

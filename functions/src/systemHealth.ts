@@ -14,7 +14,6 @@ import {
   stripeSecretKeyParam,
   stripeSecretParam,
   stripeWebhookSecretParam,
-  legacyStripeWebhookParam,
 } from "./stripe/keys.js";
 import { getScanEngineStatus } from "./scan/engineConfig.js";
 
@@ -47,12 +46,12 @@ export const systemHealth = onRequest(
       stripeSecretParam,
       stripeSecretKeyParam,
       stripeWebhookSecretParam,
-      legacyStripeWebhookParam,
       usdaFdcApiKeyParam,
     ],
   },
   async (req, res) => {
-    await appCheckSoft(req);
+    // Health must remain observable during an App Check rollout or rollback.
+    await appCheckSoft(req, { alwaysSoft: true });
     const openaiConfigured = hasOpenAI();
     const scanEngine = getScanEngineStatus();
 
@@ -61,7 +60,6 @@ export const systemHealth = onRequest(
       secretPresent(stripeSecretParam) ||
       secretPresent(stripeSecretKeyParam) ||
       secretPresent(stripeWebhookSecretParam) ||
-      secretPresent(legacyStripeWebhookParam) ||
       envPresent(process.env.STRIPE_SECRET) ||
       envPresent(process.env.STRIPE_SECRET_KEY) ||
       envPresent(process.env.STRIPE_WEBHOOK_SECRET) ||
@@ -86,9 +84,7 @@ export const systemHealth = onRequest(
 
     const identityToolkitReachable = true;
     const identityToolkitReason =
-      openaiConfigured || stripeSecretPresent
-        ? "ok"
-        : "unknown";
+      openaiConfigured || stripeSecretPresent ? "ok" : "unknown";
 
     const authProviders = {
       google: getEnvBool("AUTH_GOOGLE_ENABLED", true),

@@ -10,6 +10,9 @@ import {
 
 test("scan contract normalizes legacy statuses", () => {
   assert.equal(normalizeScanStatus("pending"), "queued");
+  assert.equal(normalizeScanStatus("queued"), "queued");
+  assert.equal(normalizeScanStatus("uploading"), "uploading");
+  assert.equal(normalizeScanStatus("not-a-real-status"), "unknown");
   assert.equal(normalizeScanStatus("completed"), "complete");
   assert.equal(normalizeScanStatus("done"), "complete");
   assert.equal(normalizeScanStatus("failed"), "error");

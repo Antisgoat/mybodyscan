@@ -17,13 +17,13 @@
 ### Frontend (`VITE_*`)
 
 - Firebase config (`VITE_FIREBASE_*`) overrides the committed public config for auth, firestore, storage, and functions clients.【F:src/lib/firebase.ts†L1-L36】【F:src/config/firebase.public.ts†L1-L17】
-- App Check uses `VITE_RECAPTCHA_V3_SITE_KEY` with demo-mode fallbacks; `VITE_DEMO_MODE` also toggles soft App Check and demo UX guards.【F:src/appCheck.ts†L18-L74】【F:src/env.ts†L1-L2】
+- App Check uses `VITE_APPCHECK_SITE_KEY`; when it is absent the web client does not initialize App Check. Demo UX state is independent of server `APP_CHECK_MODE`.
 - Function origins (`VITE_FUNCTIONS_URL`, `VITE_FUNCTIONS_BASE_URL`) drive authenticated fetches for nutrition/workouts and generic helpers.【F:src/lib/nutrition.ts†L1-L70】【F:src/lib/workouts.ts†L1-L55】【F:src/lib/env.ts†L1-L13】
 - Auth flags (`VITE_FORCE_APPLE_BUTTON`, `VITE_APPLE_ENABLED`) control Apple provider availability; `VITE_APP_VERSION` tags support emails; marketing flag `VITE_ENABLE_PUBLIC_MARKETING_PAGE` swaps the root route; diagnostics surface `VITE_DEBUG_PANEL` and `VITE_API_BASE` values.【F:src/pages/Auth.tsx†L33-L120】【F:src/lib/firebaseAuthConfig.ts†L94-L132】【F:src/lib/support.ts†L1-L27】【F:src/App.tsx†L114-L121】【F:src/pages/SystemCheck.tsx†L24-L200】
 
 ### Functions (Firebase secrets/env)
 
-- Host/App Check tuning via `HOST_BASE_URL`, `APP_CHECK_ALLOWED_ORIGINS`, and `APP_CHECK_ENFORCE_SOFT`; OpenAI and Stripe keys gate scan/chat/payments; USDA/Nutrition keys (`USDA_FDC_API_KEY`, `NUTRITION_RPM`) configure food search; `COACH_RPM` rate-limits chat.【F:functions/src/lib/env.ts†L7-L33】【F:functions/src/systemHealth.ts†L4-L11】【F:functions/src/system/health.ts†L6-L16】【F:functions/src/payments.ts†L7-L40】【F:functions/src/nutritionSearch.ts†L447-L477】【F:functions/src/nutritionBarcode.ts†L84-L130】【F:functions/src/coachChat.ts†L165-L220】
+- Host/App Check tuning uses `HOST_BASE_URL` and `APP_CHECK_MODE`; OpenAI and Stripe keys gate scan/chat/payments; USDA/Nutrition keys (`USDA_FDC_API_KEY`, `NUTRITION_RPM`) configure food search; `COACH_RPM` rate-limits chat. The production release runbook is the authoritative configuration reference.
 
 ## 4. Routing map
 
@@ -73,7 +73,7 @@
 ## 8. App Check, security headers, storage, and deletion
 
 - The SPA initializes Firebase App Check with reCAPTCHA v3, tracking readiness in `AppCheckProvider`; server handlers enforce tokens via `verifyAppCheckStrict` (soft mode optional via env).【F:src/appCheck.ts†L18-L74】【F:src/components/AppCheckProvider.tsx†L10-L45】【F:functions/src/http.ts†L1-L38】【F:functions/src/lib/env.ts†L7-L18】
-- Hosting sends HSTS, CSP, and other hardened headers globally, with a stricter CSP variant for preview frames.【F:firebase.json†L24-L64】
+- Hosting sends HSTS, content-type, frame, referrer, and permissions-policy headers globally. A production Content Security Policy still requires a tested vendor allowlist before enforcement.
 - User-generated media uploads use signed URLs targeting `user_uploads/{uid}/{scanId}/{pose}.jpg` before results persist to Storage under `scans/{uid}/{scanId}/…`, with Storage rules limiting owners to JPEG images ≤15 MB.【F:functions/src/scan/start.ts†L46-L116】【F:src/lib/scan.ts†L40-L79】【F:storage.rules†L13-L29】
 - A `deleteUploads` helper is defined to clean the temporary `uploads` objects after processing, but it is not currently invoked—leaving manual cleanup as a follow-up risk.【F:functions/src/scan/submit.ts†L292-L307】
 

@@ -129,7 +129,12 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             <div className="hidden md:block">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Open account menu"
+                  >
                     <Avatar className="h-8 w-8">
                       <AvatarFallback>
                         <User className="h-4 w-4" />
@@ -155,7 +160,12 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             <div className="md:hidden">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Open navigation menu"
+                  >
                     <Menu className="h-4 w-4" />
                   </Button>
                 </SheetTrigger>

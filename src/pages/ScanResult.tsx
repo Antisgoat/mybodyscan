@@ -5,9 +5,13 @@
  * - Once the cloud function writes `estimate` and `nutritionPlan`, renders a polished Evolt-style report.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  deserializeScanDocument,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import {
   getScan,
   retryScanProcessingClient,
   type ScanDocument,
@@ -18,22 +22,10 @@ import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useUnits } from "@/hooks/useUnits";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import {
-  buildScanResultViewModel,
-  formatKgForUnits,
-} from "@/lib/scanResultViewModel";
-import {
-  collection,
-  doc,
-  getDocs,
-  limit,
-  onSnapshot,
-  orderBy,
-  query,
-} from "firebase/firestore";
+import { buildScanResultViewModel } from "@/lib/scanResultViewModel";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { getCachedScanPhotoUrlMaybe } from "@/lib/storage/photoUrlCache";
 import {
@@ -48,7 +40,6 @@ import {
   latestHeartbeatMillis,
 } from "@/lib/scanHeartbeat";
 import { mark, measure, flush as flushPerf } from "@/lib/scan/perf";
-import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 import { useClaims } from "@/lib/claims";
 
 const LONG_PROCESSING_WARNING_MS = 3 * 60 * 1000;
@@ -67,7 +58,6 @@ export default function ScanResultPage() {
   const location = useLocation();
   const appCheckStatus = useAppCheckStatus();
   const [scan, setScan] = useState<ScanDocument | null>(null);
-  const [previousScan, setPreviousScan] = useState<ScanDocument | null>(null);
   const [photoUrls, setPhotoUrls] = useState<
     Partial<Record<keyof ScanDocument["photoPaths"], string>>
   >({});
@@ -89,7 +79,6 @@ export default function ScanResultPage() {
   const [pipelineState, setPipelineState] = useState<ScanPipelineState | null>(
     () => readScanPipelineState(scanId)
   );
-  const { units } = useUnits();
   const { user } = useAuthUser();
   const { claims } = useClaims();
   const { profile, plan } = useUserProfile();
@@ -553,40 +542,6 @@ export default function ScanResultPage() {
     }
   }, [scanId]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchPrevious() {
-      try {
-        if (!user?.uid || !scan?.createdAt) {
-          setPreviousScan(null);
-          return;
-        }
-        const q = query(
-          collection(db, "users", user.uid, "scans"),
-          orderBy("createdAt", "desc"),
-          limit(6)
-        );
-        const snaps = await getDocs(q);
-        if (cancelled) return;
-        const docs = snaps.docs
-          .map((snap) =>
-            deserializeScanDocument(snap.id, user.uid, snap.data() as any)
-          )
-          .filter((d) => d.status === "complete" || d.status === "completed");
-        const prev = docs.find((d) => d.id !== scan.id) ?? null;
-        setPreviousScan(prev);
-      } catch (err) {
-        if (!cancelled) {
-          setPreviousScan(null);
-        }
-      }
-    }
-    void fetchPrevious();
-    return () => {
-      cancelled = true;
-    };
-  }, [scan?.createdAt, scan?.id, user?.uid]);
-
   if (loading) {
     return (
       <div className="mx-auto max-w-3xl space-y-3 p-4">
@@ -924,7 +879,9 @@ export default function ScanResultPage() {
                 {lastUpdateLabel ?? "—"}
               </div>
               {scan.errorInfo ? (
-                <div>Backend error present. See server logs for full details.</div>
+                <div>
+                  Backend error present. See server logs for full details.
+                </div>
               ) : null}
               <div>
                 <span className="font-medium text-foreground">
@@ -976,10 +933,15 @@ export default function ScanResultPage() {
                 </div>
               ) : null}
               {pipelineState?.lastError ? (
-                <div>Pipeline error captured. See server logs for full details.</div>
+                <div>
+                  Pipeline error captured. See server logs for full details.
+                </div>
               ) : null}
               {scan?.photoPaths ? (
-                <div>Photo set: {Object.keys(scan.photoPaths).length} views uploaded.</div>
+                <div>
+                  Photo set: {Object.keys(scan.photoPaths).length} views
+                  uploaded.
+                </div>
               ) : null}
             </div>
           </details>
@@ -1050,182 +1012,7 @@ export default function ScanResultPage() {
   }
 
   if (resultVm.isValidResult) {
-    return (
-      <div className="mx-auto w-full max-w-3xl space-y-4 p-4 md:p-6">
-        <Seo
-          title="Your Body Scan – MyBodyScan"
-          description="Your scan report."
-        />
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-semibold tracking-tight">
-              Your Body Scan
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              {formatDateTime(scan.completedAt ?? scan.updatedAt)} ·{" "}
-              {resultVm.sourceLabel}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => nav("/scan/history")}>
-              History
-            </Button>
-            <Button onClick={() => nav("/scan")}>New scan</Button>
-          </div>
-        </header>
-
-        <Card className="border bg-card/60">
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle className="text-lg">Primary results</CardTitle>
-              <Badge variant="secondary">Fitness estimates only</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard
-              label="Est. body fat"
-              value={
-                resultVm.primary.bodyFatPercent != null
-                  ? `${resultVm.primary.bodyFatPercent.toFixed(1)}%`
-                  : "—"
-              }
-            />
-            <MetricCard
-              label="Weight"
-              value={formatKgForUnits(resultVm.primary.weightKg, units)}
-            />
-            <MetricCard
-              label="BMI"
-              value={
-                resultVm.primary.bmi != null
-                  ? resultVm.primary.bmi.toFixed(1)
-                  : "—"
-              }
-            />
-            <MetricCard
-              label="Lean mass"
-              value={formatKgForUnits(resultVm.primary.leanMassKg, units)}
-              hint="Derived from weight and body-fat estimate"
-            />
-          </CardContent>
-        </Card>
-
-        {TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (
-          <Card className="border bg-card/60">
-            <CardHeader>
-              <CardTitle className="text-lg">Transformation Preview</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <p>
-                A realistic motivational visualization based on your scan, goal, and plan.
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Motivational wellness visualization only. Not a medical prediction.
-              </p>
-              <Button
-                className="w-full sm:w-auto"
-                onClick={() =>
-                  nav(`/results/${scan.id}/transformation-preview`)
-                }
-              >
-                Open Transformation Preview
-              </Button>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        <Card className="border bg-card/60">
-          <CardHeader>
-            <CardTitle className="text-lg">Nutrition targets</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard
-              label="Calories"
-              value={
-                resultVm.nutrition.calories != null
-                  ? `${resultVm.nutrition.calories} kcal`
-                  : "—"
-              }
-            />
-            <MetricCard
-              label="Protein"
-              value={
-                resultVm.nutrition.proteinGrams != null
-                  ? `${resultVm.nutrition.proteinGrams} g`
-                  : "—"
-              }
-            />
-            <MetricCard
-              label="Carbs"
-              value={
-                resultVm.nutrition.carbsGrams != null
-                  ? `${resultVm.nutrition.carbsGrams} g`
-                  : "—"
-              }
-            />
-            <MetricCard
-              label="Fats"
-              value={
-                resultVm.nutrition.fatsGrams != null
-                  ? `${resultVm.nutrition.fatsGrams} g`
-                  : "—"
-              }
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="border bg-card/60">
-          <CardHeader>
-            <CardTitle className="text-lg">Recommended plan</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p className="font-medium">{resultVm.plan.summary}</p>
-            {resultVm.plan.detailLines.length ? (
-              <ul className="space-y-1 text-muted-foreground">
-                {resultVm.plan.detailLines.map((line) => (
-                  <li key={line}>• {line}</li>
-                ))}
-              </ul>
-            ) : null}
-            {resultVm.plan.setupNeeded ? (
-              <Button
-                variant="outline"
-                onClick={() => nav("/coach/onboarding")}
-              >
-                Complete plan setup
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={() => nav("/programs")}>
-                View full plan
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border bg-card/60">
-          <CardContent className="pt-6 text-sm">
-            Next scan: rescan in 10 days with the same four angles and current
-            weight.
-          </CardContent>
-        </Card>
-
-        <details className="rounded-lg border bg-card/60 p-4 text-sm">
-          <summary className="cursor-pointer font-medium">
-            View full report
-          </summary>
-          <div className="mt-4 space-y-4">
-            <ScanPhotos photoUrls={photoUrls} />
-            <pre className="whitespace-pre-wrap text-xs text-muted-foreground">
-              {scan.planMarkdown || "Detailed report unavailable."}
-            </pre>
-          </div>
-        </details>
-
-        <p className="text-xs text-muted-foreground">
-          Fitness estimates only. Not medical advice.
-        </p>
-      </div>
-    );
+    return <Navigate to={`/results/${scan.id}`} replace />;
   }
 
   return null;
@@ -1275,28 +1062,6 @@ function ScanPhotos({
         ))}
       </CardContent>
     </Card>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <div className="rounded-lg border bg-background/60 p-4">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight">{value}</div>
-      {hint ? (
-        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
-      ) : null}
-    </div>
   );
 }
 

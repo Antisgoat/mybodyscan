@@ -1,7 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
+import { buildAdminAppOptions } from "./adminAppOptions.js";
 
 if (!getApps().length) {
-  initializeApp();
+  initializeApp(buildAdminAppOptions());
 }
 
 export { getAuth } from "firebase-admin/auth";

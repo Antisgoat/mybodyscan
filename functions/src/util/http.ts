@@ -2,8 +2,10 @@ import type { Request, Response } from "express";
 
 const ALLOWED_ORIGINS = new Set([
   "https://mybodyscanapp.com",
+  "https://mybodyscan.app",
   "https://mybodyscan-f3daf.web.app",
   "https://www.mybodyscanapp.com",
+  "https://www.mybodyscan.app",
   "https://mybodyscan-f3daf.firebaseapp.com",
   // Local dev + preview
   "http://localhost",

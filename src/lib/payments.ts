@@ -1,5 +1,6 @@
 import { apiFetchJson } from "./apiFetch";
 import { isCapacitorNative } from "@/lib/platform/isNative";
+import { DEFAULT_FN_BASE } from "@/lib/api/functionsBase";
 
 type ErrorPayload = { error: string; code?: string };
 
@@ -52,9 +53,9 @@ const portalFunctionUrl = (
 
 const PAYMENT_FUNCTION_URLS = {
   createCheckout:
-    checkoutFunctionUrl || "https://createcheckout-534gpapj7q-uc.a.run.app",
+    checkoutFunctionUrl || `${DEFAULT_FN_BASE}/createCheckoutHttp`,
   createCustomerPortal:
-    portalFunctionUrl || "https://createcustomerportal-534gpapj7q-uc.a.run.app",
+    portalFunctionUrl || `${DEFAULT_FN_BASE}/createCustomerPortal`,
 } as const;
 
 const HOSTING_ENDPOINTS = {

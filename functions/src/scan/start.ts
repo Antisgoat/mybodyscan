@@ -14,6 +14,7 @@ import type { ScanDocument } from "../types.js";
 import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
 import { buildScanPhotoPath, type ScanPose } from "./paths.js";
+import { buildScanInput } from "./input.js";
 
 const db = getFirestore();
 type Pose = ScanPose;
@@ -60,13 +61,16 @@ async function handleStart(req: Request, res: any) {
     const currentWeightKg = Number(req.body?.currentWeightKg);
     const goalWeightKg = Number(req.body?.goalWeightKg);
     const heightCmRaw =
-      typeof req.body?.heightCm === "number" ? req.body.heightCm : req.body?.height_cm;
+      typeof req.body?.heightCm === "number"
+        ? req.body.heightCm
+        : req.body?.height_cm;
     const heightCm =
       Number.isFinite(heightCmRaw) && Number(heightCmRaw) > 0
         ? Math.round(Number(heightCmRaw))
         : undefined;
     const correlationId =
-      typeof req.body?.correlationId === "string" && req.body.correlationId.trim()
+      typeof req.body?.correlationId === "string" &&
+      req.body.correlationId.trim()
         ? req.body.correlationId.trim().slice(0, 64)
         : undefined;
     if (!Number.isFinite(currentWeightKg) || !Number.isFinite(goalWeightKg)) {
@@ -99,11 +103,7 @@ async function handleStart(req: Request, res: any) {
       lastStep: "uploading",
       lastStepAt: now,
       photoPaths: storagePaths,
-      input: {
-        currentWeightKg,
-        goalWeightKg,
-        heightCm: heightCm ?? undefined,
-      },
+      input: buildScanInput(currentWeightKg, goalWeightKg, heightCm),
       estimate: null,
       workoutPlan: null,
       nutritionPlan: null,
@@ -118,11 +118,12 @@ async function handleStart(req: Request, res: any) {
       correlationId,
     });
 
-    const payload: StartResponse & { debugId: string; correlationId?: string } = {
-      scanId,
-      storagePaths,
-      debugId: requestId,
-    };
+    const payload: StartResponse & { debugId: string; correlationId?: string } =
+      {
+        scanId,
+        storagePaths,
+        debugId: requestId,
+      };
     if (correlationId) payload.correlationId = correlationId;
     res.json(payload);
   } catch (error) {
@@ -164,11 +165,17 @@ function respondWithStartError(
     const details = (error as { details?: any }).details || {};
     const debugId = details?.debugId ?? requestId;
     const reason = details?.reason;
-    const missing = Array.isArray(details?.missing) ? details.missing : undefined;
+    const missing = Array.isArray(details?.missing)
+      ? details.missing
+      : undefined;
     const normalizedCode =
-      reason === "scan_engine_not_configured" ? "scan_engine_not_configured" : error.code;
+      reason === "scan_engine_not_configured"
+        ? "scan_engine_not_configured"
+        : error.code;
     const normalizedStatus =
-      reason === "scan_engine_not_configured" ? 503 : statusFromHttpsError(error);
+      reason === "scan_engine_not_configured"
+        ? 503
+        : statusFromHttpsError(error);
     res.status(normalizedStatus).json({
       code: normalizedCode,
       message: error.message || "Unable to start scan.",

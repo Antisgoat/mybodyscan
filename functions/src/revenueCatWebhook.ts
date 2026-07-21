@@ -1,4 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import type { Request, Response } from "express";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
@@ -9,7 +10,8 @@ const db = getFirestore();
 function normalizeBearer(value: string): string {
   const v = String(value || "").trim();
   if (!v) return "";
-  if (v.toLowerCase().startsWith("bearer ")) return v.slice("bearer ".length).trim();
+  if (v.toLowerCase().startsWith("bearer "))
+    return v.slice("bearer ".length).trim();
   return v;
 }
 
@@ -38,7 +40,9 @@ function readNumber(value: unknown): number | null {
   return null;
 }
 
-function parseSignatureHeader(raw: string): { scheme: "hex" | "base64"; sig: string } | null {
+function parseSignatureHeader(
+  raw: string
+): { scheme: "hex" | "base64"; sig: string } | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
   if (trimmed.startsWith("sha256=")) {
@@ -67,7 +71,9 @@ function verifySignature(params: {
   if (!header) return false;
   const digest = createHmac("sha256", secret).update(params.rawBody).digest();
   const expectedSig =
-    header.scheme === "hex" ? digest.toString("hex") : digest.toString("base64");
+    header.scheme === "hex"
+      ? digest.toString("hex")
+      : digest.toString("base64");
   const expected = Buffer.from(expectedSig, "utf8");
   const got = Buffer.from(header.sig, "utf8");
   if (got.length !== expected.length) return false;
@@ -75,8 +81,12 @@ function verifySignature(params: {
 }
 
 function entitlementShouldApply(event: any, entitlementId: string): boolean {
-  const idsRaw = (event?.entitlement_ids ?? event?.entitlementIds ?? null) as unknown;
-  const idRaw = (event?.entitlement_id ?? event?.entitlementId ?? null) as unknown;
+  const idsRaw = (event?.entitlement_ids ??
+    event?.entitlementIds ??
+    null) as unknown;
+  const idRaw = (event?.entitlement_id ??
+    event?.entitlementId ??
+    null) as unknown;
   const ids: string[] = Array.isArray(idsRaw)
     ? idsRaw.map((v) => readString(v)).filter(Boolean)
     : idRaw
@@ -87,7 +97,10 @@ function entitlementShouldApply(event: any, entitlementId: string): boolean {
   return ids.includes(entitlementId);
 }
 
-function computeProState(eventType: string, expiresAtMs: number | null): boolean {
+function computeProState(
+  eventType: string,
+  expiresAtMs: number | null
+): boolean {
   const t = eventType.toUpperCase();
   if (t === "EXPIRATION") return false;
   // Cancellation can still be active until expiresAt.
@@ -95,21 +108,34 @@ function computeProState(eventType: string, expiresAtMs: number | null): boolean
     if (expiresAtMs == null) return false;
     return expiresAtMs > Date.now();
   }
-  if (t === "INITIAL_PURCHASE" || t === "RENEWAL" || t === "UNCANCELLATION") return true;
+  if (t === "INITIAL_PURCHASE" || t === "RENEWAL" || t === "UNCANCELLATION")
+    return true;
   // Conservative fallback: if we have a future expiry, consider it active.
   if (expiresAtMs != null) return expiresAtMs > Date.now();
   return false;
 }
 
+const revenueCatWebhookSigningSecret = defineSecret(
+  "REVENUECAT_WEBHOOK_SIGNING_SECRET"
+);
+
 export const revenueCatWebhook = onRequest(
-  { invoker: "public", cors: true, rawBody: true, region: "us-central1" },
+  {
+    invoker: "public",
+    cors: true,
+    rawBody: true,
+    region: "us-central1",
+    secrets: [revenueCatWebhookSigningSecret],
+  },
   async (req: Request, res: Response) => {
     if (req.method !== "POST") {
       res.status(405).send("method_not_allowed");
       return;
     }
 
-    const secret = String(process.env.REVENUECAT_WEBHOOK_SIGNING_SECRET || "").trim();
+    const secret = String(
+      process.env.REVENUECAT_WEBHOOK_SIGNING_SECRET || ""
+    ).trim();
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody ?? null;
 
     const signatureHeader =
@@ -168,7 +194,8 @@ export const revenueCatWebhook = onRequest(
       return;
     }
 
-    const entitlementId = (process.env.REVENUECAT_ENTITLEMENT_ID || "pro").trim() || "pro";
+    const entitlementId =
+      (process.env.REVENUECAT_ENTITLEMENT_ID || "pro").trim() || "pro";
     if (!entitlementShouldApply(event, entitlementId)) {
       res.status(200).send("[ignored]");
       return;
@@ -195,9 +222,14 @@ export const revenueCatWebhook = onRequest(
       const currentSnap = await tx.get(entRef);
       const current = currentSnap.exists ? (currentSnap.data() as any) : null;
       const currentSource = readString(current?.source);
-      const isAdminSource = currentSource === "admin" || currentSource === "admin_allowlist";
+      const isAdminSource =
+        currentSource === "admin" || currentSource === "admin_allowlist";
       // Never let IAP events revoke Stripe/Admin access.
-      if (!pro && (currentSource === "stripe" || isAdminSource) && current?.pro === true) {
+      if (
+        !pro &&
+        (currentSource === "stripe" || isAdminSource) &&
+        current?.pro === true
+      ) {
         tx.create(eventRef, {
           receivedAt: FieldValue.serverTimestamp(),
           ignored: true,
@@ -254,4 +286,3 @@ export const revenueCatWebhook = onRequest(
     res.status(200).send("[ok]");
   }
 );
-

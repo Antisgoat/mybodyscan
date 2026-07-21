@@ -1,15 +1,9 @@
-import * as admin from "firebase-admin";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { getAuth } from "./firebase.js";
 
 import { getEnv } from "./lib/env.js";
 import { isWhitelisted } from "./testWhitelist.js";
 import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
-
-function initializeFirebaseIfNeeded() {
-  if (!admin.apps.length) {
-    admin.initializeApp();
-  }
-}
 
 function getClaimsAllowlist(): string[] {
   const raw = getEnv("CLAIMS_ALLOWLIST") || "";
@@ -27,8 +21,7 @@ export async function ensureCustomClaims(email?: string): Promise<boolean> {
 
 export async function isStaff(uid?: string): Promise<boolean> {
   if (!uid) return false;
-  initializeFirebaseIfNeeded();
-  const user = await admin.auth().getUser(uid);
+  const user = await getAuth().getUser(uid);
   return Boolean((user.customClaims as any)?.staff === true);
 }
 
@@ -37,9 +30,7 @@ export async function updateUserClaims(
   email?: string
 ): Promise<void> {
   if (!uid) return;
-  initializeFirebaseIfNeeded();
-
-  const user = await admin.auth().getUser(uid);
+  const user = await getAuth().getUser(uid);
   const existingClaims = user.customClaims || {};
 
   // Set unlimitedCredits if user is whitelisted
@@ -53,7 +44,7 @@ export async function updateUserClaims(
       : isWhitelisted(email || user.email),
   };
 
-  await admin.auth().setCustomUserClaims(uid, updatedClaims);
+  await getAuth().setCustomUserClaims(uid, updatedClaims);
 }
 
 export const refreshClaims = onCall(
@@ -76,15 +67,14 @@ export const refreshClaims = onCall(
       return { updated: false, unlimitedCredits: true };
     }
 
-    initializeFirebaseIfNeeded();
-    const userRecord = await admin.auth().getUser(auth.uid);
+    const userRecord = await getAuth().getUser(auth.uid);
     const existingClaims = userRecord.customClaims || {};
 
     if ((existingClaims as any)?.unlimitedCredits === true) {
       return { updated: false, unlimitedCredits: true };
     }
 
-    await admin.auth().setCustomUserClaims(auth.uid, {
+    await getAuth().setCustomUserClaims(auth.uid, {
       ...existingClaims,
       unlimitedCredits: true,
     });
@@ -108,8 +98,7 @@ export const grantUnlimitedCredits = onCall(
       throw new HttpsError("unauthenticated", "Authentication required");
     }
 
-    initializeFirebaseIfNeeded();
-    const caller = await admin.auth().getUser(auth.uid);
+    const caller = await getAuth().getUser(auth.uid);
     const isCallerStaff = Boolean((caller.customClaims as any)?.staff === true);
     if (!isCallerStaff) {
       throw new HttpsError("permission-denied", "Staff role required");
@@ -123,15 +112,16 @@ export const grantUnlimitedCredits = onCall(
 
     let target;
     try {
-      target = await admin.auth().getUserByEmail(email);
+      target = await getAuth().getUserByEmail(email);
     } catch (err) {
       throw new HttpsError("not-found", "user_not_found");
     }
 
     const existing = target.customClaims || {};
-    await admin
-      .auth()
-      .setCustomUserClaims(target.uid, { ...existing, unlimitedCredits: true });
+    await getAuth().setCustomUserClaims(target.uid, {
+      ...existing,
+      unlimitedCredits: true,
+    });
     return { ok: true, uid: target.uid };
   }
 );

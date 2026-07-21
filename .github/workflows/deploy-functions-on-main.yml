@@ -1,4 +1,4 @@
-name: Deploy functions on main
+name: Deploy Firebase production on main
 
 on:
   push:
@@ -7,6 +7,15 @@ on:
 jobs:
   verify-and-deploy:
     runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: firebase-production
+      cancel-in-progress: false
+    env:
+      VITE_APPCHECK_SITE_KEY: ${{ secrets.VITE_APPCHECK_SITE_KEY }}
+      VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
+      VITE_APP_BASE_URL: https://mybodyscanapp.com
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,8 +27,17 @@ jobs:
       - name: Install web deps
         run: npm ci --no-audit --no-fund
 
-      - name: Verify web build
-        run: npm run typecheck && npm run build
+      - name: Verify production public configuration
+        run: npm run check:production-config
+
+      - name: Verify web release
+        run: npm run lint && npm run typecheck && npm test && npm run build:prod && npm run rules:check && node scripts/verify-dist-assets.js
+
+      - name: Install Firestore rules test dependencies
+        run: npm ci --prefix tests/rules --no-audit --no-fund
+
+      - name: Verify Firestore rules in emulator
+        run: npx firebase emulators:exec --only firestore --project demo-mbs "npm run test:rules"
 
       - uses: actions/setup-node@v4
         with:
@@ -31,19 +49,24 @@ jobs:
         working-directory: functions
         run: npm ci --no-audit --no-fund
 
-      - name: Build functions
+      - name: Build and test functions
         working-directory: functions
-        run: npm run build
+        run: npm test
 
-      - name: Deploy functions
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+      - name: Verify scan, credit, and refund pipeline
+        run: npm run verify:scan
+
+      - name: Deploy production in dependency order
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
+          npx firebase hosting:clone mybodyscan-f3daf:live "mybodyscan-f3daf:rollback-${GITHUB_SHA:0:7}" --project mybodyscan-f3daf
+          npx firebase deploy --only firestore:indexes --project mybodyscan-f3daf --non-interactive
           npx firebase deploy --only functions --project mybodyscan-f3daf --non-interactive
+          npx firebase deploy --only firestore:rules,storage --project mybodyscan-f3daf --non-interactive
+          npx firebase deploy --only hosting --project mybodyscan-f3daf --non-interactive
 
       - name: Skip deploy (secret missing)
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON == '' }}
-        run: echo "FIREBASE_SERVICE_ACCOUNT_JSON not configured; skipping deploy."
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON == '' }}
+        run: echo "FIREBASE_SERVICE_ACCOUNT_JSON not configured; production deploy skipped."
