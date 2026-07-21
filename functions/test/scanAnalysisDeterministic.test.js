@@ -56,14 +56,67 @@ test("deterministic plans are complete and default to three training days", () =
       .length,
     4
   );
-  const explicitSixDay = deriveDeterministicWorkoutPlan({
-    training_days_per_week: 6,
-  });
-  assert.equal(explicitSixDay.weeks[0].days.length, 6);
-  assert.deepEqual(
-    explicitSixDay.weeks[0].days.map((day) => day.focus),
-    ["Push A", "Pull A", "Legs A", "Push B", "Pull B", "Legs B"]
+});
+
+test("six-day PPL requires experience, resistance equipment, and no injuries", () => {
+  const focuses = (profile) =>
+    deriveDeterministicWorkoutPlan(profile).weeks[0].days.map(
+      (day) => day.focus
+    );
+  const ppl = ["Push A", "Pull A", "Legs A", "Push B", "Pull B", "Legs B"];
+
+  assert.notDeepEqual(
+    focuses({
+      training_days_per_week: 6,
+      experience: "beginner",
+      equipment: "full gym",
+    }),
+    ppl
   );
+  assert.deepEqual(
+    focuses({
+      training_days_per_week: 6,
+      experience: "intermediate",
+      equipment: ["full_gym"],
+      injuries: [],
+    }),
+    ppl
+  );
+  assert.notDeepEqual(
+    focuses({
+      training_days_per_week: 6,
+      experience: "advanced",
+      equipment: "bodyweight",
+    }),
+    ppl
+  );
+  assert.notDeepEqual(
+    focuses({
+      training_days_per_week: 6,
+      experience: "intermediate",
+      programPreferences: { equipment: "full gym" },
+      injuries: ["knee"],
+    }),
+    ppl
+  );
+});
+
+test("five-day beginners receive a balanced strength and recovery schedule", () => {
+  const plan = deriveDeterministicWorkoutPlan({
+    training_days_per_week: 5,
+    experience: "beginner",
+  });
+  assert.deepEqual(
+    plan.weeks[0].days.map((day) => day.focus),
+    [
+      "Upper",
+      "Lower",
+      "Full Body",
+      "Low-impact conditioning",
+      "Mobility/recovery",
+    ]
+  );
+  assert.match(plan.summary, /mixed strength, conditioning, and recovery/i);
 });
 
 test("successful plan markdown never labels the estimate as fallback", () => {

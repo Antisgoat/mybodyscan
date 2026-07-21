@@ -63,19 +63,60 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
     Number.isInteger(requested) && requested >= 2 && requested <= 6
       ? requested
       : 3;
-  const injuries = Array.isArray(profile?.injuries)
-    ? profile.injuries.filter(
-        (item: unknown) => typeof item === "string" && item.trim()
+  const normalizeTextList = (value: unknown): string[] =>
+    (Array.isArray(value) ? value : typeof value === "string" ? [value] : [])
+      .map((item) =>
+        typeof item === "string" ? item.trim().toLowerCase() : ""
       )
-    : [];
+      .filter(Boolean);
+  const injuries = [
+    ...normalizeTextList(profile?.injuries),
+    ...normalizeTextList(profile?.limitations),
+    ...normalizeTextList(profile?.injury_limitations),
+    ...normalizeTextList(profile?.programPreferences?.injuries),
+  ].filter(
+    (item) => !/^(none|no|n\/a|no injuries?|no limitations?)$/.test(item)
+  );
+  const hasInjuryConflict = injuries.length > 0;
   const goal = typeof profile?.goal === "string" ? profile.goal : null;
-  const experience =
-    typeof profile?.experience === "string" ? profile.experience : null;
-  const equipment = Array.isArray(profile?.equipment)
-    ? profile.equipment.filter(
-        (item: unknown) => typeof item === "string" && item.trim()
-      )
-    : [];
+  const experienceRaw = String(
+    profile?.experience ??
+      profile?.experience_level ??
+      profile?.programPreferences?.experience ??
+      ""
+  ).toLowerCase();
+  const experience = ["intermediate", "advanced"].includes(experienceRaw)
+    ? (experienceRaw as "intermediate" | "advanced")
+    : "beginner";
+  const equipmentValues = [
+    ...normalizeTextList(profile?.equipment),
+    ...normalizeTextList(profile?.programPreferences?.equipment),
+  ].flatMap((item) => item.split(/[,/|]+/).map((part) => part.trim()));
+  const equipment = new Set<string>();
+  for (const item of equipmentValues) {
+    const normalized = item.replace(/[\s-]+/g, "_");
+    if (/full_gym|commercial_gym|gym_access/.test(normalized))
+      equipment.add("full_gym");
+    else if (/home_gym/.test(normalized)) equipment.add("home_gym");
+    else if (/dumbbell|free_weight/.test(normalized))
+      equipment.add("dumbbells");
+    else if (/machine/.test(normalized)) equipment.add("machines");
+    else if (/band/.test(normalized)) equipment.add("bands");
+    else if (/bodyweight|none|no_equipment/.test(normalized))
+      equipment.add("bodyweight");
+  }
+  const adequateResistance = [
+    "full_gym",
+    "home_gym",
+    "dumbbells",
+    "machines",
+  ].some((capability) => equipment.has(capability));
+  const pplAllowed =
+    daysPerWeek === 6 &&
+    (experience === "intermediate" || experience === "advanced") &&
+    adequateResistance &&
+    !hasInjuryConflict;
+  const beginnerFiveDay = daysPerWeek === 5 && experience === "beginner";
   const templates =
     daysPerWeek === 2
       ? ["Full Body A", "Full Body B"]
@@ -84,9 +125,46 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
         : daysPerWeek === 4
           ? ["Upper A", "Lower A", "Upper B", "Lower B"]
           : daysPerWeek === 5
-            ? ["Upper", "Lower", "Push", "Pull", "Full Body"]
-            : ["Push A", "Pull A", "Legs A", "Push B", "Pull B", "Legs B"];
+            ? beginnerFiveDay
+              ? [
+                  "Upper",
+                  "Lower",
+                  "Full Body",
+                  "Low-impact conditioning",
+                  "Mobility/recovery",
+                ]
+              : ["Upper", "Lower", "Push", "Pull", "Full Body"]
+            : pplAllowed
+              ? ["Push A", "Pull A", "Legs A", "Push B", "Pull B", "Legs B"]
+              : [
+                  "Full Body A",
+                  "Low-impact conditioning",
+                  "Full Body B",
+                  "Mobility/recovery",
+                  "Full Body C",
+                  "Low-impact conditioning",
+                ];
   const exercisesFor = (focus: string) => {
+    if (/conditioning/i.test(focus)) {
+      return [
+        {
+          name: "Brisk walk, bike, or easy cardio",
+          sets: 1,
+          reps: "20-30 min",
+          notes: "Keep a conversational pace and choose a pain-free option.",
+        },
+      ];
+    }
+    if (/mobility|recovery/i.test(focus)) {
+      return [
+        {
+          name: "Gentle mobility and breathing",
+          sets: 1,
+          reps: "15-20 min",
+          notes: "Move comfortably; this is recovery, not heavy training.",
+        },
+      ];
+    }
     const lower = /lower|legs/i.test(focus);
     const upper = /upper|push|pull/i.test(focus);
     return (
@@ -102,8 +180,15 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
       notes: "Use a pain-free range of motion.",
     }));
   };
+  const structureName = pplAllowed
+    ? "push/pull/legs split"
+    : daysPerWeek === 6 || beginnerFiveDay
+      ? "mixed strength, conditioning, and recovery schedule"
+      : daysPerWeek <= 3
+        ? "full-body plan"
+        : "upper/lower balanced split";
   return {
-    summary: `${daysPerWeek}-day ${daysPerWeek <= 3 ? "full-body" : "balanced split"} plan based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""}${experience ? ` (${experience.replace(/_/g, " ")} level)` : ""}${equipment.length ? ` using your available equipment` : ""}.`,
+    summary: `${daysPerWeek}-day ${structureName} based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""} (${experience} level)${equipment.size ? " using your available equipment" : ""}.`,
     progressionRules: [
       "Leave 2-3 repetitions in reserve while learning each movement.",
       "Add repetitions before increasing load by 2-5%.",
@@ -569,7 +654,9 @@ export const processQueuedScan = onDocumentWritten(
           ? error.message
           : null;
       const missingConfig = Array.isArray(errorDetails?.missing)
-        ? errorDetails.missing.filter((item: unknown) => typeof item === "string")
+        ? errorDetails.missing.filter(
+            (item: unknown) => typeof item === "string"
+          )
         : [];
       const effectiveReason = (() => {
         if (rawMessage?.startsWith("missing_photo_")) return "missing_photos";
@@ -577,8 +664,10 @@ export const processQueuedScan = onDocumentWritten(
           return "invalid_photo_paths";
         if (rawMessage === "missing_photo_paths") return "missing_photo_paths";
         if (rawMessage === "missing_scan_input") return "missing_scan_input";
-        if (missingConfig.includes("OPENAI_API_KEY")) return "openai_missing_key";
-        if (missingConfig.includes("OPENAI_MODEL")) return "openai_missing_model";
+        if (missingConfig.includes("OPENAI_API_KEY"))
+          return "openai_missing_key";
+        if (missingConfig.includes("OPENAI_MODEL"))
+          return "openai_missing_model";
         if (missingConfig.includes("STORAGE_BUCKET"))
           return "missing_storage_bucket";
         if (missingConfig.includes("PROJECT_ID")) return "missing_project_id";
