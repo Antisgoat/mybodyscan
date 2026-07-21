@@ -32,7 +32,6 @@ import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
   clearScanPipelineState,
-  describeScanPipelineStage,
   readActiveScanPipelineState,
   updateScanPipelineState,
   type ScanPipelineStage,
@@ -119,7 +118,7 @@ export default function ScanPage() {
   const missingHeight = profileHeightCm == null;
   type Pose = "front" | "back" | "left" | "right";
   type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
-  type FileMeta = { name: string; size: number; type: string };
+  type FileMeta = { name: string; size: number; type: string; width?: number; height?: number };
   const [photoState, setPhotoState] = useState<
     Record<
       Pose,
@@ -1377,6 +1376,12 @@ export default function ScanPage() {
         Upload four photos and your current/goal weight. We&apos;ll analyze your
         body composition and build a personalized workout and nutrition plan.
       </p>
+      <p className="text-sm text-muted-foreground">
+        For each angle, keep your full body visible from head to feet. Stand
+        several feet from the camera in a neutral pose with good lighting, a
+        plain background, no mirror obstruction, and fitted clothing where
+        comfortable.
+      </p>
 
       {persistedScan &&
       persistedScan.scanId &&
@@ -1385,10 +1390,10 @@ export default function ScanPage() {
           <AlertTitle>Resume your scan</AlertTitle>
           <AlertDescription className="space-y-2">
             <div>
-              Scan {persistedScan.scanId.slice(0, 8)}… ·{" "}
-              {describeScanPipelineStage(persistedScan.stage)}
+              Your previous scan was paused. Resume it or clear it and start
+              again.
             </div>
-            {persistedScan.lastError?.message ? (
+            {showDebug && persistedScan.lastError?.message ? (
               <div className="text-xs text-muted-foreground">
                 Last error: {persistedScan.lastError.message}
               </div>
@@ -1406,7 +1411,7 @@ export default function ScanPage() {
                 className="rounded border px-3 py-2 text-xs"
                 onClick={() => clearPipeline(persistedScan.scanId)}
               >
-                Clear in-flight scan
+                Start fresh / Clear previous scan
               </button>
             </div>
           </AlertDescription>
@@ -1478,6 +1483,10 @@ export default function ScanPage() {
                         Prepared: {photoMeta[pose as Pose].compressed!.name} ·{" "}
                         {formatBytes(photoMeta[pose as Pose].compressed!.size)} ·{" "}
                         {photoMeta[pose as Pose].compressed!.type.toUpperCase()}
+                        {photoMeta[pose as Pose].compressed!.width &&
+                        photoMeta[pose as Pose].compressed!.height
+                          ? ` · ${photoMeta[pose as Pose].compressed!.width}×${photoMeta[pose as Pose].compressed!.height}px`
+                          : ""}
                       </span>
                     ) : null}
                   </span>

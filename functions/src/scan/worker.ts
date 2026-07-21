@@ -53,7 +53,9 @@ function bmiCategory(bmi: number): string | null {
 
 export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
   const requested = Number(
-    profile?.trainingDaysPerWeek ??
+    profile?.training_days_per_week ??
+      profile?.trainingDaysPerWeek ??
+      profile?.programPreferences?.daysPerWeek ??
       profile?.daysPerWeek ??
       profile?.training_days
   );
@@ -63,6 +65,14 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
       : 3;
   const injuries = Array.isArray(profile?.injuries)
     ? profile.injuries.filter(
+        (item: unknown) => typeof item === "string" && item.trim()
+      )
+    : [];
+  const goal = typeof profile?.goal === "string" ? profile.goal : null;
+  const experience =
+    typeof profile?.experience === "string" ? profile.experience : null;
+  const equipment = Array.isArray(profile?.equipment)
+    ? profile.equipment.filter(
         (item: unknown) => typeof item === "string" && item.trim()
       )
     : [];
@@ -93,7 +103,7 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
     }));
   };
   return {
-    summary: `${daysPerWeek}-day ${daysPerWeek <= 3 ? "full-body" : "balanced split"} plan based on your available training frequency.`,
+    summary: `${daysPerWeek}-day ${daysPerWeek <= 3 ? "full-body" : "balanced split"} plan based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""}${experience ? ` (${experience.replace(/_/g, " ")} level)` : ""}${equipment.length ? ` using your available equipment` : ""}.`,
     progressionRules: [
       "Leave 2-3 repetitions in reserve while learning each movement.",
       "Add repetitions before increasing load by 2-5%.",
@@ -558,12 +568,20 @@ export const processQueuedScan = onDocumentWritten(
         typeof error?.message === "string" && error.message.length
           ? error.message
           : null;
+      const missingConfig = Array.isArray(errorDetails?.missing)
+        ? errorDetails.missing.filter((item: unknown) => typeof item === "string")
+        : [];
       const effectiveReason = (() => {
         if (rawMessage?.startsWith("missing_photo_")) return "missing_photos";
         if (rawMessage?.startsWith("invalid_photo_path_"))
           return "invalid_photo_paths";
         if (rawMessage === "missing_photo_paths") return "missing_photo_paths";
         if (rawMessage === "missing_scan_input") return "missing_scan_input";
+        if (missingConfig.includes("OPENAI_API_KEY")) return "openai_missing_key";
+        if (missingConfig.includes("OPENAI_MODEL")) return "openai_missing_model";
+        if (missingConfig.includes("STORAGE_BUCKET"))
+          return "missing_storage_bucket";
+        if (missingConfig.includes("PROJECT_ID")) return "missing_project_id";
         if (errorDetails?.reason === "scan_engine_not_configured")
           return "scan_engine_not_configured";
         if (error instanceof OpenAIClientError && error.code) return error.code;
@@ -591,7 +609,13 @@ export const processQueuedScan = onDocumentWritten(
           }
           return "Scan engine is temporarily unavailable. Please try again.";
         }
-        if (effectiveReason === "scan_engine_not_configured") {
+        if (
+          effectiveReason === "scan_engine_not_configured" ||
+          effectiveReason === "openai_missing_key" ||
+          effectiveReason === "openai_missing_model" ||
+          effectiveReason === "missing_storage_bucket" ||
+          effectiveReason === "missing_project_id"
+        ) {
           return "Scan is temporarily unavailable. Please try again in a few minutes or contact support.";
         }
         return rawMessage ?? "Unexpected error while processing scan.";
@@ -677,6 +701,7 @@ export const processQueuedScan = onDocumentWritten(
         processingAttemptId,
         message: error?.message,
         reason: effectiveReason,
+        missingConfig,
       });
     } finally {
       stopHeartbeat();

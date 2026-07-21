@@ -9,6 +9,7 @@ export type OpenAIEnvConfig = {
   provider: string;
 };
 
+export const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 const openAiModelParam = defineString("OPENAI_MODEL");
 const openAiBaseUrlParam = defineString("OPENAI_BASE_URL");
 const openAiProviderParam = defineString("OPENAI_PROVIDER");
@@ -34,14 +35,16 @@ function resolveModel(): string {
   if (envModel) return envModel;
   const paramModel = readParam(openAiModelParam);
   if (paramModel) return paramModel;
-  return "";
+  return DEFAULT_OPENAI_MODEL;
 }
 
 function resolveBaseUrl(): string {
   const envBase = (process.env.OPENAI_BASE_URL || "").trim();
   if (envBase) return envBase.replace(/\/+$/, "");
   const paramBase = readParam(openAiBaseUrlParam);
-  const baseUrl = paramBase ? paramBase.replace(/\/+$/, "") : "https://api.openai.com";
+  const baseUrl = paramBase
+    ? paramBase.replace(/\/+$/, "")
+    : "https://api.openai.com";
   return baseUrl;
 }
 
