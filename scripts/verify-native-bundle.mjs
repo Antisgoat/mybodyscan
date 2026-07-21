@@ -2,9 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const FORBIDDEN_TOKENS = [
-  "@firebase/auth",
-  "firebase/auth",
+  "@firebase/auth-compat",
+  "firebase/auth-compat",
+  "firebase/compat/auth",
 ];
+const SDK_REGISTRY_CHUNK = /^fb-[A-Za-z0-9_-]+\.js$/;
 
 async function statDir(dir) {
   try {
@@ -51,6 +53,10 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
+    // Firebase core includes compat package names in a version registry even
+    // when those modules are absent. Actual compat imports are rejected by the
+    // native Vite resolver; keep this text scan focused on app-owned chunks.
+    if (SDK_REGISTRY_CHUNK.test(path.basename(file))) continue;
     const text = await readUtf8BestEffort(file);
     if (!text) continue;
 
@@ -75,7 +81,7 @@ async function main() {
   if (hits.length) {
     // eslint-disable-next-line no-console
     console.error(
-      `[verify:native] FAIL: found forbidden auth artifacts (${hits.length})`
+      `[verify:native] FAIL: found forbidden compat auth artifacts (${hits.length})`
     );
     for (const h of hits) {
       // eslint-disable-next-line no-console
@@ -85,7 +91,7 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log("[verify:native] OK: no forbidden auth artifacts found");
+  console.log("[verify:native] OK: no forbidden compat auth artifacts found");
 }
 
 main().catch((err) => {

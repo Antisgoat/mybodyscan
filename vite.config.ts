@@ -3,69 +3,6 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-/**
- * Native-build acceptance requirement:
- * iOS assets must contain ZERO occurrences of these forbidden strings.
- *
- * Firebase core embeds a registry list of package IDs (including auth IDs)
- * even when auth modules are not imported. For native builds we redact those
- * sentinel strings in the emitted bundle so token-based verifiers stay strict.
- *
- * This does NOT enable auth: native builds hard-alias auth entrypoints to shims.
- */
-function stripForbiddenNativeTokens(isNative: boolean) {
-  const replacements: Array<[string, string]> = [];
-  const replaceAll = (input: string): string => {
-    let out = input;
-    for (const [from, to] of replacements) {
-      out = out.split(from).join(to);
-    }
-    return out;
-  };
-  const coerceToString = (source: unknown): string | null => {
-    if (typeof source === "string") return source;
-    // Rollup sometimes represents source maps/assets as Uint8Array.
-    if (source instanceof Uint8Array) {
-      try {
-        return new TextDecoder().decode(source);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  };
-  const restoreType = (original: unknown, nextString: string): unknown => {
-    if (typeof original === "string") return nextString;
-    if (original instanceof Uint8Array) {
-      try {
-        return new TextEncoder().encode(nextString);
-      } catch {
-        return original;
-      }
-    }
-    return nextString;
-  };
-  return {
-    name: "strip-forbidden-native-tokens",
-    apply: "build" as const,
-    enforce: "post" as const,
-    generateBundle(_: any, bundle: any) {
-      if (!isNative) return;
-      for (const item of Object.values(bundle)) {
-        if (item && item.type === "chunk" && typeof item.code === "string") {
-          item.code = replaceAll(item.code);
-        }
-        if (item && item.type === "asset") {
-          const asString = coerceToString((item as any).source);
-          if (!asString) continue;
-          const replaced = replaceAll(asString);
-          (item as any).source = restoreType((item as any).source, replaced);
-        }
-      }
-    },
-  };
-}
-
 function forbidNativeImports(isNative: boolean) {
   const forbiddenMatchers: Array<{ pattern: RegExp; label: string }> = [
     { pattern: /^firebase\/app-compat$/, label: "firebase/app-compat" },
@@ -156,7 +93,6 @@ export default defineConfig(({ mode }) => {
     react(),
     mode === "development" && componentTagger(),
     forbidNativeImports(isNative),
-    stripForbiddenNativeTokens(isNative),
   ].filter(Boolean),
   define: {
     __NATIVE__: JSON.stringify(isNative),
