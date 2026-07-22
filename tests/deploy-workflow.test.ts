@@ -71,6 +71,12 @@ describe("production deployment authentication", () => {
     );
   });
 
+  it("does not declare redundant one-field composite indexes", () => {
+    for (const index of FIRESTORE_INDEXES.indexes) {
+      expect(index.fields.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
   it("does not require a GitHub secret for committed public Firebase config", () => {
     expect(SMOKE_WORKFLOW).not.toContain("secrets.FIREBASE_WEB_API_KEY");
   });

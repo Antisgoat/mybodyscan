@@ -20,26 +20,11 @@
     {
       "collectionGroup": "scans",
       "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
-    },
-    {
-      "collectionGroup": "scans",
-      "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "charged", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "completedAt", "order": "DESCENDING" }
       ]
-    },
-    {
-      "collectionGroup": "stripeEvents",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "created", "order": "DESCENDING" }]
-    },
-    {
-      "collectionGroup": "telemetryEvents",
-      "queryScope": "COLLECTION",
-      "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }]
     }
   ],
   "fieldOverrides": []
