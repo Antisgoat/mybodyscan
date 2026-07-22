@@ -9,6 +9,7 @@ type FallbackSpec = {
   method?: "GET" | "POST";
   mapHttpToClient: (r: any) => any;
   mapRequestToHttp?: (payload: unknown) => Record<string, unknown> | undefined;
+  fallbackOnCallableError?: (error: unknown) => boolean;
 };
 
 let callableHttpFallbackActive = false;
@@ -44,7 +45,12 @@ export async function callWithHttpFallback<TReq = unknown, TRes = unknown>(
     const { data } = await fn(payload as TReq);
     return data as TRes;
   } catch (err: any) {
-    if (!isAppCheckLikeError(err)) throw err;
+    if (
+      !isAppCheckLikeError(err) &&
+      !spec.fallbackOnCallableError?.(err)
+    ) {
+      throw err;
+    }
     callableHttpFallbackActive = true;
     notifyFallbackListeners();
     const method = spec.method || "POST";
@@ -164,7 +170,10 @@ export const backend = {
   },
 
   async nutritionBarcode(input: { upc: string }) {
-    return callWithHttpFallback<typeof input, { item?: any; items?: any[] }>(
+    return callWithHttpFallback<
+      typeof input,
+      { item?: any; items?: any[]; alternatives?: any[] }
+    >(
       {
         callableName: "nutritionBarcode",
         httpPath: "/api/nutrition/barcode",
@@ -173,9 +182,23 @@ export const backend = {
           const body = (payload as { upc?: string })?.upc;
           return body ? { code: body } : undefined;
         },
+        // The callable uses Open Food Facts. Its not-found/unavailable errors
+        // must fall through to the HTTP implementation, which also tries the
+        // configured USDA branded-food lookup.
+        fallbackOnCallableError: (error) => {
+          const code = String(
+            (error as { code?: unknown })?.code ||
+              (error as { error?: { status?: unknown } })?.error?.status ||
+              ""
+          ).toLowerCase();
+          return ["not-found", "unavailable", "internal"].some((value) =>
+            code.includes(value)
+          );
+        },
         mapHttpToClient: (json: any) => ({
           item: json?.item,
           items: json?.items ?? json?.results,
+          alternatives: json?.alternatives ?? [],
         }),
       },
       input

@@ -5,6 +5,7 @@ import type { File } from "@google-cloud/storage";
 import { getAuth, getFirestore, getStorage } from "./firebase.js";
 import { buildScanPhotoPath, isScanPose } from "./scan/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
+import { deletePushTokenOwnershipForUser } from "./pushTokenOwnership.js";
 
 const auth = getAuth();
 const db = getFirestore();
@@ -36,6 +37,7 @@ async function deleteFirestoreUser(
 ): Promise<void> {
   const ref = db.doc(`users/${uid}`);
   console.log("account_delete_firestore_begin", { uid, requestId });
+  await deletePushTokenOwnershipForUser(db, uid);
   await db.recursiveDelete(ref);
   console.log("account_delete_firestore_complete", { uid, requestId });
 }
@@ -46,7 +48,11 @@ async function deleteStorageUser(
 ): Promise<void> {
   const bucket = storage.bucket();
   // Canonical scan photos live under `scans/{uid}/...`.
-  const prefixes = [`scans/${uid}/`, `user_uploads/${uid}/`];
+  const prefixes = [
+    `scans/${uid}/`,
+    `user_uploads/${uid}/`,
+    `transformation-previews/${uid}/`,
+  ];
   let pageToken: string | undefined;
   console.log("account_delete_storage_begin", { uid, requestId });
   try {

@@ -13,12 +13,6 @@ interface ScanResult {
     bodyFat?: number;
     body_fat?: number;
     weight?: number;
-    bmi?: number;
-    leanMass?: number;
-    muscleMass?: number;
-    bmr?: number;
-    tee?: number;
-    visceralFat?: number;
   };
   photos?: string[];
   note?: string;
@@ -66,6 +60,12 @@ export function ScanResultCard({
     );
   }
 
+  const bodyFat = scan.measurements.bodyFat ?? scan.measurements.body_fat;
+  const hasBodyFat = typeof bodyFat === "number" && Number.isFinite(bodyFat);
+  const hasWeight =
+    typeof scan.measurements.weight === "number" &&
+    Number.isFinite(scan.measurements.weight);
+
   return (
     <Card>
       <CardHeader>
@@ -81,61 +81,25 @@ export function ScanResultCard({
 
       <CardContent className="space-y-4">
         {/* Main Metrics Grid */}
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div>
-            <div className="text-2xl font-bold text-primary">
-              {scan.measurements.bodyFat || scan.measurements.body_fat}%
+        <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-2">
+          {hasBodyFat && (
+            <div>
+              <div className="text-2xl font-bold text-primary">{bodyFat}%</div>
+              <div className="text-xs text-muted-foreground">
+                Estimated {t("scan.bodyFat")} · photo estimate
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {t("scan.bodyFat")}
+          )}
+          {hasWeight && (
+            <div>
+              <div className="text-2xl font-bold">
+                {formatWeightFromKg(scan.measurements.weight, 0, units)}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t("scan.weight")} · user input
+              </div>
             </div>
-          </div>
-          <div>
-            <div className="text-2xl font-bold">
-              {formatWeightFromKg(scan.measurements.weight, 0, units)}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {t("scan.weight")}
-            </div>
-          </div>
-          <div>
-            <div className="text-lg font-semibold">{scan.measurements.bmi}</div>
-            <div className="text-xs text-muted-foreground">{t("scan.bmi")}</div>
-          </div>
-          <div>
-            <div className="text-lg font-semibold">
-              {formatWeightFromKg(scan.measurements.leanMass, 0, units)}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {t("scan.leanMass")}
-            </div>
-          </div>
-        </div>
-
-        {/* Additional Metrics */}
-        <div className="grid grid-cols-2 gap-4 text-center text-sm">
-          <div>
-            <div className="font-medium">
-              {formatWeightFromKg(scan.measurements.muscleMass, 0, units)}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {t("scan.muscleMass")}
-            </div>
-          </div>
-          <div>
-            <div className="font-medium">{scan.measurements.visceralFat}</div>
-            <div className="text-xs text-muted-foreground">
-              {t("scan.visceralFat")}
-            </div>
-          </div>
-          <div>
-            <div className="font-medium">{scan.measurements.bmr} kcal</div>
-            <div className="text-xs text-muted-foreground">{t("scan.bmr")}</div>
-          </div>
-          <div>
-            <div className="font-medium">{scan.measurements.tee} kcal</div>
-            <div className="text-xs text-muted-foreground">{t("scan.tee")}</div>
-          </div>
+          )}
         </div>
 
         {/* Photos Thumbnails */}

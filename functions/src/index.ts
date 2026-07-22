@@ -60,6 +60,12 @@ export { syncEntitlements } from "./syncEntitlements.js";
 export { grantProAllowlist } from "./admin/grantProAllowlist.js";
 export { adminGrantProEntitlements } from "./admin/adminGrantProEntitlements.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
+export { requestTransformationPreview } from "./transformationPreview.js";
+export {
+  registerPushToken,
+  unregisterPushToken,
+  sendPlateauNotifications,
+} from "./pushNotifications.js";
 export { systemBootstrap } from "./system.js";
 export { deleteAccount } from "./http/deleteAccount.js";
 export {

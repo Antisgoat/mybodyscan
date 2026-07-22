@@ -24,7 +24,10 @@ const DEFAULT_PRICE_MAP: Record<string, string> = {
   annual: "price_1RuOw0QQU5vuhlNjA5NZ66qq",
   extra: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
   pro_monthly: "price_1S4XsVQQU5vuhlNjzdQzeySA",
-  elite_annual: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+  elite_annual: "price_1Tw39XQQU5vuhlNjCRpZkL6a",
+  // Keep the superseded monthly-cadence price recognizable for webhook events
+  // from Checkout sessions that started before the corrected price deploys.
+  elite_annual_legacy: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
 };
 
 const SUBSCRIPTION_PLAN_KEYS = new Set([
@@ -32,6 +35,7 @@ const SUBSCRIPTION_PLAN_KEYS = new Set([
   "annual",
   "pro_monthly",
   "elite_annual",
+  "elite_annual_legacy",
 ]);
 
 function getRuntimeConfig(): RuntimeConfig {

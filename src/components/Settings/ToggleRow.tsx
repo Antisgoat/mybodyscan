@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Switch } from "@/components/ui/switch";
 
 interface ToggleRowProps {
@@ -6,6 +6,7 @@ interface ToggleRowProps {
   description?: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
+  disabled?: boolean;
 }
 
 export function ToggleRow({
@@ -13,16 +14,26 @@ export function ToggleRow({
   description,
   checked,
   onChange,
+  disabled = false,
 }: ToggleRowProps) {
+  const labelId = useId();
+
   return (
     <div className="flex items-center justify-between gap-3 py-2">
       <div className="flex-1">
-        <div className="text-sm font-medium text-foreground">{label}</div>
+        <div id={labelId} className="text-sm font-medium text-foreground">
+          {label}
+        </div>
         {description && (
           <div className="text-xs text-muted-foreground">{description}</div>
         )}
       </div>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch
+        checked={checked}
+        onCheckedChange={onChange}
+        disabled={disabled}
+        aria-labelledby={labelId}
+      />
     </div>
   );
 }

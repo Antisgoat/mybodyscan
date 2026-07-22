@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -9,6 +9,7 @@ import {
   Info,
   Target,
   Utensils,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +20,15 @@ import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
 import { updateDoc } from "@/lib/dbWrite";
-import { doc, serverTimestamp } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { DemoBanner } from "@/components/DemoBanner";
@@ -28,12 +37,15 @@ import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
 import {
   buildScanResultViewModel,
+  buildScanComparisonViewModel,
   formatKgForUnits,
 } from "@/lib/scanResultViewModel";
-import { retryScanProcessingClient } from "@/lib/api/scan";
+import { retryScanProcessingClient, type ScanDocument } from "@/lib/api/scan";
 import { useUnits } from "@/hooks/useUnits";
 import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { isSuccessfulPersistedScan } from "@/lib/scanContract";
+import { kgToLb } from "@/lib/units";
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -44,6 +56,34 @@ const formatDate = (timestamp: any) => {
     return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
   }
   return "—";
+};
+
+const toMillis = (timestamp: any): number | null => {
+  if (!timestamp) return null;
+  if (typeof timestamp.toMillis === "function") return timestamp.toMillis();
+  if (typeof timestamp.toDate === "function")
+    return timestamp.toDate().getTime();
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  const value = date.getTime();
+  return Number.isFinite(value) ? value : null;
+};
+
+const nextRescanDate = (timestamp: any) => {
+  const millis = toMillis(timestamp);
+  if (millis == null) return "10+ days after this scan";
+  return new Date(millis + 10 * 24 * 60 * 60 * 1000).toLocaleDateString();
+};
+
+const signed = (value: number | null, suffix = "") => {
+  if (value == null) return "—";
+  return `${value > 0 ? "+" : ""}${value}${suffix}`;
+};
+
+const signedWeight = (valueKg: number | null, units: "metric" | "us") => {
+  if (valueKg == null) return "—";
+  return units === "us"
+    ? signed(Number(kgToLb(valueKg).toFixed(1)), " lb")
+    : signed(Number(valueKg.toFixed(1)), " kg");
 };
 
 const SourceTag = ({ children }: { children: ReactNode }) => (
@@ -90,6 +130,54 @@ const Results = () => {
   const activeScan = scan ?? (demo ? (demoLatestScan as any) : null);
   const { units } = useUnits();
   const { profile, plan } = useUserProfile();
+  const [previousScan, setPreviousScan] = useState<ScanDocument | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid || !activeScan?.id || demo) {
+      setPreviousScan(null);
+      return undefined;
+    }
+    const scansQuery = query(
+      collection(db, "users", user.uid, "scans"),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
+    return onSnapshot(
+      scansQuery,
+      (snapshot) => {
+        const scans = snapshot.docs.map(
+          (row) => ({ id: row.id, ...row.data() }) as ScanDocument
+        );
+        const currentIndex = scans.findIndex(
+          (candidate) => candidate.id === activeScan.id
+        );
+        const currentMillis = toMillis(
+          activeScan.completedAt ?? activeScan.createdAt
+        );
+        const candidates =
+          currentIndex >= 0 ? scans.slice(currentIndex + 1) : scans;
+        const previous = candidates.find((candidate) => {
+          if (!isSuccessfulPersistedScan(candidate)) return false;
+          const candidateMillis = toMillis(
+            candidate.completedAt ?? candidate.createdAt
+          );
+          return (
+            currentMillis == null ||
+            candidateMillis == null ||
+            candidateMillis < currentMillis
+          );
+        });
+        setPreviousScan(previous ?? null);
+      },
+      () => setPreviousScan(null)
+    );
+  }, [
+    activeScan?.completedAt,
+    activeScan?.createdAt,
+    activeScan?.id,
+    demo,
+    user?.uid,
+  ]);
 
   useEffect(() => {
     if (activeScan?.note) setNote(activeScan.note);
@@ -121,6 +209,13 @@ const Results = () => {
   const vm = activeScan
     ? buildScanResultViewModel({ scan: activeScan as any, profile, plan })
     : null;
+  const comparison = useMemo(
+    () =>
+      activeScan && previousScan
+        ? buildScanComparisonViewModel(activeScan as ScanDocument, previousScan)
+        : null,
+    [activeScan, previousScan]
+  );
 
   const onRetryProcessing = async () => {
     if (!activeScan?.id || readOnlyDemo) return;
@@ -294,7 +389,10 @@ const Results = () => {
             </div>
             <div>
               <div className="text-zinc-500">Trend guidance</div>
-              <div className="mt-1">Repeat in 10+ days</div>
+              <div className="mt-1">
+                Rescan{" "}
+                {nextRescanDate(activeScan.completedAt ?? activeScan.createdAt)}
+              </div>
             </div>
           </div>
         </header>
@@ -393,6 +491,74 @@ const Results = () => {
           </div>
         </section>
 
+        {comparison && (
+          <section
+            className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+            aria-labelledby="comparison-heading"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-cyan-300">
+                  Progress comparison
+                </p>
+                <h2
+                  id="comparison-heading"
+                  className="mt-1 text-xl font-semibold"
+                >
+                  Since your previous valid scan
+                </h2>
+                <p className="mt-1 text-xs text-zinc-400">
+                  {comparison.daysSincePrevious != null
+                    ? `${comparison.daysSincePrevious} days between scans`
+                    : "Previous valid scan"}
+                  . Photo-derived changes remain estimates.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="border-white/20 bg-transparent text-white"
+                onClick={() =>
+                  navigate(
+                    `/scans/compare/${comparison.previousScanId}/${activeScan.id}`
+                  )
+                }
+              >
+                Compare scans
+              </Button>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+              <Metric
+                label="Weight change"
+                value={signedWeight(comparison.weightDeltaKg, units)}
+                source="user input trend"
+              />
+              <Metric
+                label="Body-fat change"
+                value={signed(comparison.bodyFatDeltaPoints, " pts")}
+                source="photo estimate trend"
+                estimated
+              />
+              <Metric
+                label="Fat-mass change"
+                value={signedWeight(comparison.fatMassDeltaKg, units)}
+                source="calculated trend"
+                estimated
+              />
+              <Metric
+                label="Lean-mass change"
+                value={signedWeight(comparison.leanMassDeltaKg, units)}
+                source="calculated trend"
+                estimated
+              />
+              <Metric
+                label="Calorie-target change"
+                value={signed(comparison.calorieTargetDelta, " kcal")}
+                source="calculated trend"
+              />
+            </div>
+          </section>
+        )}
+
         <details
           className="group rounded-2xl border border-white/10 bg-[#0f1518]"
           data-full-report
@@ -428,6 +594,20 @@ const Results = () => {
                     label="Goal weight"
                     value={formatKgForUnits(vm.composition.goalWeightKg, units)}
                     source="user input"
+                  />
+                )}
+                {vm.composition.profileCategory && (
+                  <Metric
+                    label="Profile category"
+                    value={vm.composition.profileCategory}
+                    source="user input"
+                  />
+                )}
+                {vm.composition.maintenanceCalories != null && (
+                  <Metric
+                    label="Maintenance calories"
+                    value={`${vm.composition.maintenanceCalories} kcal`}
+                    source="calculated"
                   />
                 )}
                 {vm.composition.confidence && (
@@ -533,6 +713,27 @@ const Results = () => {
                     source="calculated"
                   />
                 )}
+                {vm.nutrition.fiberGrams != null && (
+                  <Metric
+                    label="Fiber"
+                    value={`${vm.nutrition.fiberGrams} g`}
+                    source="calculated"
+                  />
+                )}
+                {vm.nutrition.trainingDayCalories != null && (
+                  <Metric
+                    label="Training-day target"
+                    value={`${vm.nutrition.trainingDayCalories} kcal`}
+                    source="calculated"
+                  />
+                )}
+                {vm.nutrition.restDayCalories != null && (
+                  <Metric
+                    label="Rest-day target"
+                    value={`${vm.nutrition.restDayCalories} kcal`}
+                    source="calculated"
+                  />
+                )}
               </div>
               <p className="mt-4 text-sm text-zinc-400">
                 Hydration guidance: drink regularly and increase fluids around
@@ -562,6 +763,35 @@ const Results = () => {
                   ))}
                 </ul>
               )}
+              {vm.plan.exercisePriorities.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium text-zinc-200">
+                    Exercise priorities
+                  </h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
+                    {vm.plan.exercisePriorities.map((exercise) => (
+                      <li key={exercise}>{exercise}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {vm.plan.progressionRules.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-medium text-zinc-200">
+                    Progression method
+                  </h3>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-300">
+                    {vm.plan.progressionRules.map((rule) => (
+                      <li key={rule}>{rule}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="mt-4 text-sm text-zinc-400">
+                Recovery guidance: use planned rest days, consistent sleep, and
+                manageable progression. Stop and seek qualified care for pain or
+                injury concerns.
+              </p>
               <Button
                 variant="outline"
                 className="mt-4 border-white/20 bg-transparent text-white"
@@ -619,6 +849,30 @@ const Results = () => {
             </section>
           </div>
         </details>
+
+        {vm.isValidResult && (
+          <Card className="border-cyan-400/20 bg-cyan-400/[0.06] text-white">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-cyan-300" /> Future-goal
+                visualization
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-zinc-300">
+              <p>
+                Create an optional, private AI illustration of a realistic goal
+                direction. It is motivational—not a prediction or guarantee.
+              </p>
+              <Button
+                onClick={() =>
+                  navigate(`/results/${activeScan.id}/transformation-preview`)
+                }
+              >
+                Open goal visualization <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {vm.isValidResult && (
           <Card className="border-white/10 bg-white/[0.04] text-white">

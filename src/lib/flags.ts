@@ -32,7 +32,7 @@ export const SW_ENABLED: boolean = bool(env.VITE_SW_ENABLED, false); // stays di
 
 export const TRANSFORMATION_PREVIEW_ENTRY_ENABLED: boolean = bool(
   env.VITE_ENABLE_TRANSFORMATION_PREVIEW,
-  false
+  true
 );
 
 /* Marketing/public experience */

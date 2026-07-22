@@ -4,6 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { verifyAppCheck } from "../http.js";
+import { deletePushTokenOwnershipForUser } from "../pushTokenOwnership.js";
 
 export const deleteAccount = onRequest(
   {
@@ -59,5 +60,7 @@ async function deleteUserData(uid: string) {
   const bucket = getStorage().bucket();
   await bucket.deleteFiles({ prefix: `scans/${uid}/` });
   await bucket.deleteFiles({ prefix: `user_uploads/${uid}/` });
+  await bucket.deleteFiles({ prefix: `transformation-previews/${uid}/` });
+  await deletePushTokenOwnershipForUser(db, uid);
   await db.recursiveDelete(db.doc(`users/${uid}`));
 }

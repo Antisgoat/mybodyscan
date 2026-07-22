@@ -27,7 +27,7 @@ const PLAN_RULES: Array<{
     info: { plan: "monthly", credits: 3, mode: "subscription" },
   },
   {
-    keys: ["annual", "yearly", "elite_annual"],
+    keys: ["annual", "yearly", "elite_annual", "elite_annual_legacy"],
     info: { plan: "yearly", credits: 36, mode: "subscription" },
   },
   {

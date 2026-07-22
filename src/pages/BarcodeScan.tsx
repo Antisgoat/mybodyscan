@@ -8,6 +8,7 @@ import {
   Loader2,
   ShieldAlert,
   Sparkles,
+  ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
 import { backend } from "@/lib/backendBridge";
-import { sanitizeFoodItem as sanitizeFoodRecord } from "@/features/nutrition/sanitize";
 import { sanitizeNutritionQuery } from "@/lib/nutrition/sanitizeQuery";
 import type { FoodItem } from "@/lib/nutrition/types";
+import { coerceBarcodeFoodItem } from "@/lib/nutrition/coerceBarcodeFoodItem";
 import { addMeal } from "@/lib/nutritionBackend";
 import { Seo } from "@/components/Seo";
 import { defaultCountryFromLocale } from "@/lib/locale";
@@ -27,6 +28,7 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { deriveProductInsight } from "@/lib/productInsight";
+import { deriveProductAlternatives } from "@/lib/productAlternatives";
 
 async function loadZXing() {
   try {
@@ -35,51 +37,6 @@ async function loadZXing() {
     console.warn("ZXING import failed", error);
     return null as any;
   }
-}
-
-function buildFoodItemFromSanitized(
-  code: string,
-  raw: any,
-  normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>>
-): FoodItem {
-  const basePer100g = {
-    kcal: normalized?.kcal ?? 0,
-    protein: normalized?.protein_g ?? 0,
-    carbs: normalized?.carbs_g ?? 0,
-    fat: normalized?.fat_g ?? 0,
-  };
-  const perServing = {
-    kcal: normalized?.kcal ?? null,
-    protein_g: normalized?.protein_g ?? null,
-    carbs_g: normalized?.carbs_g ?? null,
-    fat_g: normalized?.fat_g ?? null,
-  };
-  const rawId = typeof raw?.id === "string" ? raw.id.trim() : "";
-  const rawCode = typeof raw?.code === "string" ? raw.code.trim() : "";
-  const id = rawId || rawCode || `barcode:${code}`;
-  const source =
-    typeof raw?.source === "string" && raw.source.trim().length
-      ? raw.source
-      : "Barcode";
-  return {
-    id,
-    name: normalized?.name || `Barcode ${code}`,
-    brand: normalized?.brand || null,
-    source,
-    basePer100g,
-    servings: [
-      {
-        id: "100g",
-        label: "100 g",
-        grams: 100,
-        isDefault: true,
-      },
-    ],
-    serving: { qty: 1, unit: "serving", text: "1 serving" },
-    per_serving: perServing,
-    per_100g: perServing,
-    raw,
-  };
 }
 
 export default function BarcodeScan() {
@@ -104,6 +61,9 @@ export default function BarcodeScan() {
   const [torchOn, setTorchOn] = useState(false);
   const [detectedCode, setDetectedCode] = useState<string | null>(null);
   const [item, setItem] = useState<FoodItem | null>(null);
+  const [alternativeCandidates, setAlternativeCandidates] = useState<
+    FoodItem[]
+  >([]);
   const [loadingItem, setLoadingItem] = useState(false);
   const [status, setStatus] = useState<string>("");
   const [processing, setProcessing] = useState(false);
@@ -112,6 +72,10 @@ export default function BarcodeScan() {
   const insight = useMemo(
     () => (item ? deriveProductInsight(item) : null),
     [item]
+  );
+  const alternatives = useMemo(
+    () => (item ? deriveProductAlternatives(item, alternativeCandidates) : []),
+    [alternativeCandidates, item]
   );
 
   const unavailableMessage = "Scanner unavailable — enter barcode manually.";
@@ -130,10 +94,12 @@ export default function BarcodeScan() {
       if (lookupsBlocked) {
         setStatus(blockedMessage);
         setItem(null);
+        setAlternativeCandidates([]);
         return;
       }
       setLoadingItem(true);
       setItem(null);
+      setAlternativeCandidates([]);
       setStatus("Looking up…");
       try {
         const normalizedCode = sanitizeNutritionQuery(code);
@@ -146,24 +112,18 @@ export default function BarcodeScan() {
           return;
         }
         setStatus(`Looking up barcode ${normalizedCode}…`);
-        const { item, items } = await backend.nutritionBarcode({
+        const {
+          item,
+          items,
+          alternatives: rawAlternatives,
+        } = await backend.nutritionBarcode({
           upc: normalizedCode,
         });
         const list = items ?? (item ? [item] : []);
-        const normalized = list
-          .map((entry: any) => ({
-            raw: entry,
-            normalized: sanitizeFoodRecord(entry),
-          }))
-          .filter(
-            (
-              entry
-            ): entry is {
-              raw: any;
-              normalized: NonNullable<ReturnType<typeof sanitizeFoodRecord>>;
-            } => Boolean(entry.normalized)
-          );
-        if (!normalized.length) {
+        const foods = list
+          .map((entry: unknown) => coerceBarcodeFoodItem(normalizedCode, entry))
+          .filter((entry): entry is FoodItem => entry != null);
+        if (!foods.length) {
           setStatus("No match found.");
           toast({
             title: "No match",
@@ -171,16 +131,24 @@ export default function BarcodeScan() {
           });
           return;
         }
-        const { raw: rawItem, normalized: normalizedItem } = normalized[0];
-        const food = buildFoodItemFromSanitized(
-          normalizedCode,
-          rawItem,
-          normalizedItem
-        );
+        const food = foods[0];
         setItem(food);
+        setAlternativeCandidates(
+          Array.isArray(rawAlternatives)
+            ? rawAlternatives.filter(
+                (candidate: unknown): candidate is FoodItem =>
+                  Boolean(
+                    candidate &&
+                      typeof candidate === "object" &&
+                      typeof (candidate as FoodItem).id === "string" &&
+                      typeof (candidate as FoodItem).name === "string"
+                  )
+              )
+            : []
+        );
         setStatus(
-          typeof rawItem?.message === "string"
-            ? rawItem.message
+          typeof (food.raw as any)?.message === "string"
+            ? (food.raw as any).message
             : "Lookup complete"
         );
       } catch (error: any) {
@@ -572,14 +540,17 @@ export default function BarcodeScan() {
                         <Sparkles className="h-4 w-4" /> MBS Product Insight
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Original, transparent nutrition comparison • {insight.basis}
+                        Original, transparent nutrition comparison •{" "}
+                        {insight.basis}
                       </p>
                     </div>
                     <div className="text-right">
                       <p className="text-3xl font-bold tabular-nums">
                         {insight.score ?? "—"}
                         {insight.score != null && (
-                          <span className="text-sm font-normal text-muted-foreground">/100</span>
+                          <span className="text-sm font-normal text-muted-foreground">
+                            /100
+                          </span>
                         )}
                       </p>
                       <p className="text-xs font-medium">{insight.label}</p>
@@ -589,10 +560,15 @@ export default function BarcodeScan() {
                   {insight.factors.length > 0 && (
                     <div className="space-y-2">
                       {insight.factors.slice(0, 6).map((factor) => (
-                        <div key={factor.key} className="flex items-center justify-between gap-3 text-sm">
+                        <div
+                          key={factor.key}
+                          className="flex items-center justify-between gap-3 text-sm"
+                        >
                           <div>
                             <span className="font-medium">{factor.label}</span>{" "}
-                            <span className="text-xs text-muted-foreground">{factor.detail}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {factor.detail}
+                            </span>
                           </div>
                           <span
                             className={
@@ -601,7 +577,8 @@ export default function BarcodeScan() {
                                 : "font-semibold text-amber-600"
                             }
                           >
-                            {factor.impact > 0 ? "+" : ""}{factor.impact}
+                            {factor.impact > 0 ? "+" : ""}
+                            {factor.impact}
                           </span>
                         </div>
                       ))}
@@ -610,38 +587,104 @@ export default function BarcodeScan() {
 
                   {insight.missing.length > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Confidence: {insight.confidence}. Missing: {insight.missing.join(", ")}.
+                      Confidence: {insight.confidence}. Missing:{" "}
+                      {insight.missing.join(", ")}.
                     </p>
                   )}
 
-                  {(insight.allergens.length > 0 || insight.additives.length > 0) && (
+                  {(insight.allergens.length > 0 ||
+                    insight.additives.length > 0) && (
                     <div className="space-y-1 rounded-lg border bg-background/70 p-3 text-xs">
                       {insight.allergens.length > 0 && (
                         <p className="flex gap-2">
                           <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
-                          <span><strong>Reported allergens:</strong> {insight.allergens.join(", ")}</span>
+                          <span>
+                            <strong>Reported allergens:</strong>{" "}
+                            {insight.allergens.join(", ")}
+                          </span>
                         </p>
                       )}
                       {insight.additives.length > 0 && (
-                        <p><strong>Reported additives:</strong> {insight.additives.join(", ")}</p>
+                        <p>
+                          <strong>Reported additives:</strong>{" "}
+                          {insight.additives.join(", ")}
+                        </p>
                       )}
                       <p className="text-muted-foreground">
-                        Presence does not by itself mean an ingredient is unsafe. Verify the package label.
+                        Presence does not by itself mean an ingredient is
+                        unsafe. Verify the package label.
                       </p>
                     </div>
                   )}
 
                   {insight.ingredients && (
                     <details className="text-xs">
-                      <summary className="cursor-pointer font-medium">Ingredient list</summary>
-                      <p className="mt-2 text-muted-foreground">{insight.ingredients}</p>
+                      <summary className="cursor-pointer font-medium">
+                        Ingredient list
+                      </summary>
+                      <p className="mt-2 text-muted-foreground">
+                        {insight.ingredients}
+                      </p>
                     </details>
                   )}
 
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
-                    Informational only—not medical advice or a safety determination. Scores compare available
-                    nutrition data and can change when product data is corrected. Product data may be supplied
-                    by Open Food Facts or USDA; always confirm the package label.
+                    Informational only—not medical advice or a safety
+                    determination. Scores compare available nutrition data and
+                    can change when product data is corrected. Product data may
+                    be supplied by Open Food Facts or USDA; always confirm the
+                    package label.
+                  </p>
+                </section>
+              )}
+              {alternatives.length > 0 && (
+                <section
+                  className="space-y-3 rounded-xl border p-4"
+                  aria-label="Higher-scoring same-category alternatives"
+                >
+                  <div>
+                    <p className="font-semibold">Higher-scoring alternatives</p>
+                    <p className="text-xs text-muted-foreground">
+                      Same-category products with a strictly higher MBS Product
+                      Insight score. Compare labels because recipes and product
+                      data can change.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {alternatives.map((alternative) => (
+                      <button
+                        key={alternative.item.id}
+                        type="button"
+                        className="flex min-h-14 w-full items-center justify-between gap-3 rounded-lg border bg-background p-3 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => setItem(alternative.item)}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">
+                            {alternative.item.name}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {alternative.item.brand ||
+                              alternative.sharedCategory}
+                          </span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="text-right">
+                            <span className="block text-sm font-semibold">
+                              {alternative.insight.score}/100
+                            </span>
+                            <span className="block text-xs text-emerald-600">
+                              +{alternative.scoreDifference}
+                            </span>
+                          </span>
+                          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Suggestions use MyBodyScan’s own disclosed nutrition formula
+                    and Open Food Facts category data. They are not endorsements
+                    or safety determinations.
                   </p>
                 </section>
               )}

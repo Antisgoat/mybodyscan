@@ -49,10 +49,7 @@ import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachSex } from "@/hooks/useUserProfile";
-import {
-  db,
-  getFirebaseConfig,
-} from "@/lib/firebase";
+import { db, getFirebaseConfig } from "@/lib/firebase";
 import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
@@ -76,6 +73,12 @@ import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor } from "@/lib/platform";
+import {
+  disablePlateauPush,
+  enablePlateauPush,
+  isPushConfigured,
+  loadNotificationPreferences,
+} from "@/lib/pushNotifications";
 
 const Settings = () => {
   const DEVELOPER_EMAIL = "developer@adlrlabs.com";
@@ -85,12 +88,9 @@ const Settings = () => {
     "ww481RPvMYZzwn5vLX8FXyRlGVV2",
     "GBdtbwUcYGYMuA1QW0Ik6K9tP0w1",
   ] as const;
-  const [notifications, setNotifications] = useState({
-    scanReminder: true,
-    workoutReminder: true,
-    checkinReminder: true,
-    renewalReminder: true,
-  });
+  const [plateauPush, setPlateauPush] = useState(false);
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [notificationLoading, setNotificationLoading] = useState(true);
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const { t, language, changeLanguage, availableLanguages } = useI18n();
@@ -177,6 +177,58 @@ const Settings = () => {
     user.email.trim().toLowerCase() === DEVELOPER_EMAIL;
 
   useEffect(() => {
+    let active = true;
+    if (!user?.uid) {
+      setPlateauPush(false);
+      setNotificationLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+    setNotificationLoading(true);
+    void loadNotificationPreferences(user.uid)
+      .then((preferences) => {
+        if (active) setPlateauPush(preferences.plateauPush);
+      })
+      .catch(() => {
+        if (active) setPlateauPush(false);
+      })
+      .finally(() => {
+        if (active) setNotificationLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
+
+  const handlePlateauPushChange = async (checked: boolean) => {
+    if (!user?.uid || notificationSaving) return;
+    setNotificationSaving(true);
+    try {
+      if (checked) {
+        await enablePlateauPush(user.uid);
+      } else {
+        await disablePlateauPush(user.uid);
+      }
+      setPlateauPush(checked);
+      toast({
+        title: checked ? "Progress alerts enabled" : "Progress alerts disabled",
+        description: checked
+          ? "MyBodyScan can now send conservative plateau check-ins to this browser."
+          : "This browser will no longer receive plateau check-ins.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Notification preference unchanged",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setNotificationSaving(false);
+    }
+  };
+
+  useEffect(() => {
     if (profile?.weight_kg != null) {
       const normalized =
         units === "metric" ? profile.weight_kg : kgToLb(profile.weight_kg);
@@ -188,7 +240,8 @@ const Settings = () => {
     const nextHeight =
       typeof profile?.heightCm === "number" && Number.isFinite(profile.heightCm)
         ? profile.heightCm
-        : typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+        : typeof profile?.height_cm === "number" &&
+            Number.isFinite(profile.height_cm)
           ? profile.height_cm
           : undefined;
     setHeightInputCm(nextHeight);
@@ -260,13 +313,17 @@ const Settings = () => {
       return;
     }
     const normalizedHeightCm =
-      typeof heightInputCm === "number" && Number.isFinite(heightInputCm) && heightInputCm > 0
+      typeof heightInputCm === "number" &&
+      Number.isFinite(heightInputCm) &&
+      heightInputCm > 0
         ? Math.round(heightInputCm)
         : undefined;
     const trimmedAge = ageInput.trim();
-    const parsedAge =
-      trimmedAge.length > 0 ? Number(trimmedAge) : undefined;
-    if (parsedAge != null && (!Number.isFinite(parsedAge) || parsedAge < 13 || parsedAge > 100)) {
+    const parsedAge = trimmedAge.length > 0 ? Number(trimmedAge) : undefined;
+    if (
+      parsedAge != null &&
+      (!Number.isFinite(parsedAge) || parsedAge < 13 || parsedAge > 100)
+    ) {
       toast({
         title: "Enter a valid age",
         description: "Age must be between 13 and 100.",
@@ -279,13 +336,7 @@ const Settings = () => {
       const weightKg = Number(
         (units === "metric" ? parsedWeight : lbToKg(parsedWeight)).toFixed(2)
       );
-      const profileRef = doc(
-        db,
-        "users",
-        user.uid,
-        "coach",
-        "profile"
-      );
+      const profileRef = doc(db, "users", user.uid, "coach", "profile");
       const unit = units === "metric" ? "kg" : "lb";
       const payload: Record<string, unknown> = {
         weightKg,
@@ -677,7 +728,10 @@ const Settings = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="sex">Sex</Label>
-              <Select value={sexInput} onValueChange={(value) => setSexInput(value as CoachSex)}>
+              <Select
+                value={sexInput}
+                onValueChange={(value) => setSexInput(value as CoachSex)}
+              >
                 <SelectTrigger id="sex">
                   <SelectValue placeholder="Select sex" />
                 </SelectTrigger>
@@ -689,7 +743,8 @@ const Settings = () => {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Used for BMR/TDEE and fat percent ranges. Defaults to unspecified.
+                Used for BMR/TDEE and fat percent ranges. Defaults to
+                unspecified.
               </p>
             </div>
             <div className="space-y-2">
@@ -737,9 +792,14 @@ const Settings = () => {
               <p className="text-xs text-muted-foreground">
                 Saved securely to improve scan estimates.
               </p>
-              {formatHeightFromCm(heightInputCm ?? profile?.heightCm ?? profile?.height_cm) ? (
+              {formatHeightFromCm(
+                heightInputCm ?? profile?.heightCm ?? profile?.height_cm
+              ) ? (
                 <p className="text-xs text-muted-foreground">
-                  Current: {formatHeightFromCm(heightInputCm ?? profile?.heightCm ?? profile?.height_cm)}
+                  Current:{" "}
+                  {formatHeightFromCm(
+                    heightInputCm ?? profile?.heightCm ?? profile?.height_cm
+                  )}
                 </p>
               ) : null}
             </div>
@@ -865,9 +925,7 @@ const Settings = () => {
                     : initAuthState.started
                       ? "starting"
                       : "not-started"}
-                  {initAuthState.redirectError
-                    ? ` • redirectError`
-                    : ""}
+                  {initAuthState.redirectError ? ` • redirectError` : ""}
                 </span>
               </div>
               <div className="flex items-center justify-between rounded border px-3 py-2">
@@ -949,48 +1007,42 @@ const Settings = () => {
 
         {/* Notifications */}
         <SectionCard title={t("settings.notifications")}>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <ToggleRow
-              label={t("notifications.scanReminder")}
-              description="Every 10 days since last scan"
-              checked={notifications.scanReminder}
-              onChange={(checked) =>
-                setNotifications((prev) => ({ ...prev, scanReminder: checked }))
+              label="Plateau progress check-ins"
+              description="Optional push alert only when at least three valid scans over 21+ days remain in a narrow range. This is a coaching prompt—not proof progress stopped."
+              checked={plateauPush}
+              onChange={(checked) => void handlePlateauPushChange(checked)}
+              disabled={
+                notificationLoading ||
+                notificationSaving ||
+                !isPushConfigured() ||
+                nativeCapacitor
               }
             />
-            <ToggleRow
-              label={t("notifications.workoutReminder")}
-              description="8am on planned workout days"
-              checked={notifications.workoutReminder}
-              onChange={(checked) =>
-                setNotifications((prev) => ({
-                  ...prev,
-                  workoutReminder: checked,
-                }))
-              }
-            />
-            <ToggleRow
-              label={t("notifications.checkinReminder")}
-              description="Weekly check-in reminders"
-              checked={notifications.checkinReminder}
-              onChange={(checked) =>
-                setNotifications((prev) => ({
-                  ...prev,
-                  checkinReminder: checked,
-                }))
-              }
-            />
-            <ToggleRow
-              label={t("notifications.renewalReminder")}
-              description="3 days before renewal"
-              checked={notifications.renewalReminder}
-              onChange={(checked) =>
-                setNotifications((prev) => ({
-                  ...prev,
-                  renewalReminder: checked,
-                }))
-              }
-            />
+            {(notificationLoading || notificationSaving) && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving
+                notification preference…
+              </p>
+            )}
+            {!isPushConfigured() && (
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                Push delivery is awaiting the Firebase Web Push public key for
+                this deployment. The setting stays off until it is configured.
+              </p>
+            )}
+            {nativeCapacitor && (
+              <p className="text-xs text-muted-foreground">
+                Native iPhone push also requires the production APNs key in
+                Firebase. This control currently registers web browsers only.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Notifications are off by default and permission is requested only
+              when you enable them. Other reminder types are not advertised
+              until delivery is implemented.
+            </p>
           </div>
         </SectionCard>
 
@@ -1148,11 +1200,11 @@ const Settings = () => {
                     ? "Opening portal…"
                     : "Open billing portal"}
               </Button>
-                {iosBuild && (
-                  <p className="mt-2 text-center text-xs text-muted-foreground">
-                    Billing is available on web.
-                  </p>
-                )}
+              {iosBuild && (
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Billing is available on web.
+                </p>
+              )}
             </div>
             <div className="grid gap-2">
               <Button

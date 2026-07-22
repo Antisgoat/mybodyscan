@@ -17,6 +17,7 @@ import { summarizeScanMetrics } from "@/lib/scanDisplay";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoScanHistory } from "@/lib/demoDataset";
 import { toDateOrNull } from "@/lib/time";
+import { isSuccessfulPersistedScan } from "@/lib/scanContract";
 
 export default function HistoryPage() {
   const nav = useNavigate();
@@ -69,9 +70,16 @@ export default function HistoryPage() {
     });
   }, [items, demo, user]); // eslint-disable-line
 
-  function toggle(id: string) {
+  function toggle(id: string, comparable: boolean) {
     if (demo && !user) {
       // Demo preview: keep selection UX simple; comparisons require an account.
+      return;
+    }
+    if (!comparable) {
+      toast({
+        title: "Comparison unavailable",
+        description: "Only completed, non-fallback scans can be compared.",
+      });
       return;
     }
     setSelected((sel) => {
@@ -166,6 +174,7 @@ export default function HistoryPage() {
           const metrics = extractScanMetrics(it as any);
           const summary = summarizeScanMetrics(metrics, units);
           const sel = selected.includes(it.id);
+          const comparable = isSuccessfulPersistedScan(it as any);
           const statusMeta = scanStatusLabel(
             it.status as string | undefined,
             (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt
@@ -177,7 +186,8 @@ export default function HistoryPage() {
             >
               <button
                 className="block w-full text-left"
-                onClick={() => toggle(it.id)}
+                onClick={() => toggle(it.id, comparable)}
+                aria-label={`${comparable ? "Select" : "Open details for"} scan ${it.id}`}
               >
                 <div className="aspect-[3/4] bg-black/5 overflow-hidden">
                   {thumbs[it.id] ? (
@@ -194,7 +204,9 @@ export default function HistoryPage() {
                 <div className="p-2 space-y-1">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="truncate">
-                      {(toDateOrNull(it.createdAt) ?? new Date()).toLocaleString()}
+                      {(
+                        toDateOrNull(it.createdAt) ?? new Date()
+                      ).toLocaleString()}
                     </span>
                     <span>
                       <span
@@ -210,14 +222,18 @@ export default function HistoryPage() {
                       </span>
                     </span>
                   </div>
-                  {statusMeta.showMetrics ? (
+                  {statusMeta.showMetrics && comparable ? (
                     <div className="text-sm font-medium">
-                      {summary.bodyFatText !== "—" ? `${summary.bodyFatText} BF` : "—"} ·{" "}
-                      {summary.weightText}
+                      {summary.bodyFatText !== "—"
+                        ? `${summary.bodyFatText} BF`
+                        : "—"}{" "}
+                      · {summary.weightText}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      {statusMeta.helperText}
+                      {comparable
+                        ? statusMeta.helperText
+                        : "Not eligible for progress comparison"}
                     </p>
                   )}
                 </div>

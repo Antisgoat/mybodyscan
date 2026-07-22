@@ -29,6 +29,7 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   const fallback = scan ?? {};
 
   const bodyFatPercent = firstNumber(
+    fallback?.estimate?.bodyFatPercent,
     metrics.bf_percent,
     metrics.bodyFatPct,
     metrics.bfPct,
@@ -52,6 +53,7 @@ export function extractScanMetrics(scan: any): NormalizedScanMetrics {
   );
 
   const weightKg = firstNumber(
+    fallback?.input?.currentWeightKg,
     metrics.weight_kg,
     metrics.weightKg,
     results.weight_kg,

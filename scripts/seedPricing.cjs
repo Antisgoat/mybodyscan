@@ -19,8 +19,15 @@ const admin = require("firebase-admin");
         credit_expiry_days: 365,
         extra_scan_price: 9.99,
       },
-      price_1S4Y6YQQU5vuhlNjeJFmshxX: {
+      price_1Tw39XQQU5vuhlNjCRpZkL6a: {
         plan: "elite",
+        credits: 36,
+        credit_expiry_days: 365,
+        extra_scan_price: 9.99,
+      },
+      // Recognize delayed webhook events created before the cadence fix.
+      price_1S4Y6YQQU5vuhlNjeJFmshxX: {
+        plan: "elite_legacy",
         credits: 36,
         credit_expiry_days: 365,
         extra_scan_price: 9.99,

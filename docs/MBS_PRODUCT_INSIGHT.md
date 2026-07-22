@@ -8,14 +8,14 @@ When enough product data is available, Product Insight produces a score from 0 t
 
 The formula starts at 80 points and applies the following capped adjustments:
 
-| Factor | Maximum adjustment | Reference used to reach the cap |
-| --- | ---: | ---: |
-| Dietary fiber | +12 | 7 g/100 g |
-| Protein | +8 | 20 g/100 g |
-| Saturated fat | -15 | 10 g/100 g |
-| Sodium | -15 | 1,150 mg/100 g |
-| Added sugar, or total sugar when added sugar is unavailable | -15 | 25 g/100 g |
-| Trans fat | -5 | 2 g/100 g |
+| Factor                                                      | Maximum adjustment | Reference used to reach the cap |
+| ----------------------------------------------------------- | -----------------: | ------------------------------: |
+| Dietary fiber                                               |                +12 |                       7 g/100 g |
+| Protein                                                     |                 +8 |                      20 g/100 g |
+| Saturated fat                                               |                -15 |                      10 g/100 g |
+| Sodium                                                      |                -15 |                  1,150 mg/100 g |
+| Added sugar, or total sugar when added sugar is unavailable |                -15 |                      25 g/100 g |
+| Trans fat                                                   |                 -5 |                       2 g/100 g |
 
 Each adjustment scales linearly from zero to its cap. The final result is rounded and constrained to 0–100. Additives, allergens, processing classifications, brands, marketing claims, and price do not change the score. They may be displayed separately as factual product-data disclosures.
 
@@ -38,6 +38,21 @@ The five core fields are calories, saturated fat, sodium, sugars, and fiber. A s
 
 Missing added-sugar data is never assumed to be zero. If total sugar is available instead, the UI identifies it as total sugar.
 
+## Higher-scoring alternatives
+
+When Open Food Facts supplies sufficient evidence, MyBodyScan may show up to
+three alternatives. Every displayed alternative must share at least one
+declared product category with the scanned item, have enough nutrient data for
+the published MBS Product Insight calculation, and score strictly higher under
+that same formula. The current item is excluded, candidates are sorted by the
+calculated score, and no alternative is shown when category or nutrient data is
+too incomplete to support the comparison.
+
+Alternatives are suggestions for comparison, not claims that a food is safe,
+healthy for every person, medically appropriate, cheaper, or nutritionally
+superior in every respect. The UI must identify the shared-category basis and
+keep the score factors available to the user.
+
 ## Public guidance and data sources
 
 The formula is informed by the FDA's general guidance to choose foods higher in dietary fiber and lower in saturated fat, sodium, and added sugars. FDA Daily Values include 28 g fiber, 20 g saturated fat, 2,300 mg sodium, 50 g added sugars, and 50 g protein for adults and children age four and older. The MBS per-100-g caps above are an original comparison system and are not FDA Daily Value calculations.
@@ -58,6 +73,9 @@ Product information can come from USDA FoodData Central and Open Food Facts. Ope
 - Always show missing-data status and encourage checking the physical label.
 - Keep score factors visible so users can understand every adjustment.
 - Do not use a competitor's trademarks, grading labels, trade dress, copy, icons, or proprietary methodology.
+- Do not advertise Product Insight as a clone, replacement, or version of a
+  named competitor; describe the functionality and the published MyBodyScan
+  methodology on their own terms.
 - Obtain counsel review of naming, marketing claims, data licensing, privacy, and launch territories before public release.
 
 Methodology version: **MBS-PI 1.0**.

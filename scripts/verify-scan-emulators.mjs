@@ -325,6 +325,15 @@ async function main() {
   await adminBucket
     .file(`user_uploads/${uid}/account-deletion-check.txt`)
     .save("local verification only", { contentType: "text/plain" });
+  await adminBucket
+    .file(`transformation-previews/${uid}/verification/goal-preview.jpg`)
+    .save("local verification only", { contentType: "image/jpeg" });
+  await adminDb
+    .doc(`users/${uid}/notificationTokens/verification-token`)
+    .set({ token: "verification-token-value", active: true });
+  await adminDb
+    .doc("pushTokenOwners/verification-token")
+    .set({ uid });
 
   const deleteUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/deleteMyAccount`;
   const deleteResponse = await fetch(deleteUrl, {
@@ -350,7 +359,17 @@ async function main() {
   if (!deletedScans.empty) {
     throw new Error("Account deletion left Firestore scans behind");
   }
-  for (const prefix of [`scans/${uid}/`, `user_uploads/${uid}/`]) {
+  const deletedPushOwner = await adminDb
+    .doc("pushTokenOwners/verification-token")
+    .get();
+  if (deletedPushOwner.exists) {
+    throw new Error("Account deletion left push-token ownership behind");
+  }
+  for (const prefix of [
+    `scans/${uid}/`,
+    `user_uploads/${uid}/`,
+    `transformation-previews/${uid}/`,
+  ]) {
     const [files] = await adminBucket.getFiles({ prefix });
     if (files.length > 0) {
       throw new Error(`Account deletion left Storage objects under ${prefix}`);

@@ -8,9 +8,9 @@
 
 ## 2. Build & deploy flow
 
-- **Toolchains**: Root package targets Node >=18 <21 while Functions pin Node 20; CI runs both web and functions builds on Node 20 runners.【F:package.json†L6-L12】【F:functions/package.json†L3-L16】【F:.github/workflows/verify.yml†L1-L34】
+- **Toolchains**: Root package supports Node 20 and 22 while Functions pin Node 22; CI keeps the web build on Node 20 and verifies Functions on Node 22.【F:package.json†L6-L12】【F:functions/package.json†L3-L16】【F:.github/workflows/verify.yml†L1-L70】
 - **Local scripts**: `npm run typecheck`, `npm run build`, and `npm run verify:local` cover TS checks, web builds, and combined web/functions builds; functions have their own `npm --prefix functions run typecheck`/`build` flow.【F:package.json†L10-L36】【F:functions/package.json†L7-L16】
-- **Deploy**: Hosting and functions deploy independently via `npm run deploy:hosting` / `deploy:functions`, with Firebase predeploy hooks reinstalling and rebuilding functions code.【F:package.json†L31-L32】【F:firebase.json†L153-L159】
+- **Deploy**: The production `main` workflow installs locked web/Functions dependencies, runs both verification suites, preserves a Hosting rollback release, and deploys indexes, Functions, rules/Storage, then Hosting. Firebase's Functions predeploy hook rebuilds the already-installed workspace; it does not mutate the dependency cache or lockfile.【F:.github/workflows/deploy-functions-on-main.yml†L1-L85】【F:firebase.json†L222-L237】
 
 ## 3. Environment variables
 

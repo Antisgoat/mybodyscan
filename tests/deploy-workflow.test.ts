@@ -28,6 +28,12 @@ const FUNCTIONS_ENV = fs.readFileSync(
 const PACKAGE_JSON = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")
 );
+const FUNCTIONS_PACKAGE_JSON = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "../functions/package.json"), "utf8")
+);
+const FIREBASE_JSON = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "../firebase.json"), "utf8")
+);
 
 describe("production deployment authentication", () => {
   it("uses repository-restricted keyless Google authentication", () => {
@@ -80,6 +86,22 @@ describe("production deployment authentication", () => {
     expect(PACKAGE_JSON.devDependencies.picomatch).toBe("4.0.5");
   });
 
+  it("deploys Functions on the supported Node 22 runtime", () => {
+    expect(FUNCTIONS_PACKAGE_JSON.engines.node).toBe("22");
+    expect(FUNCTIONS_PACKAGE_JSON.dependencies["firebase-admin"]).toBe(
+      "^14.2.0"
+    );
+    expect(FUNCTIONS_PACKAGE_JSON.dependencies["firebase-functions"]).toBe(
+      "7.3.0"
+    );
+    expect(FIREBASE_JSON.functions[0].runtime).toBe("nodejs22");
+    expect(FIREBASE_JSON.functions[0].predeploy).toEqual([
+      'npm --prefix "$RESOURCE_DIR" run build',
+    ]);
+    expect(WORKFLOW).toContain("node-version: 22");
+    expect(VERIFY_WORKFLOW).toContain("node-version: 22");
+  });
+
   it("pins Java 21 anywhere the current Firebase emulators run", () => {
     expect(WORKFLOW).toContain("actions/setup-java@v4");
     expect(WORKFLOW).toMatch(/java-version:\s*["']?21/);
@@ -118,6 +140,23 @@ describe("production deployment authentication", () => {
     }
   });
 
+  it("deploys the collection-group index required by plateau notifications", () => {
+    expect(FIRESTORE_INDEXES.fieldOverrides).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          collectionGroup: "notificationTokens",
+          fieldPath: "active",
+          indexes: expect.arrayContaining([
+            {
+              order: "ASCENDING",
+              queryScope: "COLLECTION_GROUP",
+            },
+          ]),
+        }),
+      ])
+    );
+  });
+
   it("does not require a GitHub secret for committed public Firebase config", () => {
     expect(SMOKE_WORKFLOW).not.toContain("secrets.FIREBASE_WEB_API_KEY");
   });
@@ -126,6 +165,13 @@ describe("production deployment authentication", () => {
     expect(VERIFY_WORKFLOW).toContain(
       "VITE_APPCHECK_SITE_KEY: ci-enterprise-verification"
     );
+  });
+
+  it("injects the production Web Push public key only at deploy time", () => {
+    expect(WORKFLOW).toContain(
+      "VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}"
+    );
+    expect(WORKFLOW).not.toMatch(/VITE_FIREBASE_VAPID_KEY:\s+[A-Za-z0-9_-]{40}/);
   });
 
   it("deletes the temporary production probe account after scan cleanup", () => {

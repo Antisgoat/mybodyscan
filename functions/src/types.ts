@@ -9,6 +9,22 @@ export interface ScanEstimate {
   bmiCategory?: string | null;
   keyObservations?: string[];
   goalRecommendations?: string[];
+  /** Cautious, photo-based qualitative observations. Never numeric or diagnostic. */
+  visualObservations?: {
+    muscularDevelopment?: string;
+    upperBodyDevelopment?: string;
+    lowerBodyDevelopment?: string;
+    midsectionDefinition?: string;
+    postureObservation?: string;
+    balanceObservation?: string;
+    strongestAreas?: string;
+    priorityAreas?: string;
+    shouldersChest?: string;
+    arms?: string;
+    torsoCore?: string;
+    hips?: string;
+    legs?: string;
+  };
 }
 
 export interface ScanWorkoutPlan {

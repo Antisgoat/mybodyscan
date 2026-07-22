@@ -1,4 +1,4 @@
-name: Verify build (Node 20)
+name: Verify build (web Node 20, Functions Node 22)
 
 on:
   push:
@@ -30,6 +30,8 @@ jobs:
           java-version: "21"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
+      - name: Audit production web dependencies
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -53,10 +55,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -71,6 +73,9 @@ jobs:
       - name: Install dependencies (functions)
         working-directory: functions
         run: npm ci --no-audit --no-fund
+      - name: Audit production Functions dependencies
+        working-directory: functions
+        run: npm audit --omit=dev --audit-level=high
       - name: Build and test functions
         working-directory: functions
         run: npm test

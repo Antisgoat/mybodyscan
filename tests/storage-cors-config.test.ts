@@ -15,6 +15,10 @@ const canonical = JSON.parse(
 const infrastructure = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../infra/storage-cors.json"), "utf8")
 ) as { cors: CorsRule[] };
+const storageRules = fs.readFileSync(
+  path.resolve(__dirname, "../storage.rules"),
+  "utf8"
+);
 
 describe("Storage CORS configuration", () => {
   it("keeps the infrastructure mirror and every production origin in sync", () => {
@@ -29,6 +33,15 @@ describe("Storage CORS configuration", () => {
         "https://mybodyscan-f3daf.web.app",
         "https://mybodyscan-f3daf.firebaseapp.com",
       ])
+    );
+  });
+
+  it("keeps generated transformation previews owner-readable and server-write-only", () => {
+    expect(storageRules).toMatch(
+      /match \/transformation-previews\/\{uid\}\/\{scanId\}\/\{fileName\}/
+    );
+    expect(storageRules).toMatch(
+      /match \/transformation-previews[\s\S]*allow read: if isOwner\(uid\);[\s\S]*allow write: if false;/
     );
   });
 });

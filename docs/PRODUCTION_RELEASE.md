@@ -14,7 +14,7 @@ historical and must not be used as deployment instructions.
   it to Firebase.
 - Firebase Hosting sites: `mybodyscan-f3daf.web.app` and
   `mybodyscan-f3daf.firebaseapp.com`
-- Functions region/runtime: `us-central1`, Node.js 20
+- Functions region/runtime: `us-central1`, Node.js 22
 - Production deploys come from reviewed `main`. Never deploy a dirty tree.
 - The `main` workflow verifies and deploys indexes, Functions, rules, Storage,
   and Hosting through keyless Google Workload Identity Federation.
@@ -32,6 +32,8 @@ values still must not be pasted into tickets or logs.
 - `VITE_FIREBASE_PROJECT_ID`
 - `VITE_FIREBASE_STORAGE_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_VAPID_KEY` (public Web Push certificate key from this Firebase
+  project's Cloud Messaging settings)
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID` (optional; required only for Analytics)
 - `VITE_STRIPE_PUBLISHABLE_KEY` (must be a live-mode `pk_live_…` key)
@@ -83,6 +85,14 @@ The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
 override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
 replacement has passed the scan reliability suite.
 
+The optional adult-only Transformation Preview uses the same
+`OPENAI_API_KEY` with the fixed `gpt-image-2` image-edit model. The OpenAI
+organization must be verified for GPT Image access and have appropriate spend
+limits. The feature sends only the user's front scan photo after explicit,
+versioned consent, stores the result privately under
+`transformation-previews/{uid}/{scanId}/`, and never exposes a public image
+URL. It is a motivational illustration, not a forecast or guarantee.
+
 The production Storage bucket CORS allowlist is canonical in
 `scripts/cors.json` and mirrored in `infra/storage-cors.json`. The deployment
 workflow applies it through Application Default Credentials and verifies the
@@ -102,12 +112,13 @@ the current-state notes below say it was configured:
    - Email/password enabled.
    - Google enabled with a support email.
    - Apple enabled with the active Apple Team ID, Key ID, Services ID, and key.
-     As of 2026-07-21 Firebase has the Team ID, Key ID, Services ID
-     `com.mybodyscan.web`, and private key configured. The Services ID is
-     associated with the MyBodyScan App ID and its eight registered production
-     domains/return URLs. Rotate the Apple key before release because its stored
-     material was rendered during the configuration audit; install the new key
-     in Firebase, verify a real web sign-in, and only then revoke the old key.
+     As of 2026-07-22 Firebase has replacement key `Z83358MB2U`, the Apple Team
+     ID, and Services ID `com.mybodyscan.web` configured. The Services ID is
+     associated with the MyBodyScan App ID and its registered production
+     domains/return URLs. Keep prior key `JL88547YFM` active until a real Apple
+     web sign-in succeeds in a normal browser on the apex domain. Revoke the old
+     key only after that test; the in-app automation browser cannot establish a
+     reliable Apple popup session and is not an acceptable sign-in gate.
 2. Firebase Console → Authentication → Settings → Authorized domains:
    `mybodyscanapp.com`, `www.mybodyscanapp.com`, `mybodyscan.app`,
    `www.mybodyscan.app`,
@@ -125,23 +136,44 @@ the current-state notes below say it was configured:
 5. Stripe Dashboard in live mode:
    - all committed production price IDs exist and are active;
    - Customer Portal is configured;
-   - the webhook endpoint is `https://mybodyscanapp.com/stripeWebhook`;
+   - the active webhook destination targets the deployed `stripeWebhook`
+     Function (the direct Cloud Run URL or
+     `https://mybodyscanapp.com/stripeWebhook` are both valid);
    - subscribed events include `checkout.session.completed`,
      `invoice.payment_succeeded`, `customer.subscription.updated`, and
      `customer.subscription.deleted`.
-     As of 2026-07-21 the repository allowlist and live-key wiring pass locally,
-     but the live prices, portal, and webhook remain dashboard-only release gates.
+     As of 2026-07-22 the current destination is active and listens to all four
+     required events; its Function has a webhook secret bound and rejects an
+     intentionally invalid signature with HTTP 400. The live monthly and
+     one-time prices match the committed IDs. On 2026-07-22, the product owner
+     approved $199 billed once per year for “Elite Plan (Annual)”; a corrected
+     immutable yearly price was created, made the Stripe product default, and
+     installed in the web and Functions allowlists. The superseded $199/month
+     price remains recognized only for delayed pre-cutover webhook events and
+     must be archived immediately after the corrected web/Functions release is
+     live and a yearly Checkout opens successfully. A stale zero-activity
+     `stripeWebhook2` destination also remains; disable it
+     only after a successful signed delivery to the current destination.
+     Customer Portal subscription cancellation, payment-method updates, and
+     invoice history are enabled. Its account-wide legal links are blank;
+     because this Stripe account is branded ADLR LABS, do not replace those
+     links with MyBodyScan URLs without an account-owner/legal decision.
 6. Firebase Hosting → Custom domains: `mybodyscanapp.com` is the canonical
    Firebase custom domain. Its `www` alias must have the DNS record Firebase
    requests and show `HOST_ACTIVE`; confirm the canonical redirect behavior.
-   As of 2026-07-21 `www.mybodyscanapp.com` is `HOST_UNHOSTED`. In Namecheap,
-   add a CNAME with host `www` and value `mybodyscan-f3daf.web.app`, then wait
-   for Firebase Hosting to report both ownership and host status active.
+   On 2026-07-22 the Namecheap CNAME `www` →
+   `mybodyscan-f3daf.web.app` was saved and confirmed in public DNS. Firebase's
+   prior `www` certificate expired on 2025-12-25; a safe reconciliation was
+   requested after DNS was restored. Do not release until Firebase reports
+   `HOST_ACTIVE`, `OWNERSHIP_ACTIVE`, and `CERT_ACTIVE`, and `curl` validates a
+   newly issued certificate. Firebase documents that provisioning can take up
+   to 24 hours.
    `mybodyscan.app` is not currently attached to Firebase Hosting. To attach it,
    first make an explicit product/domain migration decision and then replace its
    current external DNS/hosting configuration.
 7. GitHub → Settings → Environments → `production`: enabled versions of
-   `VITE_APPCHECK_SITE_KEY` and `VITE_STRIPE_PUBLISHABLE_KEY` exist. The manual
+   `VITE_APPCHECK_SITE_KEY`, `VITE_STRIPE_PUBLISHABLE_KEY`, and the public
+   `VITE_FIREBASE_VAPID_KEY` exist. The manual
    production probe reads the committed public Firebase Web API key and does not
    require a duplicate GitHub secret. The production deploy does not use a JSON key: workflow
    `id-token: write` authenticates through
@@ -155,11 +187,27 @@ the current-state notes below say it was configured:
    Function secret must separately grant `roles/secretmanager.secretAccessor`
    to the Function runtime account
    `157018993008-compute@developer.gserviceaccount.com`.
+   Set **Deployment branches and tags** to **Selected branches and tags** with
+   only `main`. The Google workload-identity provider already rejects every
+   other repository/ref, but the matching GitHub environment restriction is a
+   second independent guard.
 8. Product/legal owner approves the exact static Privacy, Terms, and Refund
    content and replaces the pages' dynamic “Last updated” date with that
    approved effective date. In particular, reconcile the Terms' 12-month credit
    expiry with the runtime's configurable/default expiry and confirm age,
    retention, refund, governing-law, vendor, and international-rights language.
+9. Firebase Console → Project settings → Cloud Messaging:
+   - Web Push certificates contains an active key pair for project
+     `mybodyscan-f3daf`; copy only its public key to
+     `VITE_FIREBASE_VAPID_KEY`.
+   - The scheduled `sendPlateauNotifications` Function exists after deployment.
+   - For native iPhone push, upload an active APNs authentication key associated
+     with the correct Apple Team and bundle ID. Web push does not substitute for
+     APNs.
+     Verify with an opted-in non-admin browser: permission is requested only after
+     the user enables the setting, a token document is created under that user,
+     and a targeted test notification opens `/history`. Never log a registration
+     token.
 
 ## App Check behavior
 
@@ -188,13 +236,26 @@ Functions, and repeat auth, scan, nutrition, billing, account deletion, and
 mobile checks. Enable Firebase product enforcement one product at a time. Roll
 back to `soft` immediately if legitimate clients receive permission failures.
 
+Current verified console state on 2026-07-22: the web app is registered with
+reCAPTCHA Enterprise; Cloud Firestore and Authentication are in **Monitoring**
+and Storage is **Unenforced**. None of those Firebase products is rejecting
+unverified users. Functions use the repository-controlled soft mode described
+above. Do not enable console enforcement as part of this release.
+
 ## Local release gates
 
-Use Node.js 20 and run from the repository root:
+Use Node.js 20 or 22 for the web workspace and Node.js 22 for `functions/`.
+Run from the repository root:
 
 ```bash
 npm ci --no-audit --no-fund
 npm --prefix functions ci --no-audit --no-fund
+npm ci --prefix tests/rules --no-audit --no-fund
+npm audit --omit=dev --audit-level=high
+npm --prefix functions audit --omit=dev --audit-level=high
+npm ls --depth=0
+npm --prefix functions ls --depth=0
+npm --prefix tests/rules ls --depth=0
 npm run check:production-config
 npm run lint
 npm run typecheck
@@ -202,9 +263,10 @@ npm test
 npm --prefix functions test
 npm run build:prod
 npm run rules:check
-npm ci --prefix tests/rules --no-audit --no-fund
 npx firebase-tools emulators:exec --only firestore --project demo-mbs "npm run test:rules"
 npm run verify:scan
+npm run storage:cors:check
+npx firebase-tools deploy --only firestore:indexes,functions,firestore:rules,storage,hosting --project mybodyscan-f3daf --non-interactive --dry-run
 ```
 
 After `build:prod`, start the local production preview in a second terminal:
@@ -229,7 +291,8 @@ reviewed. `verify:scan` uses local Auth, Firestore, Storage, and Functions
 emulators plus a local OpenAI-compatible mock. It verifies successful analysis,
 one atomic debit and ledger entry, duplicate-submit idempotency, one refund with
 a matching ledger entry on analysis failure, and complete account deletion
-across Auth, Firestore, and both Storage prefixes. CI repeats the same
+across Auth, Firestore, scan uploads, user uploads, and private transformation
+previews. CI repeats the same
 release-critical gates.
 
 ## Deployment order
@@ -271,9 +334,21 @@ without recording photo, health, token, or payment details in tickets.
   expected credits/entitlement once in `users/{uid}/private/credits` with one
   matching `credits_ledger` entry; Customer Portal opens for that customer.
 - Nutrition text search returns USDA data and a known barcode exercises the
-  Open Food Facts/USDA fallback path.
+  Open Food Facts/USDA fallback path. A product with sufficient category and
+  nutrient data shows at most three alternatives that share a declared
+  category and score strictly higher under the published MBS Product Insight
+  formula; incomplete or unrelated candidates are withheld.
+- An eligible adult explicitly consents to a Transformation Preview, one real
+  front-photo edit completes, the image remains owner-only in Storage, and the
+  UI presents it as a motivational illustration rather than a prediction.
+- Plateau progress check-ins are off by default. Enabling them requests browser
+  permission only after the user action, creates one token, and a targeted test
+  opens `/history`. No alert is sent for fewer than three valid scans, a span
+  under 21 days, failed/fallback scans, or an already-notified plateau window.
 - Account deletion removes the Auth user, the complete Firestore user subtree,
-  `scans/{uid}/`, and `user_uploads/{uid}/`.
+  `scans/{uid}/`, `user_uploads/{uid}/`, and
+  `transformation-previews/{uid}/`, plus that user's global hashed push-token
+  ownership records.
 - `/legal/privacy`, `/legal/terms`, `/legal/refund`, `/legal/disclaimer`, and
   the compatibility `/medical` route work on the custom and Firebase domains;
   SPA deep links refresh successfully.
@@ -297,8 +372,9 @@ dig www.mybodyscanapp.com CNAME +noall +answer
 ```
 
 The expected record is `www.mybodyscanapp.com CNAME
-mybodyscan-f3daf.web.app`. Do not proceed while Firebase reports
-`HOST_UNHOSTED`.
+mybodyscan-f3daf.web.app`. Do not proceed until Firebase reports
+`HOST_ACTIVE`, `OWNERSHIP_ACTIVE`, and `CERT_ACTIVE`, and a normal `curl`
+request succeeds without bypassing TLS validation.
 
 ## Rollback
 

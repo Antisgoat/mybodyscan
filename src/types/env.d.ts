@@ -1,6 +1,7 @@
 /* Augment Vite env typing so code can compile without .env files. */
 interface ImportMetaEnv {
   readonly VITE_APPCHECK_SITE_KEY?: string;
+  readonly VITE_FIREBASE_VAPID_KEY?: string;
   readonly VITE_DEMO_ENABLED?: string; // "1"/"true" to enable
   readonly VITE_SHOW_APPLE_WEB?: string; // "1"/"true" to show Apple on web (legacy)
   readonly VITE_SHOW_APPLE?: string; // "1"/"true" to force Apple button
