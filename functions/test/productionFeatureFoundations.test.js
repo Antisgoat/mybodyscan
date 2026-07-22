@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 process.env.GCLOUD_PROJECT ||= "demo-test";
@@ -61,4 +62,14 @@ test("plateau push uses data-only web delivery and visible APNs delivery", () =>
   assert.equal(ios.notification.title, "Progress check-in");
   assert.equal(ios.apns.payload.aps.sound, "default");
   assert.match(ios.notification.body, /coaching prompt/i);
+});
+
+test("RevenueCat credit grants keep bucket totals as the balance source of truth", () => {
+  const source = readFileSync(
+    new URL("../src/revenueCatWebhook.ts", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /grantCreditBuckets/);
+  assert.doesNotMatch(source, /currentCredits/);
+  assert.doesNotMatch(source, /credits:\s*currentCredits/);
 });

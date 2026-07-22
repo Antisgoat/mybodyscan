@@ -30,6 +30,9 @@ node scripts/assert-ios-public-bundle.mjs
 
 mkdir -p ios/build
 
+archive_log="$(mktemp "${TMPDIR:-/tmp}/mbs-archive.XXXXXX")"
+trap 'rm -f "$archive_log"' EXIT
+
 xcodebuild \
   -workspace ios/App/App.xcworkspace \
   -scheme App \
@@ -37,5 +40,5 @@ xcodebuild \
   -destination 'generic/platform=iOS' \
   -archivePath ios/build/MyBodyScan.xcarchive \
   -allowProvisioningUpdates \
-  archive | tee /tmp/mbs-archive.log
-grep -n "error:" /tmp/mbs-archive.log && exit 1 || true
+  archive | tee "$archive_log"
+grep -n "error:" "$archive_log" && exit 1 || true

@@ -234,7 +234,6 @@ export const revenueCatWebhook = onRequest(
     const ledgerRef = creditLedgerId
       ? db.doc(`credits_ledger/${creditLedgerId}`)
       : null;
-    const userRef = db.doc(`users/${appUserId}`);
     const creditRef = db.doc(`users/${appUserId}/private/credits`);
 
     await db.runTransaction(async (tx) => {
@@ -259,12 +258,6 @@ export const revenueCatWebhook = onRequest(
       const current = currentSnap.exists ? currentSnap.data() : null;
       const ledgerSnap =
         decision.credits > 0 && ledgerRef ? await tx.get(ledgerRef) : null;
-      const userSnap =
-        decision.credits > 0 ? await tx.get(userRef) : null;
-      const currentCredits =
-        userSnap?.exists && typeof userSnap.data()?.credits === "number"
-          ? (userSnap.data()?.credits as number)
-          : 0;
       const shouldGrantCredits =
         decision.credits > 0 &&
         ledgerRef != null &&
@@ -309,14 +302,6 @@ export const revenueCatWebhook = onRequest(
           },
           createdAt: FieldValue.serverTimestamp(),
         });
-        tx.set(
-          userRef,
-          {
-            credits: currentCredits + decision.credits,
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
       }
 
       // Consumable purchases grant credits but never grant or revoke Pro.

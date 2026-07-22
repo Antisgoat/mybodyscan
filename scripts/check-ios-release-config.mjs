@@ -134,6 +134,19 @@ requireText(
   "The archive command must synchronize the fresh bundle into iOS."
 );
 requireText(
+  archive,
+  'archive_log="$(mktemp "${TMPDIR:-/tmp}/mbs-archive.XXXXXX")"',
+  "The archive command must create a private temporary log file."
+);
+requireText(
+  archive,
+  `trap 'rm -f "$archive_log"' EXIT`,
+  "The archive command must remove its temporary log file on exit."
+);
+if (archive.includes("/tmp/mbs-archive.log")) {
+  failures.push("The archive command must not use a predictable /tmp log path.");
+}
+requireText(
   envExample,
   "VITE_RC_API_KEY_IOS=",
   "The production env template must document the RevenueCat iOS public key."
