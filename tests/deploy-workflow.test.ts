@@ -17,6 +17,13 @@ const VERIFY_WORKFLOW = fs.readFileSync(
 const FIRESTORE_INDEXES = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../firestore.indexes.json"), "utf8")
 );
+const FUNCTIONS_ENV = fs.readFileSync(
+  path.resolve(__dirname, "../functions/.env.mybodyscan-f3daf"),
+  "utf8"
+);
+const PACKAGE_JSON = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")
+);
 
 describe("production deployment authentication", () => {
   it("uses repository-restricted keyless Google authentication", () => {
@@ -44,6 +51,36 @@ describe("production deployment authentication", () => {
     expect(verifyIndex).toBeGreaterThan(-1);
     expect(authIndex).toBeGreaterThan(verifyIndex);
     expect(deployIndex).toBeGreaterThan(authIndex);
+  });
+
+  it("commits only safe non-secret Functions parameters for CI", () => {
+    const keys = FUNCTIONS_ENV.split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => line.split("=", 1)[0])
+      .sort();
+
+    expect(keys).toEqual([
+      "APP_CHECK_MODE",
+      "OPENAI_BASE_URL",
+      "OPENAI_MODEL",
+      "OPENAI_PROVIDER",
+    ]);
+    expect(FUNCTIONS_ENV).not.toMatch(
+      /(?:API_KEY|SECRET|PASSWORD|PRIVATE_KEY|WEBHOOK)=/
+    );
+  });
+
+  it("uses the current Firebase CLI toolchain", () => {
+    expect(PACKAGE_JSON.devDependencies["firebase-tools"]).toBe("15.24.0");
+    expect(PACKAGE_JSON.devDependencies.picomatch).toBe("4.0.5");
+  });
+
+  it("pins Java 21 anywhere the current Firebase emulators run", () => {
+    expect(WORKFLOW).toContain("actions/setup-java@v4");
+    expect(WORKFLOW).toMatch(/java-version:\s*["']?21/);
+    expect(VERIFY_WORKFLOW.match(/actions\/setup-java@v4/g)).toHaveLength(2);
+    expect(VERIFY_WORKFLOW.match(/java-version:\s*["']?21/g)).toHaveLength(2);
   });
 
   it("preserves existing production indexes without a forced deletion", () => {
