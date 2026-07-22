@@ -182,7 +182,9 @@ the current-state notes below say it was configured:
    The provider condition must remain restricted to repository
    `Antisgoat/mybodyscan` and `refs/heads/main`, and the service account must have
    zero user-managed keys. Its project roles are Firebase Admin, Cloud Functions
-   Admin, Cloud Build Editor, Service Account User, and Secret Manager Viewer.
+   Admin, Cloud Scheduler Admin (required to create and update Firebase scheduled
+   Function jobs), Cloud Build Editor, Service Account User, and Secret Manager
+   Viewer.
    Secret Manager Viewer exposes metadata, not secret payloads. Every declared
    Function secret must separately grant `roles/secretmanager.secretAccessor`
    to the Function runtime account
