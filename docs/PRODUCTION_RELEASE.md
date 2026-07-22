@@ -8,16 +8,16 @@ historical and must not be used as deployment instructions.
 
 - Firebase project: `mybodyscan-f3daf`
 - Primary site: `https://mybodyscanapp.com`
-- Alternate custom site: `https://mybodyscan.app` (`www` currently redirects to
-  the apex); `www.mybodyscanapp.com` must also resolve or be deliberately
-  removed from the advertised/allowed domain set.
+- Secondary domain: `https://mybodyscan.app` is currently hosted outside
+  Firebase (Cloudflare/Hercules) and is not a Firebase Hosting release target.
+  Treat it as an allowed origin only until the product owner deliberately moves
+  it to Firebase.
 - Firebase Hosting sites: `mybodyscan-f3daf.web.app` and
   `mybodyscan-f3daf.firebaseapp.com`
 - Functions region/runtime: `us-central1`, Node.js 20
 - Production deploys come from reviewed `main`. Never deploy a dirty tree.
 - The `main` workflow verifies and deploys indexes, Functions, rules, Storage,
-  and Hosting. A missing service-account secret skips deployment instead of
-  performing a partial release.
+  and Hosting through keyless Google Workload Identity Federation.
 
 ## Required configuration
 
@@ -35,7 +35,8 @@ values still must not be pasted into tickets or logs.
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MEASUREMENT_ID` (optional; required only for Analytics)
 - `VITE_STRIPE_PUBLISHABLE_KEY` (must be a live-mode `pk_live_…` key)
-- `VITE_APPCHECK_SITE_KEY` (reCAPTCHA v3 site key)
+- `VITE_APPCHECK_SITE_KEY` (reCAPTCHA Enterprise site key created in Google
+  Cloud project `mybodyscan-f3daf`)
 - the `VITE_PRICE_*` IDs represented in `.env.production.example`
 
 The generated production bundle fails if any required Firebase Web field is
@@ -82,23 +83,45 @@ The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
 override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
 replacement has passed the scan reliability suite.
 
+The production Storage bucket CORS allowlist is canonical in
+`scripts/cors.json` and mirrored in `infra/storage-cors.json`. The deployment
+workflow applies it through Application Default Credentials and verifies the
+result without reading Storage objects. Operators can use the same path:
+
+```bash
+npm run storage:cors:check
+npm run storage:cors:apply
+```
+
 ### Console and vendor settings
 
-These cannot be completed from the repository. An operator must verify each
-item before release:
+These are external to the repository. Verify each item before release even when
+the current-state notes below say it was configured:
 
 1. Firebase Console → Authentication → Sign-in method:
    - Email/password enabled.
    - Google enabled with a support email.
    - Apple enabled with the active Apple Team ID, Key ID, Services ID, and key.
+     As of 2026-07-21 Firebase has the Team ID, Key ID, Services ID
+     `com.mybodyscan.web`, and private key configured. The Services ID is
+     associated with the MyBodyScan App ID and its eight registered production
+     domains/return URLs. Rotate the Apple key before release because its stored
+     material was rendered during the configuration audit; install the new key
+     in Firebase, verify a real web sign-in, and only then revoke the old key.
 2. Firebase Console → Authentication → Settings → Authorized domains:
    `mybodyscanapp.com`, `www.mybodyscanapp.com`, `mybodyscan.app`,
    `www.mybodyscan.app`,
    `mybodyscan-f3daf.web.app`, and `mybodyscan-f3daf.firebaseapp.com`.
+   As of 2026-07-21 all six are present. Google Auth Platform branding is
+   `MyBodyScan`, is published for an external audience, and has the production
+   home/privacy/terms URLs plus both custom parent domains.
 3. Apple Developer → Services ID: Firebase's `__/auth/handler` URL is an allowed
    return URL and the custom web domains are associated.
-4. Firebase Console → App Check → Web app: reCAPTCHA v3 is registered and its
-   key allows all four custom hostnames and both Firebase Hosting domains.
+4. Google Cloud Console → reCAPTCHA Enterprise: the production web key belongs
+   to project `mybodyscan-f3daf` and allows all four custom hostnames and both
+   Firebase Hosting domains. Firebase Console → App Check → Web app must show
+   reCAPTCHA Enterprise as registered. A legacy provider may remain registered
+   during migration, but the deployed client must use Enterprise.
 5. Stripe Dashboard in live mode:
    - all committed production price IDs exist and are active;
    - Customer Portal is configured;
@@ -106,15 +129,32 @@ item before release:
    - subscribed events include `checkout.session.completed`,
      `invoice.payment_succeeded`, `customer.subscription.updated`, and
      `customer.subscription.deleted`.
-6. Firebase Hosting → Custom domains: both apex domains and their intended
-   `www` aliases are connected, certificates are active, and DNS resolves to
-   Firebase Hosting. Confirm the chosen redirect/canonical behavior.
+     As of 2026-07-21 the repository allowlist and live-key wiring pass locally,
+     but the live prices, portal, and webhook remain dashboard-only release gates.
+6. Firebase Hosting → Custom domains: `mybodyscanapp.com` is the canonical
+   Firebase custom domain. Its `www` alias must have the DNS record Firebase
+   requests and show `HOST_ACTIVE`; confirm the canonical redirect behavior.
+   As of 2026-07-21 `www.mybodyscanapp.com` is `HOST_UNHOSTED`. In Namecheap,
+   add a CNAME with host `www` and value `mybodyscan-f3daf.web.app`, then wait
+   for Firebase Hosting to report both ownership and host status active.
+   `mybodyscan.app` is not currently attached to Firebase Hosting. To attach it,
+   first make an explicit product/domain migration decision and then replace its
+   current external DNS/hosting configuration.
 7. GitHub → Settings → Environments → `production`: enabled versions of
-   `FIREBASE_SERVICE_ACCOUNT_JSON`, `VITE_APPCHECK_SITE_KEY`, and
-   `VITE_STRIPE_PUBLISHABLE_KEY` exist. `FIREBASE_WEB_API_KEY` is also present
-   for the manually dispatched production probe workflow. The service account
-   can deploy Hosting, Functions, Firestore indexes/rules, Storage rules, and
-   access declared secrets.
+   `VITE_APPCHECK_SITE_KEY` and `VITE_STRIPE_PUBLISHABLE_KEY` exist. The manual
+   production probe reads the committed public Firebase Web API key and does not
+   require a duplicate GitHub secret. The production deploy does not use a JSON key: workflow
+   `id-token: write` authenticates through
+   `projects/157018993008/locations/global/workloadIdentityPools/github-actions/providers/mybodyscan`
+   as `github-mybodyscan-deploy@mybodyscan-f3daf.iam.gserviceaccount.com`.
+   The provider condition must remain restricted to repository
+   `Antisgoat/mybodyscan` and `refs/heads/main`, and the service account must have
+   zero user-managed keys. Its project roles are Firebase Admin, Cloud Functions
+   Admin, Cloud Build Editor, Service Account User, and Secret Manager Viewer.
+   Secret Manager Viewer exposes metadata, not secret payloads. Every declared
+   Function secret must separately grant `roles/secretmanager.secretAccessor`
+   to the Function runtime account
+   `157018993008-compute@developer.gserviceaccount.com`.
 8. Product/legal owner approves the exact static Privacy, Terms, and Refund
    content and replaces the pages' dynamic “Last updated” date with that
    approved effective date. In particular, reconcile the Terms' 12-month credit
@@ -124,8 +164,9 @@ item before release:
 ## App Check behavior
 
 The web client initializes Firebase App Check only when
-`VITE_APPCHECK_SITE_KEY` is present. It uses the reCAPTCHA v3 provider and sends
-tokens through Firebase callable requests and the `X-Firebase-AppCheck` header.
+`VITE_APPCHECK_SITE_KEY` is present. It uses the reCAPTCHA Enterprise provider
+and sends tokens through Firebase callable requests and the
+`X-Firebase-AppCheck` header.
 
 `APP_CHECK_MODE=soft` is the production bootstrap setting:
 
@@ -185,9 +226,10 @@ BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.confi
 Storage REST URL checks, and build metadata. Historical lint warnings may be
 reported; lint must exit zero and any new correctness/security warning must be
 reviewed. `verify:scan` uses local Auth, Firestore, Storage, and Functions
-emulators plus a local OpenAI-compatible mock; it verifies successful analysis,
-one atomic debit and ledger entry, duplicate-submit idempotency, and one refund
-with a matching ledger entry on analysis failure. CI repeats the same
+emulators plus a local OpenAI-compatible mock. It verifies successful analysis,
+one atomic debit and ledger entry, duplicate-submit idempotency, one refund with
+a matching ledger entry on analysis failure, and complete account deletion
+across Auth, Firestore, and both Storage prefixes. CI repeats the same
 release-critical gates.
 
 ## Deployment order
@@ -200,6 +242,7 @@ commit prefix.
 git status --short
 git rev-parse HEAD
 npx firebase-tools hosting:clone mybodyscan-f3daf:live mybodyscan-f3daf:rollback-RELEASE_ID --project mybodyscan-f3daf
+npm run storage:cors:apply
 npx firebase-tools deploy --only firestore:indexes --project mybodyscan-f3daf --non-interactive
 npx firebase-tools deploy --only functions --project mybodyscan-f3daf --non-interactive
 npx firebase-tools deploy --only firestore:rules,storage --project mybodyscan-f3daf --non-interactive
@@ -247,6 +290,16 @@ curl -fsSI https://mybodyscanapp.com/
 npx firebase-tools functions:log --project mybodyscan-f3daf --only systemHealth,stripeWebhook,processQueuedScan,deleteAccount
 ```
 
+Hosting custom-domain state is also available without exposing credentials:
+
+```bash
+dig www.mybodyscanapp.com CNAME +noall +answer
+```
+
+The expected record is `www.mybodyscanapp.com CNAME
+mybodyscan-f3daf.web.app`. Do not proceed while Firebase reports
+`HOST_UNHOSTED`.
+
 ## Rollback
 
 Hosting rollback is immediate and does not require rebuilding:
@@ -265,6 +318,7 @@ npm ci --no-audit --no-fund
 npm --prefix functions ci --no-audit --no-fund
 npm run build:prod
 npm --prefix functions test
+npm run storage:cors:apply
 npx firebase-tools deploy --only firestore:indexes --project mybodyscan-f3daf --non-interactive
 npx firebase-tools deploy --only functions --project mybodyscan-f3daf --non-interactive
 npx firebase-tools deploy --only firestore:rules,storage --project mybodyscan-f3daf --non-interactive

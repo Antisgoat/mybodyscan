@@ -8,7 +8,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      FIREBASE_WEB_API_KEY: ${{ secrets.FIREBASE_WEB_API_KEY }}
       PROJECT_ID: mybodyscan-f3daf
     steps:
       - uses: actions/checkout@v4

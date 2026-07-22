@@ -129,13 +129,19 @@ async function main() {
   );
   const { initializeApp: initializeAdminApp } =
     functionsRequire("firebase-admin/app");
+  const { getAuth: getAdminAuth } = functionsRequire("firebase-admin/auth");
   const { getFirestore: getAdminFirestore, Timestamp: AdminTimestamp } =
     functionsRequire("firebase-admin/firestore");
+  const { getStorage: getAdminStorage } = functionsRequire(
+    "firebase-admin/storage"
+  );
   const adminApp = initializeAdminApp(
     { projectId, storageBucket: bucket },
     `verify-scan-${randomUUID()}`
   );
   const adminDb = getAdminFirestore(adminApp);
+  const adminAuth = getAdminAuth(adminApp);
+  const adminBucket = getAdminStorage(adminApp).bucket(bucket);
   const creditRef = adminDb.doc(`users/${uid}/private/credits`);
   const initialCreditTime = AdminTimestamp.now();
   await creditRef.set({
@@ -309,13 +315,61 @@ async function main() {
   if (!refundLedger.exists || refundLedger.data()?.amount !== 1) {
     throw new Error("Failed scan is missing its refund ledger entry");
   }
+  const finalCredits = await creditBalance();
+
+  // Verify the real callable used by Settings deletes every account surface.
+  // This runs last because a successful deletion invalidates the test identity.
+  await adminDb
+    .doc(`users/${uid}`)
+    .set({ displayName: "Account deletion verifier" }, { merge: true });
+  await adminBucket
+    .file(`user_uploads/${uid}/account-deletion-check.txt`)
+    .save("local verification only", { contentType: "text/plain" });
+
+  const deleteUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/deleteMyAccount`;
+  const deleteResponse = await fetch(deleteUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ data: {} }),
+  });
+  const deletePayload = await deleteResponse.json().catch(() => null);
+  if (!deleteResponse.ok || deletePayload?.result?.ok !== true) {
+    throw new Error(
+      `Account deletion callable failed (${deleteResponse.status}): ${JSON.stringify(deletePayload)}`
+    );
+  }
+
+  const deletedUserTree = await adminDb.doc(`users/${uid}`).get();
+  if (deletedUserTree.exists) {
+    throw new Error("Account deletion left the Firestore user document behind");
+  }
+  const deletedScans = await adminDb.collection(`users/${uid}/scans`).get();
+  if (!deletedScans.empty) {
+    throw new Error("Account deletion left Firestore scans behind");
+  }
+  for (const prefix of [`scans/${uid}/`, `user_uploads/${uid}/`]) {
+    const [files] = await adminBucket.getFiles({ prefix });
+    if (files.length > 0) {
+      throw new Error(`Account deletion left Storage objects under ${prefix}`);
+    }
+  }
+  try {
+    await adminAuth.getUser(uid);
+    throw new Error("Account deletion left the Auth user behind");
+  } catch (error) {
+    if (error?.code !== "auth/user-not-found") throw error;
+  }
 
   console.log("[verify:scan] ok", {
     successfulScan: successSession.scanId,
     failedScan: failureSession.scanId,
-    finalCredits: await creditBalance(),
+    finalCredits,
     duplicateSubmitIdempotent: true,
     refundVerified: true,
+    accountDeletionVerified: true,
   });
   // Ensure `emulators:exec` sees a clean exit (avoid being SIGTERM'd during shutdown).
   process.exit(0);

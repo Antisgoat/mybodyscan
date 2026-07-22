@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_PATH="${ROOT_DIR}/infra/storage-cors.json"
+CONFIG_PATH="${ROOT_DIR}/scripts/cors.json"
 BUCKET="gs://mybodyscan-f3daf.firebasestorage.app"
 
 if ! command -v gsutil >/dev/null 2>&1; then

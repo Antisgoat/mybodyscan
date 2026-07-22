@@ -240,7 +240,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 - `VITE_ENABLE_APPLE` – Set to `true` to force-render Apple sign-in alongside provider autodetect.
 - `VITE_ENABLE_DEMO` – Set to `true` to expose the hosted demo sign-in on any origin.
-- `VITE_APPCHECK_SITE_KEY` – reCAPTCHA v3 site key used by Firebase App Check. Functions remain soft until real production tokens are validated.
+- `VITE_APPCHECK_SITE_KEY` – reCAPTCHA Enterprise site key used by Firebase App Check. Functions remain soft until real production tokens are validated.
 - `VITE_FUNCTIONS_BASE_URL` – Override Cloud Functions origin (defaults to `https://${region}-${project}.cloudfunctions.net`).
 - `VITE_STRIPE_PK` / `VITE_STRIPE_PUBLISHABLE_KEY` – Stripe publishable key; drives test/live banners and diagnostics.
 - `VITE_NATIVE_ALLOWED_SCRIPT_ORIGINS` – Comma-separated origins allowed to load external scripts in native iOS builds.
@@ -265,7 +265,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ### Operational notes
 
-- CSP `connect-src` in `firebase.json` already includes Identity Toolkit, Secure Token, Firestore, Storage, Stripe, Apple ID, Cloud Functions, and Cloud Run endpoints; extend here first before hitting new SaaS APIs.
+- Hosting applies HSTS, frame denial, MIME-sniffing protection, a strict referrer policy, and a camera-only Permissions Policy from `firebase.json`. A Content Security Policy is not currently enforced; add and browser-test one before describing CSP as a production control.
 - Hosting rewrites send `/systemHealth` to the health-check function and `/api/nutrition/*` to authenticated nutrition handlers. Keep these rules ahead of the SPA catch-all.
 - `scripts/smoke.sh` is idempotent and requires `VITE_FIREBASE_API_KEY` plus configured `VITE_PRICE_*` envs. It creates a throwaway Firebase user, fetches an ID token, and probes `/systemHealth`, `/nutritionSearch`, `/coachChat`, and `/createCheckout` (accepts `200`, `501`, or `502` based on config).
 - Nutrition and barcode features now require a signed-in Firebase user; signed-out visitors see "Sign in to search foods and scan barcodes."
@@ -278,18 +278,17 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ## Prod Smoke
 
-- `npm run probe` mints an anonymous Firebase ID token with `FIREBASE_WEB_API_KEY` and probes production HTTPS endpoints via Cloud Functions/Run bases.
-- Required env: `FIREBASE_WEB_API_KEY`, `PROJECT_ID`; optional: `REGION` (defaults to `us-central1`), `BASES` (comma/space-separated host templates), `TEST_PRICE_ID` (overrides `price_xxx`).
+- `npm run probe` mints an anonymous Firebase ID token using the public Web API key in `.env.production` and probes production HTTPS endpoints via Cloud Functions/Run bases.
+- Required env: `PROJECT_ID`; optional: `FIREBASE_WEB_API_KEY` or `VITE_FIREBASE_API_KEY` override, `REGION` (defaults to `us-central1`), `BASES` (comma/space-separated host templates), and `TEST_PRICE_ID` (overrides `price_xxx`).
 - Example (default bases):
 
 ```sh
-FIREBASE_WEB_API_KEY=your_web_api_key PROJECT_ID=mybodyscan-f3daf npm run probe
+PROJECT_ID=mybodyscan-f3daf npm run probe
 ```
 
 - Example overriding bases explicitly:
 
 ```sh
-FIREBASE_WEB_API_KEY=your_web_api_key \
 PROJECT_ID=mybodyscan-f3daf \
 BASES="https://us-central1-mybodyscan-f3daf.cloudfunctions.net https://mybodyscan-f3daf-us-central1.a.run.app" \
 npm run probe

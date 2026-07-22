@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   verify-and-deploy:
     runs-on: ubuntu-latest
@@ -15,9 +19,16 @@ jobs:
       VITE_APPCHECK_SITE_KEY: ${{ secrets.VITE_APPCHECK_SITE_KEY }}
       VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
       VITE_APP_BASE_URL: https://mybodyscanapp.com
-      FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
     steps:
       - uses: actions/checkout@v4
+
+      - id: google-auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: mybodyscan-f3daf
+          workload_identity_provider: projects/157018993008/locations/global/workloadIdentityPools/github-actions/providers/mybodyscan
+          service_account: github-mybodyscan-deploy@mybodyscan-f3daf.iam.gserviceaccount.com
 
       - uses: actions/setup-node@v4
         with:
@@ -53,20 +64,14 @@ jobs:
         working-directory: functions
         run: npm test
 
-      - name: Verify scan, credit, and refund pipeline
+      - name: Verify scan, credit, refund, and account deletion pipeline
         run: npm run verify:scan
 
       - name: Deploy production in dependency order
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON != '' }}
         run: |
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-sa.json"
           npx firebase hosting:clone mybodyscan-f3daf:live "mybodyscan-f3daf:rollback-${GITHUB_SHA:0:7}" --project mybodyscan-f3daf
+          npm run storage:cors:apply
           npx firebase deploy --only firestore:indexes --project mybodyscan-f3daf --non-interactive
           npx firebase deploy --only functions --project mybodyscan-f3daf --non-interactive
           npx firebase deploy --only firestore:rules,storage --project mybodyscan-f3daf --non-interactive
           npx firebase deploy --only hosting --project mybodyscan-f3daf --non-interactive
-
-      - name: Skip deploy (secret missing)
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT_JSON == '' }}
-        run: echo "FIREBASE_SERVICE_ACCOUNT_JSON not configured; production deploy skipped."

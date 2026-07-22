@@ -60,5 +60,5 @@ jobs:
       - name: Build and test functions
         working-directory: functions
         run: npm test
-      - name: Scan, credit, and refund emulator flow
+      - name: Scan, credit, refund, and account deletion emulator flow
         run: npm run verify:scan
