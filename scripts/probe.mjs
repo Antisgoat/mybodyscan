@@ -150,6 +150,24 @@ const ENDPOINTS = [
       return { ok: false, message: "deleteScan did not return ok:true" };
     },
   },
+  {
+    name: "accountDelete",
+    functionName: "deleteAccount",
+    path: "/",
+    method: "POST",
+    body: {},
+    expect: ({ status, parsed }) => {
+      if (status !== 200)
+        return { ok: false, message: `expected 200, got ${status}` };
+      if (!isObject(parsed) || parsed.ok !== true) {
+        return {
+          ok: false,
+          message: "account deletion did not return ok:true",
+        };
+      }
+      return { ok: true };
+    },
+  },
 ];
 
 function ensureTrailingSlash(value) {
