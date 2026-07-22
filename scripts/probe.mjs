@@ -42,6 +42,34 @@ const ENDPOINTS = [
     functionName: "api",
     path: "/api/nutrition/search?q=chicken breast",
     method: "GET",
+    expect: ({ status, parsed }) => {
+      if (status !== 200)
+        return { ok: false, message: `expected 200, got ${status}` };
+      if (!isObject(parsed) || parsed.status !== "ok") {
+        return { ok: false, message: "nutrition search was not healthy" };
+      }
+      if (!Array.isArray(parsed.results) || parsed.results.length === 0) {
+        return { ok: false, message: "nutrition search returned no results" };
+      }
+      return { ok: true };
+    },
+  },
+  {
+    name: "nutritionBarcode",
+    functionName: "api",
+    path: "/api/nutrition/barcode?code=737628064502",
+    method: "GET",
+    expect: ({ status, parsed }) => {
+      if (status !== 200)
+        return { ok: false, message: `expected 200, got ${status}` };
+      if (!isObject(parsed) || !Array.isArray(parsed.results)) {
+        return { ok: false, message: "unexpected barcode response shape" };
+      }
+      if (parsed.results.length === 0) {
+        return { ok: false, message: "barcode lookup returned no product" };
+      }
+      return { ok: true };
+    },
   },
   {
     name: "createCheckout",

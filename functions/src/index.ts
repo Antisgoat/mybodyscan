@@ -5,10 +5,13 @@ import expressModule from "express";
 import type { NextFunction, Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { billingRouter } from "./billing.js";
 import { coachRouter } from "./coach.js";
 import { allowCorsAndOptionalAppCheck } from "./http.js";
 import { nutritionRouter } from "./nutrition.js";
+import { openAiSecretParam } from "./openai/keys.js";
+import { stripeSecretKeyParam, stripeSecretParam } from "./stripe/keys.js";
 import { systemRouter } from "./systemRouter.js";
 
 export { health } from "./health.js";
@@ -67,6 +70,7 @@ export {
 } from "./nutrition.js";
 
 const express = expressModule as any;
+const usdaFdcApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 const app = express();
 const apiRouter = express.Router();
 app.use(express.json({ limit: "2mb" }));
@@ -257,5 +261,18 @@ app.use((error: unknown, req: Request, res: Response, _next: NextFunction) => {
 });
 
 export const apiAppForTest = app;
-export const api = onRequest({ region: "us-central1" }, app);
+export const api = onRequest(
+  {
+    region: "us-central1",
+    // The aggregate API runs handlers from these routers in the API process.
+    // Their standalone Functions bindings do not carry over automatically.
+    secrets: [
+      openAiSecretParam,
+      stripeSecretParam,
+      stripeSecretKeyParam,
+      usdaFdcApiKeyParam,
+    ],
+  },
+  app
+);
 export { deleteScan } from "./http/deleteScan.js";
