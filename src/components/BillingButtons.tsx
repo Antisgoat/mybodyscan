@@ -160,7 +160,7 @@ export default function BillingButtons({ className }: Props) {
       </div>
       {!enabled && !native && (
         <div className="mt-1 text-xs text-muted-foreground">
-          Billing disabled (no Stripe key).
+          Billing is unavailable in this session.
         </div>
       )}
     </div>

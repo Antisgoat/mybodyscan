@@ -8,7 +8,7 @@ import { isNative } from "@/lib/platform";
 type Props = { children: ReactNode };
 type State = { hasError: boolean; message?: string; stack?: string };
 
-const SUPPORT_EMAIL = "support@mybodyscan.com";
+const SUPPORT_EMAIL = "support@mybodyscanapp.com";
 const CRASH_LOGGED_FLAG = "__mbs_app_crash_logged__";
 
 export class AppErrorBoundary extends Component<Props, State> {

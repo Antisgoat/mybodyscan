@@ -8,6 +8,7 @@ interface BuildMeta {
 
 export default function Footer() {
   const [build, setBuild] = useState<BuildMeta | null>(null);
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     let cancelled = false;
@@ -33,14 +34,14 @@ export default function Footer() {
       <div className="mx-auto max-w-3xl px-4 py-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
-            <span>© 2024 MyBodyScan</span>
+            <span>© {currentYear} MyBodyScan</span>
             {buildLabel ? (
               <span className="text-xs text-muted-foreground">
                 • Build {buildLabel}
               </span>
             ) : null}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-4">
             <Link
               to="/privacy"
               className="hover:text-foreground transition-colors"
@@ -66,7 +67,7 @@ export default function Footer() {
               Health & Safety
             </Link>
             <a
-              href="mailto:support@mybodyscan.com"
+              href="mailto:support@mybodyscanapp.com"
               className="hover:text-foreground transition-colors"
             >
               Support
