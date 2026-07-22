@@ -10,6 +10,10 @@ const SMOKE_WORKFLOW = fs.readFileSync(
   path.resolve(__dirname, "../.github/workflows/prod-smoke.yml"),
   "utf8"
 );
+const VERIFY_WORKFLOW = fs.readFileSync(
+  path.resolve(__dirname, "../.github/workflows/verify.yml"),
+  "utf8"
+);
 
 describe("production deployment authentication", () => {
   it("uses repository-restricted keyless Google authentication", () => {
@@ -27,5 +31,11 @@ describe("production deployment authentication", () => {
 
   it("does not require a GitHub secret for committed public Firebase config", () => {
     expect(SMOKE_WORKFLOW).not.toContain("secrets.FIREBASE_WEB_API_KEY");
+  });
+
+  it("runs PR verification with App Check configured like production", () => {
+    expect(VERIFY_WORKFLOW).toContain(
+      "VITE_APPCHECK_SITE_KEY: ci-enterprise-verification"
+    );
   });
 });

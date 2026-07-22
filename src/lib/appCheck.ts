@@ -6,12 +6,13 @@ import {
 } from "firebase/app-check";
 import { firebaseApp } from "@/lib/firebase";
 
+const env = (import.meta as any).env ?? {};
+const isTestRuntime =
+  env.VITEST === true || env.VITEST === "true" || env.MODE === "test";
 const siteKeyRaw =
-  (import.meta as any).env?.VITE_APPCHECK_SITE_KEY ||
-  (import.meta as any).env?.VITE_RECAPTCHA_SITE_KEY ||
-  "";
-const siteKey = siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
-const debug = (import.meta as any).env?.VITE_APPCHECK_DEBUG_TOKEN || "";
+  env.VITE_APPCHECK_SITE_KEY || env.VITE_RECAPTCHA_SITE_KEY || "";
+const siteKey = isTestRuntime || siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
+const debug = isTestRuntime ? "" : env.VITE_APPCHECK_DEBUG_TOKEN || "";
 let initAttempted = false;
 let recaptchaWarned = false;
 
