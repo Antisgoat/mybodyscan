@@ -8,6 +8,7 @@ import { initPurchases } from "@/lib/billing/iapProvider";
 import { syncEntitlements } from "@/lib/entitlements/syncEntitlements";
 import { collection, getDocs, limit, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { syncNativePushRegistration } from "@/lib/pushNotifications";
 
 export function useAuthBootstrap() {
   const { user } = useAuthUser();
@@ -40,6 +41,9 @@ export function useAuthBootstrap() {
         });
         // Native-only: bind RevenueCat appUserID to Firebase uid.
         void initPurchases({ uid: user.uid }).catch(() => undefined);
+        // Best-effort and never prompts: refresh an already opted-in native
+        // FCM token so scheduled plateau notifications survive token rotation.
+        void syncNativePushRegistration(user.uid).catch(() => undefined);
         await bootstrapSystem();
 
         // Best-effort: ensure allowlisted admin Pro is reflected in Firestore SSoT.

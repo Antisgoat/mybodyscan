@@ -4,10 +4,11 @@ import { createHmac } from "node:crypto";
 //   node scripts/revenuecat-webhook-smoke.mjs \
 //     --url "https://<your-host>/api/revenuecat/webhook" \
 //     --secret "<signing-secret>" \
-//     --uid "<firebase-uid>" \
 //     --eventId "test-evt-1"
 //
-// Sends a minimal RevenueCat-style payload with an HMAC signature header.
+// Sends a non-billing RevenueCat-style TEST payload with an HMAC signature.
+// The webhook records an ignored audit event but cannot grant Pro or credits.
+// Real purchase testing must be performed through StoreKit/TestFlight.
 
 function arg(name, fallback = "") {
   const idx = process.argv.indexOf(`--${name}`);
@@ -18,9 +19,8 @@ function arg(name, fallback = "") {
 
 const url = arg("url");
 const secret = arg("secret");
-const uid = arg("uid", "test_uid");
+const uid = arg("uid", "webhook_smoke_test");
 const eventId = arg("eventId", `test-${Date.now()}`);
-const entitlementId = arg("entitlementId", "pro");
 
 if (!url || !secret) {
   console.error("Missing --url or --secret");
@@ -30,10 +30,8 @@ if (!url || !secret) {
 const payload = {
   event: {
     id: eventId,
-    type: "INITIAL_PURCHASE",
+    type: "TEST",
     app_user_id: uid,
-    entitlement_ids: [entitlementId],
-    expiration_at_ms: Date.now() + 7 * 24 * 60 * 60 * 1000,
   },
 };
 
@@ -51,4 +49,3 @@ const res = await fetch(url, {
 
 const text = await res.text().catch(() => "");
 console.log(JSON.stringify({ status: res.status, ok: res.ok, body: text }, null, 2));
-

@@ -331,14 +331,14 @@ export default function Plans() {
       name: "Yearly",
       price: "$199",
       period: "per year",
-      credits: "3 scans/month + Everything included",
+      credits: "36 scan credits/year + Everything included",
       plan: "elite_annual" as const,
       priceId: PRICE_ID_YEARLY,
       envKey: "VITE_PRICE_YEARLY",
       mode: "subscription" as const,
       popular: true,
       features: [
-        "3 scans per month",
+        "36 scan credits per annual renewal",
         "All Monthly features",
         "Save $100.88 vs 12 standard monthly payments",
         "Advanced analytics",
@@ -612,9 +612,7 @@ export default function Plans() {
                       </li>
                     ))}
                   </ul>
-                  {plan.features.some((feature) =>
-                    feature.includes("3 scans per month")
-                  ) && (
+                  {plan.mode === "subscription" && (
                     <p className="text-xs text-muted-foreground mt-2">
                       *Unused scans roll over for 12 months.*
                     </p>

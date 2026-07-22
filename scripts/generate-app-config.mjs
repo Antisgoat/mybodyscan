@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import { assertRevenueCatIosReleaseConfig } from "./lib/validate-revenuecat-release.mjs";
 // Minimal dotenv-compatible parser (kept local to avoid runtime dependencies).
 const dotenv = {
   parse(src) {
@@ -41,6 +42,7 @@ const isNative =
   process.env.CAPACITOR_PLATFORM != null ||
   process.env.MBS_NATIVE_RELEASE === "1" ||
   process.env.MBS_NATIVE_BUILD === "1";
+const isNativeRelease = process.env.MBS_NATIVE_RELEASE === "1";
 
 const resolveEnvMode = (envMode, nativeFlag) => {
   if (nativeFlag) return "native";
@@ -56,7 +58,13 @@ const buildEnvList = (envMode) => {
   return [...base, ...modeFiles];
 };
 
-const ENV_FILES = buildEnvList(resolveEnvMode(mode, isNative));
+// Vite builds native releases in production mode, so the guard must read the
+// exact same env-file family that Vite will embed. A value that exists only in
+// `.env.native*` must never let a release pass while producing an unconfigured
+// bundle.
+const ENV_FILES = buildEnvList(
+  isNativeRelease ? mode : resolveEnvMode(mode, isNative)
+);
 
 const fileEnv = {};
 const loadedFiles = [];
@@ -68,6 +76,19 @@ for (const file of ENV_FILES) {
   const parsed = dotenv.parse(contents);
   Object.assign(fileEnv, parsed);
   loadedFiles.push(file);
+}
+
+const readBuildEnvValue = (key) => {
+  const fromProcess = String(process.env[key] ?? "").trim();
+  if (fromProcess) return fromProcess;
+  return String(fileEnv[key] ?? "").trim();
+};
+
+if (isNativeRelease) {
+  assertRevenueCatIosReleaseConfig({
+    iosKey: readBuildEnvValue("VITE_RC_API_KEY_IOS"),
+    entitlementId: readBuildEnvValue("VITE_RC_ENTITLEMENT_ID"),
+  });
 }
 
 const allowlistedClientKeys = new Set([

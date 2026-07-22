@@ -11,6 +11,7 @@ import {
 } from "./stripe/keys.js";
 import { grantCreditBuckets } from "./scan/creditUtils.js";
 import { getCreditExpiryMonths } from "./lib/creditPolicy.js";
+import { projectBillingEntitlement } from "./lib/entitlementProjection.js";
 
 const db = getFirestore();
 
@@ -31,14 +32,6 @@ async function writeStripeProEntitlement(params: {
       typeof current?.source === "string" ? current.source : "";
     const isAdminSource =
       currentSource === "admin" || currentSource === "admin_allowlist";
-    // Never let Stripe events revoke IAP/Admin access.
-    if (
-      !params.pro &&
-      (currentSource === "iap" || isAdminSource) &&
-      current?.pro === true
-    ) {
-      return;
-    }
     // Never overwrite an admin-granted Pro with Stripe state.
     // We still store Stripe event metadata for debugging, but keep `source: "admin"` and `expiresAt: null`.
     if (isAdminSource) {
@@ -52,22 +45,31 @@ async function writeStripeProEntitlement(params: {
           stripe: {
             eventId: params.eventId,
             type: params.eventType,
+            pro: params.pro,
+            expiresAt: params.expiresAtMs,
           },
         },
         { merge: true }
       );
       return;
     }
+    const projected = projectBillingEntitlement({
+      current,
+      incomingSource: "stripe",
+      incoming: { pro: params.pro, expiresAt: params.expiresAtMs },
+    });
     tx.set(
       entRef,
       {
-        pro: params.pro,
-        source: "stripe",
-        expiresAt: params.expiresAtMs,
+        pro: projected.pro,
+        source: projected.source,
+        expiresAt: projected.expiresAt,
         updatedAt: FieldValue.serverTimestamp(),
         stripe: {
           eventId: params.eventId,
           type: params.eventType,
+          pro: params.pro,
+          expiresAt: params.expiresAtMs,
         },
       },
       { merge: true }

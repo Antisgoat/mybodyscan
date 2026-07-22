@@ -38,4 +38,36 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     ])
     return true
   }
+
+  func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    NotificationCenter.default.post(
+      name: .capacitorDidRegisterForRemoteNotifications,
+      object: deviceToken
+    )
+  }
+
+  func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    NotificationCenter.default.post(
+      name: .capacitorDidFailToRegisterForRemoteNotifications,
+      object: error
+    )
+  }
+
+  func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    NotificationCenter.default.post(
+      name: Notification.Name("didReceiveRemoteNotification"),
+      object: completionHandler,
+      userInfo: userInfo
+    )
+  }
 }

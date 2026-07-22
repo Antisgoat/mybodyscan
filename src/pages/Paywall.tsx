@@ -16,6 +16,10 @@ import {
   restorePurchases,
   type IapPackage,
 } from "@/lib/billing/iapProvider";
+import {
+  getIapProductKind,
+  isIapSubscription,
+} from "@/lib/billing/iapProducts";
 
 export default function PaywallPage() {
   const nav = useNavigate();
@@ -67,11 +71,21 @@ export default function PaywallPage() {
         return;
       }
       const current = res.value?.current;
-      const nextPackages = Array.isArray(current?.availablePackages)
+      const offeredPackages = Array.isArray(current?.availablePackages)
         ? current.availablePackages
         : [];
+      // Only display products the webhook can safely fulfill. A dashboard
+      // typo must never sell an item that grants neither access nor credits.
+      const nextPackages = offeredPackages.filter((pkg) =>
+        Boolean(getIapProductKind(String(pkg.product?.identifier || "")))
+      );
       if (!cancelled) {
         setPackages(nextPackages);
+        if (nextPackages.length === 0) {
+          setOfferingsError(
+            "Purchases are temporarily unavailable. Please try again later."
+          );
+        }
         setLoading(false);
       }
     })();
@@ -190,6 +204,11 @@ export default function PaywallPage() {
         ) : (
           sortedPackages.map((pkg) => {
             const product = pkg.product as any;
+            const productKind = getIapProductKind(
+              String(product?.identifier || "")
+            );
+            if (!productKind) return null;
+            const subscription = isIapSubscription(productKind);
             const title =
               (typeof product?.title === "string" && product.title.trim()) ||
               (typeof product?.identifier === "string" && product.identifier) ||
@@ -214,14 +233,16 @@ export default function PaywallPage() {
                   ) : null}
                   <Button
                     className="w-full"
-                    disabled={busy !== null || entitled}
+                    disabled={busy !== null || (entitled && subscription)}
                     onClick={() => void onBuy(pkg)}
                   >
-                    {entitled
+                    {entitled && subscription
                       ? "Already Pro"
                       : busy === "buy"
                         ? "Processing…"
-                        : "Continue"}
+                        : productKind === "one"
+                          ? "Buy scan credit"
+                          : "Continue"}
                   </Button>
                 </CardContent>
               </Card>
@@ -246,4 +267,3 @@ export default function PaywallPage() {
     </div>
   );
 }
-

@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
 import { signOutToAuth, useAuthUser } from "@/auth/mbs-auth";
 import { useNavigate } from "react-router-dom";
-import { apiFetchWithFallback } from "@/lib/http";
-import { preferRewriteUrl } from "@/lib/api/urls";
-import { isNative } from "@/lib/platform";
+import { requestAccountDeletion } from "@/lib/account";
 
 export default function SettingsAccountPrivacyPage() {
   const { user, loading } = useAuthUser();
@@ -28,23 +26,7 @@ export default function SettingsAccountPrivacyPage() {
     }
     setBusy(true);
     try {
-      if (isNative()) {
-        throw new Error(
-          "Account deletion requires recent login. Please delete your account on web."
-        );
-      }
-
-      const data = await apiFetchWithFallback<{ ok?: boolean; error?: string }>(
-        "deleteAccount",
-        preferRewriteUrl("deleteAccount"),
-        { method: "POST", body: {} }
-      );
-      if (data?.error === "reauth_required") {
-        throw new Error("Please re-authenticate and try again.");
-      }
-      if (!data?.ok) {
-        throw new Error(data?.error || "Could not delete account");
-      }
+      await requestAccountDeletion();
 
       setMsg("Account deleted.");
       await signOutToAuth();
@@ -86,7 +68,10 @@ export default function SettingsAccountPrivacyPage() {
         <p className="text-xs text-muted-foreground">
           Deleting your account will permanently remove your scans, notes, and
           settings. This cannot be undone. For security, sign in again first if
-          your last authentication was more than five minutes ago.
+          your last authentication was more than five minutes ago. Deleting
+          your MyBodyScan account does not cancel an Apple App Store or Stripe
+          subscription; cancel it in Apple Subscriptions or the billing portal
+          first if you do not want it to renew.
         </p>
 
         <label className="text-xs block">

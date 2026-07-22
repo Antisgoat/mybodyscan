@@ -6,7 +6,7 @@ process.env.GCLOUD_PROJECT ||= "demo-test";
 const { buildTransformationPrompt } = await import(
   "../lib/transformationPreview.js"
 );
-const { deriveServerPlateauSignature } = await import(
+const { buildPlateauMulticastMessage, deriveServerPlateauSignature } = await import(
   "../lib/pushNotifications.js"
 );
 
@@ -50,4 +50,15 @@ test("server plateau detector uses current scan schema and rejects failed scans"
     ),
     null
   );
+});
+
+test("plateau push uses data-only web delivery and visible APNs delivery", () => {
+  const web = buildPlateauMulticastMessage("web", ["web-token"]);
+  assert.equal(web.notification, undefined);
+  assert.equal(web.data.url, "/history");
+
+  const ios = buildPlateauMulticastMessage("ios", ["ios-token"]);
+  assert.equal(ios.notification.title, "Progress check-in");
+  assert.equal(ios.apns.payload.aps.sound, "default");
+  assert.match(ios.notification.body, /coaching prompt/i);
 });

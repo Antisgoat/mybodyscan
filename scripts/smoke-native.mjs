@@ -24,6 +24,7 @@ const pluginPatterns = [
 const allowedPlugins = new Set([
   "@capacitor/app",
   "@capacitor/browser",
+  "@capacitor-firebase/messaging",
   "@revenuecat/purchases-capacitor",
 ]);
 
@@ -112,15 +113,15 @@ function assertCapPlugins() {
       fail(`npx cap ls ios missing required plugin: ${plugin}.`);
     }
   }
-  if (/capacitor-firebase/i.test(output)) {
-    fail("npx cap ls ios reports a capacitor-firebase plugin. Remove native Firebase plugins.");
+  if (/capacitor-firebase\/authentication/i.test(output)) {
+    fail("npx cap ls ios reports the disallowed native Firebase Authentication plugin.");
   }
   for (const pattern of pluginPatterns) {
     if (output.includes(pattern)) {
       fail(`npx cap ls ios reports disallowed plugin: ${pattern}.`);
     }
   }
-  pass("Capacitor iOS plugins match expected list (RevenueCat only).");
+  pass("Capacitor iOS plugins match expected RevenueCat and Messaging list.");
 }
 
 async function assertNoServerUrl() {

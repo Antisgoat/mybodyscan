@@ -24,6 +24,11 @@ function validatedToken(value: unknown): string {
   return token;
 }
 
+function validatedPlatform(value: unknown): "web" | "ios" | "unknown" {
+  if (value === "web" || value === "ios") return value;
+  return "unknown";
+}
+
 export const registerPushToken = onCallWithOptionalAppCheck(
   async (request) => {
     const uid = request.auth?.uid;
@@ -33,7 +38,7 @@ export const registerPushToken = onCallWithOptionalAppCheck(
       uid,
       tokenId: tokenId(token),
       token,
-      platform: request.data?.platform === "web" ? "web" : "unknown",
+      platform: validatedPlatform(request.data?.platform),
     });
     return { ok: true };
   },
@@ -145,6 +150,33 @@ export function deriveServerPlateauSignature(
   return stable ? `${goal}:${metric}:${last.id}` : null;
 }
 
+const PLATEAU_NOTIFICATION = {
+  title: "Progress check-in",
+  body: "Your recent estimates have stayed in a narrow range. Review your plan—this is a coaching prompt, not proof progress stopped.",
+};
+
+export function buildPlateauMulticastMessage(
+  platform: "web" | "ios" | "unknown",
+  tokens: string[]
+) {
+  const data = {
+    ...PLATEAU_NOTIFICATION,
+    url: "/history",
+    tag: "plateau-check-in",
+  };
+  if (platform === "ios") {
+    return {
+      tokens,
+      data,
+      notification: PLATEAU_NOTIFICATION,
+      apns: { payload: { aps: { sound: "default" } } },
+    };
+  }
+  // Data-only delivery lets the committed web service worker render exactly
+  // one notification. Supplying both notification and data can duplicate it.
+  return { tokens, data };
+}
+
 export const sendPlateauNotifications = onSchedule(
   {
     region: "us-central1",
@@ -161,14 +193,23 @@ export const sendPlateauNotifications = onSchedule(
       .get();
     const byUser = new Map<
       string,
-      Array<{ token: string; ref: FirebaseFirestore.DocumentReference }>
+      Array<{
+        token: string;
+        platform: "web" | "ios" | "unknown";
+        ref: FirebaseFirestore.DocumentReference;
+      }>
     >();
     for (const docSnap of tokenSnap.docs) {
       const uid = docSnap.ref.parent.parent?.id;
-      const token = docSnap.data()?.token;
+      const data = docSnap.data();
+      const token = data?.token;
       if (!uid || typeof token !== "string") continue;
       const list = byUser.get(uid) || [];
-      list.push({ token, ref: docSnap.ref });
+      list.push({
+        token,
+        platform: validatedPlatform(data?.platform),
+        ref: docSnap.ref,
+      });
       byUser.set(uid, list);
     }
 
@@ -194,37 +235,38 @@ export const sendPlateauNotifications = onSchedule(
       );
       if (!signature || signature === preferences.lastPlateauSignature)
         continue;
-      let response;
-      try {
-        response = await messaging.sendEachForMulticast({
-          tokens: tokens.slice(0, 500).map((entry) => entry.token),
-          // Data-only delivery lets the committed service worker render one
-          // notification. Supplying both notification and data payloads can
-          // cause duplicate browser notifications on some FCM clients.
-          data: {
-            title: "Progress check-in",
-            body: "Your recent estimates have stayed in a narrow range. Review your plan—this is a coaching prompt, not proof progress stopped.",
-            url: "/history",
-            tag: "plateau-check-in",
-          },
-        });
-      } catch (error) {
-        console.error("plateau_notification_send_failed", {
-          uid,
-          message: error instanceof Error ? error.message : String(error),
-        });
-        continue;
+      let userSuccessCount = 0;
+      for (const platform of ["web", "ios", "unknown"] as const) {
+        const platformTokens = tokens
+          .filter((entry) => entry.platform === platform)
+          .slice(0, 500);
+        if (!platformTokens.length) continue;
+        try {
+          const response = await messaging.sendEachForMulticast(
+            buildPlateauMulticastMessage(
+              platform,
+              platformTokens.map((entry) => entry.token)
+            )
+          );
+          const invalidCleanups = response.responses.flatMap((item, index) => {
+            const code = item.error?.code || "";
+            return code.includes("registration-token-not-registered") ||
+              code.includes("invalid-registration-token")
+              ? [releasePushToken(db, uid, platformTokens[index]!.ref.id)]
+              : [];
+          });
+          await Promise.all(invalidCleanups);
+          userSuccessCount += response.successCount;
+        } catch (error) {
+          console.error("plateau_notification_send_failed", {
+            uid,
+            platform,
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
-      const invalidCleanups = response.responses.flatMap((item, index) => {
-        const code = item.error?.code || "";
-        return code.includes("registration-token-not-registered") ||
-          code.includes("invalid-registration-token")
-          ? [releasePushToken(db, uid, tokens[index]!.ref.id)]
-          : [];
-      });
-      await Promise.all(invalidCleanups);
-      if (response.successCount > 0) {
-        sent += response.successCount;
+      if (userSuccessCount > 0) {
+        sent += userSuccessCount;
         await preferencesSnap.ref.set(
           {
             lastPlateauSignature: signature,

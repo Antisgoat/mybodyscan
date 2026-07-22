@@ -78,6 +78,7 @@ import {
   enablePlateauPush,
   isPushConfigured,
   loadNotificationPreferences,
+  releasePushSession,
 } from "@/lib/pushNotifications";
 
 const Settings = () => {
@@ -483,6 +484,7 @@ const Settings = () => {
       navigate("/auth");
       return;
     }
+    await releasePushSession();
     await signOut();
     navigate("/auth");
   };
@@ -538,6 +540,7 @@ const Settings = () => {
       setDeletingAccount(true);
       await requestAccountDeletion();
       toast({ title: "Account deleted", description: "We signed you out." });
+      await releasePushSession();
       await signOut();
       navigate("/auth", { replace: true });
     } catch (error) {
@@ -1016,8 +1019,7 @@ const Settings = () => {
               disabled={
                 notificationLoading ||
                 notificationSaving ||
-                !isPushConfigured() ||
-                nativeCapacitor
+                !isPushConfigured()
               }
             />
             {(notificationLoading || notificationSaving) && (
@@ -1026,7 +1028,7 @@ const Settings = () => {
                 notification preference…
               </p>
             )}
-            {!isPushConfigured() && (
+            {!nativeCapacitor && !isPushConfigured() && (
               <p className="text-xs text-amber-700 dark:text-amber-300">
                 Push delivery is awaiting the Firebase Web Push public key for
                 this deployment. The setting stays off until it is configured.
@@ -1034,8 +1036,9 @@ const Settings = () => {
             )}
             {nativeCapacitor && (
               <p className="text-xs text-muted-foreground">
-                Native iPhone push also requires the production APNs key in
-                Firebase. This control currently registers web browsers only.
+                iPhone alerts use Firebase Cloud Messaging through APNs. The
+                system permission prompt appears only after you enable this
+                setting.
               </p>
             )}
             <p className="text-xs text-muted-foreground">
@@ -1360,7 +1363,9 @@ const Settings = () => {
                   <DialogTitle>Final confirmation</DialogTitle>
                   <DialogDescription>
                     This will revoke access, delete scans, and erase uploads
-                    immediately. You cannot undo this action.
+                    immediately. You cannot undo this action. It does not
+                    cancel an Apple App Store or Stripe subscription; cancel
+                    the subscription first if you do not want it to renew.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

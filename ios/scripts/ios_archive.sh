@@ -9,7 +9,33 @@ if ! command -v xcodebuild >/dev/null 2>&1; then
   exit 1
 fi
 
+if [[ ! -f ios/App/App/GoogleService-Info.plist ]]; then
+  echo "error: ios/App/App/GoogleService-Info.plist is required for the Firebase iOS app." >&2
+  exit 1
+fi
+
+echo "==> Verifying native configuration"
+npm run ios:doctor
+
+echo "==> Building the App Store web bundle"
+# This fails closed if the real public RevenueCat iOS key is absent, if a Test
+# Store key is supplied, or if the entitlement differs from the backend's `pro`.
+npm run build:native:release
+
+echo "==> Synchronizing Capacitor and CocoaPods"
+npx cap sync ios
+node scripts/assert-no-native-firebase-auth.mjs
+node scripts/assert-ios-public-bundle.mjs
+(cd ios/App && pod install)
+
 mkdir -p ios/build
 
-xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath ios/build/MyBodyScan.xcarchive archive | tee /tmp/mbs-archive.log
+xcodebuild \
+  -workspace ios/App/App.xcworkspace \
+  -scheme App \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  -archivePath ios/build/MyBodyScan.xcarchive \
+  -allowProvisioningUpdates \
+  archive | tee /tmp/mbs-archive.log
 grep -n "error:" /tmp/mbs-archive.log && exit 1 || true

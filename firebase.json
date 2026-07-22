@@ -245,6 +245,9 @@
         "NUTRITION_RPM": "30",
         "CREDIT_EXP_MONTHS": "12",
         "REVENUECAT_ENTITLEMENT_ID": "pro",
+        "REVENUECAT_MONTHLY_PRODUCT_ID": "com.mybodyscan.pro.monthly",
+        "REVENUECAT_YEARLY_PRODUCT_ID": "com.mybodyscan.pro.yearly",
+        "REVENUECAT_ONE_SCAN_PRODUCT_ID": "com.mybodyscan.scan.single",
         "FIREBASE_WEB_API_KEY": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
       }
     }
