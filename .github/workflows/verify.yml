@@ -10,6 +10,10 @@ jobs:
   web-build:
     name: Web build
     runs-on: ubuntu-latest
+    env:
+      # Exercise the same App Check-configured environment used by production
+      # deployment without exposing or depending on the real site key.
+      VITE_APPCHECK_SITE_KEY: ci-enterprise-verification
     steps:
       - name: Checkout
         uses: actions/checkout@v4

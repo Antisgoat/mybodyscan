@@ -15,4 +15,12 @@ describe("Firebase App Check provider", () => {
     );
     expect(APP_CHECK_SOURCE).not.toContain("ReCaptchaV3Provider");
   });
+
+  it("keeps App Check inert under Vitest even when CI provides a site key", () => {
+    expect(APP_CHECK_SOURCE).toContain('env.VITEST === "true"');
+    expect(APP_CHECK_SOURCE).toContain('env.MODE === "test"');
+    expect(APP_CHECK_SOURCE).toContain(
+      'isTestRuntime || siteKeyRaw === "__DISABLE__"'
+    );
+  });
 });
