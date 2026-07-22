@@ -23,6 +23,11 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: package-lock.json
+      - name: Setup Java 21 for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Lint
@@ -56,6 +61,11 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             functions/package-lock.json
+      - name: Setup Java 21 for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Install web and emulator dependencies
         run: npm ci --no-audit --no-fund
       - name: Install dependencies (functions)

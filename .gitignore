@@ -48,6 +48,7 @@ functions/lib/
 !.env.example
 !.env.sample
 !.env.schema
+!functions/.env.mybodyscan-f3daf
 
 # Temporary/debug artifacts (should never be committed)
 prod-*.js
