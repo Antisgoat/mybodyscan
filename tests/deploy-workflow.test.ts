@@ -14,6 +14,9 @@ const VERIFY_WORKFLOW = fs.readFileSync(
   path.resolve(__dirname, "../.github/workflows/verify.yml"),
   "utf8"
 );
+const FIRESTORE_INDEXES = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "../firestore.indexes.json"), "utf8")
+);
 
 describe("production deployment authentication", () => {
   it("uses repository-restricted keyless Google authentication", () => {
@@ -41,6 +44,31 @@ describe("production deployment authentication", () => {
     expect(verifyIndex).toBeGreaterThan(-1);
     expect(authIndex).toBeGreaterThan(verifyIndex);
     expect(deployIndex).toBeGreaterThan(authIndex);
+  });
+
+  it("preserves existing production indexes without a forced deletion", () => {
+    expect(WORKFLOW).not.toMatch(/firestore:indexes[^\n]*--force/);
+    expect(FIRESTORE_INDEXES.indexes).toEqual(
+      expect.arrayContaining([
+        {
+          collectionGroup: "scans",
+          queryScope: "COLLECTION_GROUP",
+          fields: [
+            { fieldPath: "uid", order: "ASCENDING" },
+            { fieldPath: "createdAt", order: "DESCENDING" },
+          ],
+        },
+        {
+          collectionGroup: "scans",
+          queryScope: "COLLECTION_GROUP",
+          fields: [
+            { fieldPath: "uid", order: "ASCENDING" },
+            { fieldPath: "status", order: "ASCENDING" },
+            { fieldPath: "createdAt", order: "DESCENDING" },
+          ],
+        },
+      ])
+    );
   });
 
   it("does not require a GitHub secret for committed public Firebase config", () => {
