@@ -14,6 +14,10 @@ const VERIFY_WORKFLOW = fs.readFileSync(
   path.resolve(__dirname, "../.github/workflows/verify.yml"),
   "utf8"
 );
+const PROD_PROBE = fs.readFileSync(
+  path.resolve(__dirname, "../scripts/probe.mjs"),
+  "utf8"
+);
 const FIRESTORE_INDEXES = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../firestore.indexes.json"), "utf8")
 );
@@ -122,5 +126,14 @@ describe("production deployment authentication", () => {
     expect(VERIFY_WORKFLOW).toContain(
       "VITE_APPCHECK_SITE_KEY: ci-enterprise-verification"
     );
+  });
+
+  it("deletes the temporary production probe account after scan cleanup", () => {
+    const scanCleanupIndex = PROD_PROBE.indexOf('name: "scanDelete"');
+    const accountCleanupIndex = PROD_PROBE.indexOf('name: "accountDelete"');
+
+    expect(scanCleanupIndex).toBeGreaterThan(-1);
+    expect(accountCleanupIndex).toBeGreaterThan(scanCleanupIndex);
+    expect(PROD_PROBE).toContain('functionName: "deleteAccount"');
   });
 });
