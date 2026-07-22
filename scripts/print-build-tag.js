@@ -18,7 +18,8 @@ function getGitSha() {
 const sha = getGitSha();
 const builtAtISO = new Date().toISOString();
 const output = { sha, builtAtISO };
-const targetPath = resolve(process.cwd(), "public", "build.txt");
+const targetDir = process.argv.includes("--dist") ? "dist" : "public";
+const targetPath = resolve(process.cwd(), targetDir, "build.txt");
 
 writeFileSync(targetPath, JSON.stringify(output, null, 2));
-console.log(`Build tag written to ${join("public", "build.txt")}:`, output);
+console.log(`Build tag written to ${join(targetDir, "build.txt")}:`, output);

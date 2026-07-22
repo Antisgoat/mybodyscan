@@ -1,6 +1,7 @@
 # Scan upload reliability checklist
 
 ## Why this matters
+
 Safari users on **mybodyscanapp.com** were seeing Firebase Storage preflight 404s to the Storage REST endpoint, which caused `"Upload started but no bytes were sent."` and blocked scans. The fix requires Storage bucket CORS so the official Firebase Storage Web SDK (resumable uploads) can work reliably in Safari.
 
 ## Bucket CORS (one-time, per bucket)
@@ -15,13 +16,16 @@ If you see Safari preflight 404s or `"no bytes were sent"`:
    - In the browser devtools, uploads should start sending bytes immediately without OPTIONS 404 spam.
 
 The canonical config lives in `scripts/cors.json` (mirrored in `infra/storage-cors.json`) and allows:
-- Origins: `https://mybodyscanapp.com`, `https://mybodyscan-f3daf.web.app`, `http://localhost:5173`, `http://localhost:4173`
+
+- Origins: the apex and `www` variants of `mybodyscanapp.com` and
+  `mybodyscan.app`, both Firebase Hosting domains, local Vite/preview origins,
+  and the Capacitor/Ionic local origins listed in the canonical file
 - Methods: `GET, HEAD, POST, PUT, OPTIONS`
 - Response headers: `Content-Type, Authorization, x-goog-*, x-firebase-storage-version`
 
 ## App Check (optional, opt-in)
 
-Set `VITE_APPCHECK_SITE_KEY` to enable ReCAPTCHA v3 App Check in the web bundle. If unset, App Check remains disabled without console warnings.
+Set `VITE_APPCHECK_SITE_KEY` to enable reCAPTCHA Enterprise App Check in the web bundle. If unset, App Check remains disabled without console warnings.
 
 ## Upload flow expectations
 

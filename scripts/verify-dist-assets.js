@@ -5,6 +5,7 @@ import path from "path";
 
 const DIST_DIR = path.resolve(process.cwd(), "dist");
 const INDEX_PATH = path.join(DIST_DIR, "index.html");
+const BUILD_TAG_PATH = path.join(DIST_DIR, "build.txt");
 
 function uniq(arr) {
   return Array.from(new Set(arr));
@@ -38,7 +39,9 @@ async function main() {
 
   const assets = extractAssetPaths(indexHtml);
   if (!assets.length) {
-    console.error("No /assets/*.js or /assets/*.css references found in dist/index.html.");
+    console.error(
+      "No /assets/*.js or /assets/*.css references found in dist/index.html."
+    );
     process.exit(1);
   }
 
@@ -52,18 +55,36 @@ async function main() {
   }
 
   if (missing.length) {
-    console.error("Build integrity check failed: dist/index.html references missing files:\n");
+    console.error(
+      "Build integrity check failed: dist/index.html references missing files:\n"
+    );
     for (const m of missing) {
       console.error(` - ${m.publicPath} (expected at ${m.filePath})`);
     }
     process.exit(1);
   }
 
-  console.log(`Build integrity check passed (${assets.length} assets verified).`);
+  const buildTag = await fs
+    .readFile(BUILD_TAG_PATH, "utf8")
+    .then((contents) => JSON.parse(contents))
+    .catch((error) => {
+      console.error(`Missing or invalid build tag: ${BUILD_TAG_PATH}`);
+      console.error(error?.message || error);
+      process.exit(1);
+    });
+  if (!String(buildTag?.sha || "").trim()) {
+    console.error(
+      "Build integrity check failed: dist/build.txt has no commit SHA."
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `Build integrity check passed (${assets.length} assets and build tag verified).`
+  );
 }
 
 main().catch((e) => {
   console.error("Build integrity check crashed:", e?.stack || e);
   process.exit(1);
 });
-

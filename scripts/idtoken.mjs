@@ -1,8 +1,24 @@
 #!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
 import { pathToFileURL } from "url";
 
 const SIGN_UP_ENDPOINT =
   "https://identitytoolkit.googleapis.com/v1/accounts:signUp";
+
+function readProductionApiKey() {
+  const envPath = path.resolve(process.cwd(), ".env.production");
+  if (!fs.existsSync(envPath)) return "";
+  const line = fs
+    .readFileSync(envPath, "utf8")
+    .split(/\r?\n/)
+    .find((entry) => entry.trim().startsWith("VITE_FIREBASE_API_KEY="));
+  if (!line) return "";
+  return line
+    .slice(line.indexOf("=") + 1)
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
+}
 
 function hrefForModule(path) {
   try {
@@ -13,10 +29,16 @@ function hrefForModule(path) {
 }
 
 export async function mintIdToken(options = {}) {
-  const apiKey = options.apiKey ?? process.env.FIREBASE_WEB_API_KEY;
+  const apiKey =
+    options.apiKey ??
+    process.env.FIREBASE_WEB_API_KEY ??
+    process.env.VITE_FIREBASE_API_KEY ??
+    readProductionApiKey();
 
   if (!apiKey) {
-    throw new Error("FIREBASE_WEB_API_KEY is required to mint an ID token.");
+    throw new Error(
+      "A Firebase Web API key is required to mint an ID token. Set FIREBASE_WEB_API_KEY or provide VITE_FIREBASE_API_KEY in .env.production."
+    );
   }
 
   const endpoint = `${SIGN_UP_ENDPOINT}?key=${encodeURIComponent(apiKey)}`;
