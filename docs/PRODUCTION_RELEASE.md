@@ -8,6 +8,9 @@ historical and must not be used as deployment instructions.
 
 - Firebase project: `mybodyscan-f3daf`
 - Primary site: `https://mybodyscanapp.com`
+- Canonical alias: Firebase Hosting permanently redirects
+  `https://www.mybodyscanapp.com` to the apex domain after its managed
+  certificate becomes active.
 - Secondary domain: `https://mybodyscan.app` is currently hosted outside
   Firebase (Cloudflare/Hercules) and is not a Firebase Hosting release target.
   Treat it as an allowed origin only until the product owner deliberately moves
@@ -81,6 +84,10 @@ admin credit-grant function and must exist before Functions deployment.
 
 Non-secret runtime configuration is committed in `firebase.json`, including
 `APP_CHECK_MODE=soft`, the canonical host, auth feature flags, and rate limits.
+New scan credits expire after 12 months by default, matching the purchase and
+legal pages. `CREDIT_EXP_MONTHS` may override that period only after the same
+change is approved and published in every customer-facing purchase and policy
+surface.
 The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
 override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
 replacement has passed the scan reliability suite.
@@ -159,15 +166,14 @@ the current-state notes below say it was configured:
      because this Stripe account is branded ADLR LABS, do not replace those
      links with MyBodyScan URLs without an account-owner/legal decision.
 6. Firebase Hosting → Custom domains: `mybodyscanapp.com` is the canonical
-   Firebase custom domain. Its `www` alias must have the DNS record Firebase
-   requests and show `HOST_ACTIVE`; confirm the canonical redirect behavior.
-   On 2026-07-22 the Namecheap CNAME `www` →
-   `mybodyscan-f3daf.web.app` was saved and confirmed in public DNS. Firebase's
-   prior `www` certificate expired on 2025-12-25; a safe reconciliation was
-   requested after DNS was restored. Do not release until Firebase reports
-   `HOST_ACTIVE`, `OWNERSHIP_ACTIVE`, and `CERT_ACTIVE`, and `curl` validates a
-   newly issued certificate. Firebase documents that provisioning can take up
-   to 24 hours.
+   Firebase custom domain. On 2026-07-22, the `www` custom domain was explicitly
+   configured in Firebase as a redirect to `mybodyscanapp.com`, and Firebase
+   accepted the existing Namecheap CNAME `www` →
+   `mybodyscan-f3daf.web.app`. Firebase minted the replacement managed TLS
+   certificate the same day. A normal TLS request to
+   `/legal/privacy?source=smoke` returned a permanent redirect to the same
+   path/query on the apex and completed successfully. Recheck this behavior
+   after every Hosting or DNS change.
    `mybodyscan.app` is not currently attached to Firebase Hosting. To attach it,
    first make an explicit product/domain migration decision and then replace its
    current external DNS/hosting configuration.
@@ -193,11 +199,16 @@ the current-state notes below say it was configured:
    only `main`. The Google workload-identity provider already rejects every
    other repository/ref, but the matching GitHub environment restriction is a
    second independent guard.
-8. Product/legal owner approves the exact static Privacy, Terms, and Refund
-   content and replaces the pages' dynamic “Last updated” date with that
-   approved effective date. In particular, reconcile the Terms' 12-month credit
-   expiry with the runtime's configurable/default expiry and confirm age,
-   retention, refund, governing-law, vendor, and international-rights language.
+8. The product owner approved the customer-facing brand `MyBodyScan`, operator
+   name `ADLR Labs`, a July 22, 2026 effective date, and a no-refund policy
+   subject to mandatory consumer law. Static and in-app Privacy, Terms, Refund,
+   and Health Disclaimer copy use those decisions, explain AI/media processing,
+   opt-in notifications, deletion, wellness estimates, and transformation
+   previews, and align new-credit expiry at 12 months. Before broad commercial
+   launch, qualified counsel should still confirm the operator's registered
+   legal identity and notice address, Florida governing-law language, age and
+   parental-consent approach, international privacy disclosures, and mobile
+   app-store purchase terms. Do not invent an LLC/Inc. suffix in the meantime.
 9. Firebase Console → Project settings → Cloud Messaging:
    - Web Push certificates contains an active key pair for project
      `mybodyscan-f3daf`; copy only its public key to
@@ -364,6 +375,7 @@ Useful status-only commands:
 ```bash
 curl -fsS https://mybodyscanapp.com/api/system/health
 curl -fsSI https://mybodyscanapp.com/
+curl -fsSI 'https://www.mybodyscanapp.com/legal/privacy?source=smoke'
 npx firebase-tools functions:log --project mybodyscan-f3daf --only systemHealth,stripeWebhook,processQueuedScan,deleteAccount
 ```
 
@@ -374,9 +386,10 @@ dig www.mybodyscanapp.com CNAME +noall +answer
 ```
 
 The expected record is `www.mybodyscanapp.com CNAME
-mybodyscan-f3daf.web.app`. Do not proceed until Firebase reports
-`HOST_ACTIVE`, `OWNERSHIP_ACTIVE`, and `CERT_ACTIVE`, and a normal `curl`
-request succeeds without bypassing TLS validation.
+mybodyscan-f3daf.web.app`. Do not mark the alias complete until Firebase reports
+the redirect connected, a normal `curl` succeeds without bypassing TLS
+validation, and the response permanently redirects to
+`https://mybodyscanapp.com/legal/privacy?source=smoke`.
 
 ## Rollback
 

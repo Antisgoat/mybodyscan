@@ -29,7 +29,7 @@ export const DEMO_ALLOWED_PATHS = [
   "/report",
   "/report/:scanId",
   "/plans",
-  "/system/check",
+  "/system-check",
   "/dev/audit",
   "/diagnostics",
 ] as const;

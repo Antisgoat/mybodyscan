@@ -329,7 +329,7 @@ export default function Plans() {
     },
     {
       name: "Yearly",
-      price: "$199.99",
+      price: "$199",
       period: "per year",
       credits: "3 scans/month + Everything included",
       plan: "elite_annual" as const,
@@ -340,7 +340,7 @@ export default function Plans() {
       features: [
         "3 scans per month",
         "All Monthly features",
-        "Save $99.89 vs monthly",
+        "Save $100.88 vs 12 standard monthly payments",
         "Advanced analytics",
         "Export data",
         "Early access to new features",
@@ -683,23 +683,23 @@ export default function Plans() {
             ))}
         </div>
 
-        {/* Savings Comparison Card */}
+        {/* Transparent value summary without implying clinical equivalence. */}
         <div className="mt-8 p-6 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg">
           <h3 className="text-xl font-bold mb-4 text-center">
-            Save Hundreds Every Month
+            One Place for Your Wellness Routine
           </h3>
           <div className="grid grid-cols-1 gap-3 text-sm">
             <div className="flex justify-between items-center py-2">
-              <span className="text-muted-foreground">🥗 Dietitian visits</span>
-              <span className="font-semibold">~$300/month</span>
+              <span className="text-muted-foreground">🥗 Nutrition tools</span>
+              <span className="font-semibold">Included</span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-muted-foreground">💪 Personal trainer</span>
-              <span className="font-semibold">~$240/month</span>
+              <span className="text-muted-foreground">💪 Workout plans</span>
+              <span className="font-semibold">Included</span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-muted-foreground">📊 DEXA scans</span>
-              <span className="font-semibold">~$150/scan</span>
+              <span className="text-muted-foreground">📊 Progress scans</span>
+              <span className="font-semibold">3 each month</span>
             </div>
             <hr className="my-2 border-t" />
             <div className="flex justify-between items-center py-2 text-lg">
@@ -710,14 +710,14 @@ export default function Plans() {
                   (first month $14.99)
                 </div>
                 <div className="text-sm font-semibold text-accent">
-                  or $199.99/year
+                  or $199/year
                 </div>
               </div>
             </div>
           </div>
           <p className="text-center text-sm text-muted-foreground mt-4">
-            All-in-one nutrition coaching, personalized workouts, and progress
-            scans — save hundreds every month.
+            General wellness estimates and guidance only. Not medical advice or
+            a replacement for licensed care.
           </p>
         </div>
 

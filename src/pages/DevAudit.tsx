@@ -103,7 +103,7 @@ export default function DevAudit() {
       { path: "/plans", label: "Plans" },
       { path: "/settings", label: "Settings" },
       { path: "/report", label: "Report" },
-      { path: "/system/check", label: "System Check" },
+      { path: "/system-check", label: "System Check" },
       { path: "/debug/health", label: "Debug Health" },
       { path: "/dev/audit", label: "Dev Audit (this)" },
       { path: "/qa/live-flows", label: "QA Live Flows" },

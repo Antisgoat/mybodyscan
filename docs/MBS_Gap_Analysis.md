@@ -76,7 +76,7 @@ Feature-by-feature status, gaps, and priorities.
 
 ## Environment / diagnostics
 
-- **Status**: `/system/check` shows env health; functions return 501 for missing Stripe/OpenAI keys. Workouts now warn when `VITE_FUNCTIONS_URL` is absent; Plans warn when Stripe publishable key is missing.
+- **Status**: `/system-check` shows env health; functions return 501 for missing Stripe/OpenAI keys. Workouts now warn when `VITE_FUNCTIONS_URL` is absent; Plans warn when Stripe publishable key is missing.
 - **Gaps/Risks**: Nutrition/search env gaps are silent; OpenAI key absence for scans/chat needs clear UI hooks.
 - **Tasks**:
   - **P0**: DONE — feature availability panel summarizes env readiness.

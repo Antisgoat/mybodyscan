@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { sanitizeReturnTo } from "@/lib/returnTo";
+import { useDemoMode } from "./DemoModeProvider";
 
 type PersonalizationGateProps = {
   children: ReactNode;
@@ -14,7 +15,13 @@ export default function PersonalizationGate({
   returnToOverride,
 }: PersonalizationGateProps) {
   const location = useLocation();
+  const demoMode = useDemoMode();
   const { loading, personalizationCompleted } = useOnboardingStatus();
+
+  // Demo routes use curated sample data and never write a real profile.
+  if (demoMode) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return <LoadingOverlay label="Checking your profile…" />;

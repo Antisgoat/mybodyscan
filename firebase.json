@@ -243,6 +243,7 @@
         "HOST_BASE_URL": "https://mybodyscanapp.com",
         "COACH_RPM": "10",
         "NUTRITION_RPM": "30",
+        "CREDIT_EXP_MONTHS": "12",
         "REVENUECAT_ENTITLEMENT_ID": "pro",
         "FIREBASE_WEB_API_KEY": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
       }

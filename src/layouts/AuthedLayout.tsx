@@ -224,7 +224,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   </Link>
                 ) : null}
                 <Link
-                  to="/system/check"
+                  to="/system-check"
                   className="underline-offset-4 hover:underline"
                 >
                   Diagnostics

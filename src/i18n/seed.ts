@@ -31,7 +31,7 @@ export const I18N_DICTIONARY = {
     "plans.elite": "Elite Annual",
     "plans.subscribe": "Subscribe",
     "plans.buyNow": "Buy Now",
-    "plans.savings": "Save hundreds every month",
+    "plans.savings": "One place for your wellness routine",
 
     // Settings
     "settings.title": "Settings",

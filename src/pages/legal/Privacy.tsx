@@ -7,7 +7,7 @@ const Privacy = () => {
     <>
       <Seo
         title="Privacy Policy – MyBodyScan"
-        description="How MyBodyScan handles your account, credits and scan metadata."
+        description="How MyBodyScan handles accounts, scan media, wellness information, purchases, notifications, and privacy choices."
         canonical="https://mybodyscanapp.com/legal/privacy"
       />
       <MarkdownArticle title="Privacy Policy" markdown={privacyContent} />

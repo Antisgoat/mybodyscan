@@ -71,7 +71,7 @@
     "verify:scan": "node scripts/run-verify-scan.mjs",
     "rules:sync": "node scripts/sync-firestore-rules.mjs",
     "rules:check": "node scripts/sync-firestore-rules.mjs --check",
-    "dev:check": "vite --open /system/check",
+    "dev:check": "vite --open /system-check",
     "smoke": "bash scripts/smoke.sh",
     "smoke:native": "node scripts/smoke-native.mjs",
     "smoke:auth": "bash ops/smoke-auth.sh",

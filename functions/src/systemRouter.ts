@@ -2,6 +2,7 @@ import expressModule from "express";
 import type { Request, Response } from "express";
 import { FieldValue, getAuth, getFirestore } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuthWithClaims } from "./http.js";
+import { getCreditExpiryMonths } from "./lib/creditPolicy.js";
 
 const ADMIN_BOOTSTRAP_DEFAULT = 50;
 
@@ -209,15 +210,13 @@ systemRouter.post(
     }
 
     const userRef = db.doc(`users/${uid}`);
-    const months = Number(process.env.CREDIT_EXP_MONTHS || 24);
+    const months = getCreditExpiryMonths();
 
     try {
       await db.runTransaction(async (tx) => {
         const now = new Date();
         const expires = new Date(now.getTime());
-        expires.setMonth(
-          expires.getMonth() + (Number.isFinite(months) ? months : 24)
-        );
+        expires.setMonth(expires.getMonth() + months);
 
         tx.set(userRef.collection("credits").doc(), {
           amount,
