@@ -32,7 +32,7 @@ const catalog: PricingCatalog = {
   yearly: {
     id: "yearly",
     label: "Yearly",
-    priceText: "$199.99",
+    priceText: "$199",
     blurb: "3 scans/month",
   },
 };

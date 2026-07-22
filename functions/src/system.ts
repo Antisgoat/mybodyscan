@@ -6,6 +6,7 @@ import { uidFromAuth } from "./util/auth.js";
 import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
 import { ensureUnlimitedEntitlements } from "./lib/unlimitedEntitlements.js";
 import { verifyAppCheck } from "./http.js";
+import { getCreditExpiryMonths } from "./lib/creditPolicy.js";
 
 const allow = [
   "https://mybodyscanapp.com",
@@ -43,7 +44,7 @@ async function grantCredits(uid: string, amount: number, reason: string) {
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(userRef);
     const now = new Date();
-    const months = Number(process.env.CREDIT_EXP_MONTHS || 24);
+    const months = getCreditExpiryMonths();
     const exp = new Date(now.getTime());
     exp.setMonth(exp.getMonth() + months);
     if (!snap.exists) {

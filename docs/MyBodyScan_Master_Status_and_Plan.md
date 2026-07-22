@@ -20,7 +20,7 @@
 - **Meals**: `/meals` hub → `/meals/search` for food lookup → log entries to `users/{uid}/nutritionLogs/{day}` and `entries` subcollections → `/meals/history` for history and trends. Barcode search lives at `/barcode`.
 - **Workouts**: `/workouts` fetches/generates plans via Functions (`/generateWorkoutPlan`, `/getPlan`, `/markExerciseDone`). Progress is stored under `users/{uid}/workoutPlans/{planId}/progress/{iso}`.
 - **Settings**: `/settings` for account/privacy; `/settings/units` persists unit preference on `users/{uid}.preferences.units`; `/settings/health` and `/health` clearly state health sync is coming soon.
-- **Diagnostics**: `/system/check` reads the `system/health` endpoint and shows missing env/secrets; debug pages are behind auth or dev flags.
+- **Diagnostics**: `/system-check` reads the `system/health` endpoint and shows missing env/secrets; debug pages are behind auth or dev flags.
 
 ## High-level roadmap
 

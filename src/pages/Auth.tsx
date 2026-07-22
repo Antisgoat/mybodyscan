@@ -662,7 +662,7 @@ const Auth = () => {
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <span>Accurate body-fat estimates from photos</span>
+                <span>Body-composition estimates from photos</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>

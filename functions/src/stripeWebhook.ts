@@ -10,6 +10,7 @@ import {
   stripeWebhookSecretParam,
 } from "./stripe/keys.js";
 import { grantCreditBuckets } from "./scan/creditUtils.js";
+import { getCreditExpiryMonths } from "./lib/creditPolicy.js";
 
 const db = getFirestore();
 
@@ -170,7 +171,7 @@ async function recordLedgerDeposit(
       typeof snapshotData?.credits === "number" ? snapshotData.credits : 0;
     const sourcePriceId =
       typeof meta.priceId === "string" ? meta.priceId : null;
-    const expiresInMonths = Number(process.env.CREDIT_EXP_MONTHS || 24);
+    const expiresInMonths = getCreditExpiryMonths();
     const totalAvailable = await grantCreditBuckets(tx, creditRef, amount, {
       context: `stripe:${eventId}`,
       sourcePriceId,

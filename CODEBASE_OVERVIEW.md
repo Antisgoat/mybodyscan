@@ -34,7 +34,7 @@
 - `/coach` – AI coach home with data boundary and chat/day subroutes.【F:src/App.tsx†L190-L232】【F:src/pages/Coach/Chat.tsx†L120-L214】
 - `/history` – Scan history view requiring scan feature access.【F:src/App.tsx†L443-L456】
 - `/plans` – Plan selection and checkout triggers under account gate.【F:src/App.tsx†L457-L470】【F:src/pages/Plans.tsx†L14-L183】
-- `/system/check` – Diagnostics page querying `/system/health` and surfacing env toggles.【F:src/App.tsx†L580-L585】【F:src/pages/SystemCheck.tsx†L24-L200】
+- `/system-check` – Diagnostics page querying `/system/health` and surfacing env toggles.【F:src/App.tsx†L580-L585】【F:src/pages/SystemCheck.tsx†L24-L200】
 
 ## 5. Cloud Functions inventory
 
@@ -94,4 +94,4 @@
 - Type safety: `npm run typecheck` then `npm --prefix functions run typecheck`.【F:package.json†L29-L29】【F:functions/package.json†L7-L16】
 - Production build parity: `npm run build` and `npm --prefix functions run build` (included in `npm run verify:local`).【F:package.json†L10-L35】
 - Deploy commands: `npm run deploy:hosting` / `npm run deploy:functions` (functions script also supports project override).【F:package.json†L31-L32】【F:functions/package.json†L7-L16】
-- Diagnostics: `npm run dev:check` launches Vite at `/system/check` for integration verification.【F:package.json†L36-L36】
+- Diagnostics: `npm run dev:check` launches Vite at `/system-check` for integration verification.【F:package.json†L36-L36】

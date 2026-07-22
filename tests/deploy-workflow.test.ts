@@ -102,6 +102,12 @@ describe("production deployment authentication", () => {
     expect(VERIFY_WORKFLOW).toContain("node-version: 22");
   });
 
+  it("pins the production credit expiry to the published 12-month policy", () => {
+    expect(
+      FIREBASE_JSON.functions[0].environmentVariables.CREDIT_EXP_MONTHS
+    ).toBe("12");
+  });
+
   it("pins Java 21 anywhere the current Firebase emulators run", () => {
     expect(WORKFLOW).toContain("actions/setup-java@v4");
     expect(WORKFLOW).toMatch(/java-version:\s*["']?21/);

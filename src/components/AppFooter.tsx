@@ -6,7 +6,7 @@ export function AppFooter() {
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4">
         <span>© {new Date().getFullYear()} MyBodyScan</span>
         <span>•</span>
-        <Link to="/system/check" className="underline">
+        <Link to="/system-check" className="underline">
           System check
         </Link>
         <span>•</span>

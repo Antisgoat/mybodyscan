@@ -7,7 +7,7 @@ const Terms = () => {
     <>
       <Seo
         title="Terms of Service – MyBodyScan"
-        description="License and subscription terms for using MyBodyScan."
+        description="Terms for MyBodyScan wellness estimates, visual previews, purchases, credits, subscriptions, and acceptable use."
         canonical="https://mybodyscanapp.com/legal/terms"
       />
       <MarkdownArticle title="Terms of Service" markdown={termsContent} />

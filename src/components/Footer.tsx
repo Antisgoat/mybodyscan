@@ -54,7 +54,7 @@ export default function Footer() {
               Terms
             </Link>
             <Link
-              to="/system/check"
+              to="/system-check"
               className="hover:text-foreground transition-colors"
             >
               System check
