@@ -22,14 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - id: google-auth
-        name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v3
-        with:
-          project_id: mybodyscan-f3daf
-          workload_identity_provider: projects/157018993008/locations/global/workloadIdentityPools/github-actions/providers/mybodyscan
-          service_account: github-mybodyscan-deploy@mybodyscan-f3daf.iam.gserviceaccount.com
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -66,6 +58,17 @@ jobs:
 
       - name: Verify scan, credit, refund, and account deletion pipeline
         run: npm run verify:scan
+
+      # Keep production ADC out of unit tests and emulators. Firebase Admin v12
+      # does not parse the external-account file emitted for Workload Identity
+      # when it initializes during tests; deployment tools authenticate below.
+      - id: google-auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: mybodyscan-f3daf
+          workload_identity_provider: projects/157018993008/locations/global/workloadIdentityPools/github-actions/providers/mybodyscan
+          service_account: github-mybodyscan-deploy@mybodyscan-f3daf.iam.gserviceaccount.com
 
       - name: Deploy production in dependency order
         run: |

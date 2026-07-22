@@ -29,6 +29,20 @@ describe("production deployment authentication", () => {
     expect(WORKFLOW).toContain("npm run storage:cors:apply");
   });
 
+  it("keeps production cloud credentials out of tests and emulators", () => {
+    const verifyIndex = WORKFLOW.indexOf(
+      "Verify scan, credit, refund, and account deletion pipeline"
+    );
+    const authIndex = WORKFLOW.indexOf("Authenticate to Google Cloud");
+    const deployIndex = WORKFLOW.indexOf(
+      "Deploy production in dependency order"
+    );
+
+    expect(verifyIndex).toBeGreaterThan(-1);
+    expect(authIndex).toBeGreaterThan(verifyIndex);
+    expect(deployIndex).toBeGreaterThan(authIndex);
+  });
+
   it("does not require a GitHub secret for committed public Firebase config", () => {
     expect(SMOKE_WORKFLOW).not.toContain("secrets.FIREBASE_WEB_API_KEY");
   });
