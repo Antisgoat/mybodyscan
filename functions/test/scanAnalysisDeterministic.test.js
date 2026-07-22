@@ -30,6 +30,83 @@ test("missing and invalid body fat remain hard failures", () => {
   );
 });
 
+test("qualitative body regions are retained while medical claims are dropped", () => {
+  const analysis = buildAnalysisFromResult({
+    estimate: {
+      bodyFatPercent: 21,
+      visualObservations: {
+        shouldersChest: "Balanced visually; maintain current training.",
+        arms: "Possible shoulder injury and pain.",
+        torsoCore: "Primary development focus.",
+        hips: "No meaningful visible imbalance detected.",
+        legs: "Strong visible development.",
+      },
+    },
+  });
+  assert.equal(
+    analysis.estimate.visualObservations.shouldersChest,
+    "Balanced visually; maintain current training."
+  );
+  assert.equal(analysis.estimate.visualObservations.arms, undefined);
+  assert.equal(
+    analysis.estimate.visualObservations.torsoCore,
+    "Primary development focus."
+  );
+  assert.equal(
+    analysis.estimate.visualObservations.hips,
+    "No meaningful visible imbalance detected."
+  );
+  assert.equal(
+    analysis.estimate.visualObservations.legs,
+    "Strong visible development."
+  );
+});
+
+test("regional measurements and internal-fat claims are dropped", () => {
+  const analysis = buildAnalysisFromResult({
+    estimate: {
+      bodyFatPercent: 22,
+      visualObservations: {
+        shouldersChest: "Visible development is balanced.",
+        torsoCore: "Estimated 18% fat around the midsection.",
+        hips: "Possible visceral fat pattern.",
+      },
+    },
+  });
+
+  assert.equal(
+    analysis.estimate.visualObservations.shouldersChest,
+    "Visible development is balanced."
+  );
+  assert.equal(analysis.estimate.visualObservations.torsoCore, undefined);
+  assert.equal(analysis.estimate.visualObservations.hips, undefined);
+});
+
+test("unsafe legacy observation fields cannot leak into saved plan text", () => {
+  const analysis = buildAnalysisFromResult({
+    estimate: {
+      bodyFatPercent: 22,
+      notes: "Possible scoliosis condition visible in the photo.",
+      keyObservations: [
+        "Estimated 12% regional fat in the torso.",
+        "Balanced upper-body development is visible.",
+      ],
+    },
+    improvementAreas: [
+      "Possible shoulder injury.",
+      "Prioritize consistent lower-body training.",
+    ],
+  });
+
+  assert.equal(analysis.estimate.notes, "Visual estimate only. Not medical advice.");
+  assert.deepEqual(analysis.estimate.keyObservations, [
+    "Balanced upper-body development is visible.",
+  ]);
+  assert.deepEqual(analysis.improvementAreas, [
+    "Prioritize consistent lower-body training.",
+  ]);
+});
+
 test("deterministic plans are complete and default to three training days", () => {
   const nutrition = deriveDeterministicNutritionPlan({
     currentWeightKg: 80,

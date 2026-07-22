@@ -1,5 +1,7 @@
 import { doc, onSnapshot, type Unsubscribe } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getBlob, ref } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
+import { call } from "@/lib/callable";
 
 export type TransformationPreviewStatus =
   | "not_started"
@@ -25,6 +27,7 @@ export type TransformationPreviewDocument = {
   updatedAt?: Date | null;
   readyAt?: Date | null;
   imageUrl?: string | null;
+  storagePath?: string | null;
   compareImageUrl?: string | null;
   promptSummary?: string | null;
   failureReason?: string | null;
@@ -103,6 +106,7 @@ function normalize(
     updatedAt: toDateOrNull(data.updatedAt),
     readyAt: toDateOrNull(data.readyAt),
     imageUrl: typeof data.imageUrl === "string" ? data.imageUrl : null,
+    storagePath: typeof data.storagePath === "string" ? data.storagePath : null,
     compareImageUrl:
       typeof data.compareImageUrl === "string" ? data.compareImageUrl : null,
     promptSummary:
@@ -110,6 +114,28 @@ function normalize(
     failureReason:
       typeof data.failureReason === "string" ? data.failureReason : null,
   };
+}
+
+export async function requestTransformationPreview(input: {
+  scanId: string;
+  goal: TransformationPreviewGoal;
+  timelineWeeks: number;
+  consent: true;
+}): Promise<{ status: TransformationPreviewStatus; scanId: string }> {
+  const result = await call<
+    typeof input,
+    { status: TransformationPreviewStatus; scanId: string }
+  >("requestTransformationPreview", input);
+  return result.data;
+}
+
+export async function loadTransformationPreviewBlob(
+  storagePath: string
+): Promise<Blob> {
+  if (!storagePath.startsWith("transformation-previews/")) {
+    throw new Error("Invalid preview path.");
+  }
+  return getBlob(ref(storage, storagePath));
 }
 
 export function transformationPreviewDoc(uid: string, scanId: string) {

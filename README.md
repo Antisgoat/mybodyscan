@@ -66,7 +66,7 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Deploy via Firebase Hosting and Cloud Functions (Node 20). Ensure Stripe secrets are set for payments.
+Deploy via Firebase Hosting and Cloud Functions (Node 22). Ensure Stripe secrets are set for payments.
 
 ## Mobile readiness
 
@@ -337,12 +337,12 @@ Set these secrets or environment variables via Firebase (preferred) or your depl
 
 ## Secrets & Deploy
 
-### Build & deploy Firebase Functions (Node 20)
+### Build & deploy Firebase Functions (Node 22)
 
-1. `npm --prefix functions run build` – compiles TypeScript with Node 20 targets and verifies `functions/lib/index.js` exists.
+1. `npm --prefix functions run build` – compiles TypeScript for the Node 22 runtime and verifies `functions/lib/index.js` exists.
 2. `firebase deploy --only functions --project <projectId>` – uses the generated `lib/index.js` entrypoint exported from `functions/src/index.ts`.
 
-The `functions/package.json` scripts keep the runtime on Node 20 and fail fast if the compiled bundle is missing, which prevents partial deploys.
+The `functions/package.json` scripts keep the runtime on Node 22 and fail fast if the compiled bundle is missing, which prevents partial deploys.
 
 ### Inspect and manage Firebase secrets
 
@@ -360,13 +360,14 @@ The `functions/package.json` scripts keep the runtime on Node 20 and fail fast i
 
 - Stripe HTTPS handlers resolve secrets in order: Firebase Secret Manager entry `STRIPE_SECRET` → `process.env.STRIPE_SECRET`/`STRIPE_API_KEY` → `functions.config().stripe.secret`. If none are present, handlers return `501 { error: "payments_disabled", code: "no_secret" }` and log `{ "svc":"checkout", ... , "ok":false }`.
 - Webhook verification uses the bound `STRIPE_WEBHOOK_SECRET`; legacy environment aliases are read only for backwards compatibility.
-- Allowlisted price IDs load from `stripe.prices.*` runtime config, matching plan keys `single`, `pack3`, `pack5`, `monthly`, `annual`, plus legacy keys (`one`, `extra`, `pro_monthly`, `elite_annual`). The default table includes:
+- Allowlisted price IDs load from `stripe.prices.*` runtime config, matching plan keys `single`, `pack3`, `pack5`, `monthly`, `annual`, plus compatibility keys (`one`, `extra`, `pro_monthly`, `elite_annual`, `elite_annual_legacy`). The default table includes:
   - `price_1RuOpKQQU5vuhlNjipfFBsR0` (`single` / `one`)
   - `price_1RuOr2QQU5vuhlNjcqTckCHL` (`pack3`)
   - `price_1RuOrkQQU5vuhlNj15ebWfNP` (`pack5`)
   - `price_1RuOtOQQU5vuhlNjmXnQSsYq` (`monthly`)
   - `price_1RuOw0QQU5vuhlNjA5NZ66qq` (`annual`)
-  - Legacy extras remain allowlisted for existing subscriptions.
+  - `price_1Tw39XQQU5vuhlNjCRpZkL6a` (`elite_annual`, $199/year)
+  - The superseded Elite price remains allowlisted only for delayed pre-cutover webhook events; it is not offered by the web client.
 - Successful checkout/portal requests emit one-line JSON logs (`svc` = `checkout` or `portal`) with `uid`, `price`, `mode`, `customer`, and `ok:true`. Failures log the same shape with `ok:false` and a `code` value for triage.
 - Run `npm --prefix functions test` to confirm the active secret source resolves in your environment before deploying.
 
@@ -495,7 +496,7 @@ Deploy Functions and Hosting after setting Stripe keys and webhook secret via `f
 
 ### Functions runtime
 
-- Requires **Node.js 20** for the Cloud Functions workspace (`functions/`).
+- Requires **Node.js 22** for the Cloud Functions workspace (`functions/`).
 - Build locally before deploying with `npm --prefix functions run build`.
 - Deploy to Firebase with `firebase deploy --only functions,hosting`.
 

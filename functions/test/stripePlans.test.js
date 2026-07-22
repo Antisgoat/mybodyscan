@@ -24,6 +24,11 @@ test("Stripe plan allowlist resolves every production plan family", () => {
     credits: 3,
     mode: "subscription",
   });
+  assert.deepEqual(resolveStripePlan("price_1Tw39XQQU5vuhlNjCRpZkL6a"), {
+    plan: "yearly",
+    credits: 36,
+    mode: "subscription",
+  });
   assert.deepEqual(resolveStripePlan("price_1S4Y6YQQU5vuhlNjeJFmshxX"), {
     plan: "yearly",
     credits: 36,

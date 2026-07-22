@@ -36,6 +36,57 @@ type ParsedAnalysis = {
   improvementAreas: string[];
 };
 
+const VISUAL_OBSERVATION_KEYS = [
+  "muscularDevelopment",
+  "upperBodyDevelopment",
+  "lowerBodyDevelopment",
+  "midsectionDefinition",
+  "postureObservation",
+  "balanceObservation",
+  "strongestAreas",
+  "priorityAreas",
+  "shouldersChest",
+  "arms",
+  "torsoCore",
+  "hips",
+  "legs",
+] as const;
+
+const UNSUPPORTED_PHOTO_HEALTH_CLAIM =
+  /\b(diagnos(?:is|ed)|injur(?:y|ed)|tear|disease|disorder|syndrome|condition|scoliosis|kyphosis|lordosis|inflammation|hernia|surgery|tumou?r|lesion|fracture|arthritis|pain|visceral|subcutaneous|internal\s+(?:fat|tissue|organ))\b/i;
+const UNSUPPORTED_PHOTO_MEASUREMENT =
+  /\d+(?:\.\d+)?\s*(?:%|percent\b|kg\b|kilograms?\b|lb\b|lbs\b|pounds?\b)/i;
+
+function sanitizePhotoObservationText(
+  value: unknown,
+  maxLength = 160
+): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.replace(/\s+/g, " ").trim().slice(0, maxLength);
+  if (
+    !text ||
+    UNSUPPORTED_PHOTO_HEALTH_CLAIM.test(text) ||
+    UNSUPPORTED_PHOTO_MEASUREMENT.test(text)
+  ) {
+    return null;
+  }
+  return text;
+}
+
+function sanitizeVisualObservations(
+  raw: unknown
+): NonNullable<ScanEstimate["visualObservations"]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const source = raw as Record<string, unknown>;
+  const cleaned: NonNullable<ScanEstimate["visualObservations"]> = {};
+  for (const key of VISUAL_OBSERVATION_KEYS) {
+    const text = sanitizePhotoObservationText(source[key]);
+    if (!text) continue;
+    cleaned[key] = text;
+  }
+  return cleaned;
+}
+
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(Math.max(value, min), max);
@@ -56,9 +107,8 @@ function sanitizeEstimate(
   const bmi =
     Number.isFinite(bmiRaw) && bmiRaw > 0 ? Number(bmiRaw.toFixed(1)) : null;
   const notes =
-    typeof source?.notes === "string" && source.notes.trim()
-      ? source.notes.trim().slice(0, 400)
-      : "Visual estimate only. Not medical advice.";
+    sanitizePhotoObservationText(source?.notes, 400) ??
+    "Visual estimate only. Not medical advice.";
   const bmiCategory =
     typeof source?.bmiCategory === "string"
       ? source.bmiCategory.trim()
@@ -72,14 +122,20 @@ function sanitizeEstimate(
       : null) ??
     [];
   const keyObservations = (keyObservationsRaw as unknown[])
-    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-    .filter((entry) => entry.length > 0)
-    .map((entry) => entry.replace(/^[\u2022\-*\d.]+\s*/, "").trim())
-    .filter((entry) => entry.length > 0)
+    .map((entry) =>
+      typeof entry === "string"
+        ? entry.replace(/^[\u2022\-*\d.]+\s*/, "").trim()
+        : ""
+    )
+    .map((entry) => sanitizePhotoObservationText(entry))
+    .filter((entry): entry is string => entry != null)
     .slice(0, 5);
   const goalRecommendations = sanitizeRecommendations(
     (source as any)?.goalRecommendations ??
       (source as any)?.goal_recommendations
+  );
+  const visualObservations = sanitizeVisualObservations(
+    source?.visualObservations ?? source?.visual_observations
   );
   return {
     bodyFatPercent: Number(bodyFatPercent.toFixed(1)),
@@ -96,6 +152,9 @@ function sanitizeEstimate(
       : [
           "Use consistent training, nutrition, sleep, and periodic scans to track progress.",
         ],
+    ...(Object.keys(visualObservations).length > 0
+      ? { visualObservations }
+      : {}),
   };
 }
 
@@ -360,7 +419,22 @@ export async function callOpenAI(
       '    "bodyFatPercent": number,',
       '    "notes": string,',
       '    "keyObservations": string[],',
-      '    "goalRecommendations": string[]',
+      '    "goalRecommendations": string[],',
+      '    "visualObservations": {',
+      '      "muscularDevelopment": string,',
+      '      "upperBodyDevelopment": string,',
+      '      "lowerBodyDevelopment": string,',
+      '      "midsectionDefinition": string,',
+      '      "postureObservation": string,',
+      '      "balanceObservation": string,',
+      '      "strongestAreas": string,',
+      '      "priorityAreas": string,',
+      '      "shouldersChest": string,',
+      '      "arms": string,',
+      '      "torsoCore": string,',
+      '      "hips": string,',
+      '      "legs": string',
+      "    }",
       "  },",
       '  "recommendations": string[],',
       '  "improvementAreas": string[]',
@@ -378,6 +452,9 @@ export async function callOpenAI(
     "Use all four photos (front, back, left, right) to inform only the visual estimate.",
     "Notes must remind this is only an estimate.",
     "Key observations should capture posture/muscle balance/general notes (no medical diagnosis).",
+    "For visualObservations, describe only what is visibly apparent with cautious qualitative wording.",
+    "Region values may describe visible development, visual balance, or training priority; never give regional fat or muscle amounts.",
+    "Do not infer injuries, health conditions, internal tissue, or exact regional composition from photos.",
     "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",
     "Recommendations must be 3-5 short, safe next-step bullets (no numbering).",
@@ -398,7 +475,7 @@ export async function callOpenAI(
     systemPrompt,
     userContent,
     temperature: 0.4,
-    maxTokens: 700,
+    maxTokens: 1_100,
     userId: input.uid,
     requestId,
     timeoutMs: OPENAI_TIMEOUT_MS,
@@ -428,7 +505,10 @@ export function buildAnalysisFromResult(raw: OpenAIResult): ParsedAnalysis {
         raw.estimate?.keyObservations ??
         raw.estimate?.goalRecommendations ??
         raw.recommendations
-    );
+    ).flatMap((entry) => {
+      const safe = sanitizePhotoObservationText(entry);
+      return safe ? [safe] : [];
+    });
     return {
       estimate,
       recommendations: recommendations.length

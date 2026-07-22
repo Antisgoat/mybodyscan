@@ -615,6 +615,7 @@ export const processQueuedScan = onDocumentWritten(
             bmiCategory: analysis.estimate.bmiCategory ?? null,
             heightCm: heightOk,
             bodyFatEstimate: bfRange,
+            ...(analysis.estimate.visualObservations ?? {}),
           },
           usedFallback: false,
           resultSource: "ai",

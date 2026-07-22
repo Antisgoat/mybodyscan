@@ -13,5 +13,5 @@ function envOr(def: string, key: string): string {
 export const PRICE_IDS: PriceMap = {
   single: envOr("price_1RuOpKQQU5vuhlNjipfFBsR0", "VITE_PRICE_SINGLE"),
   monthly: envOr("price_1S4XsVQQU5vuhlNjzdQzeySA", "VITE_PRICE_MONTHLY"),
-  yearly: envOr("price_1S4Y6YQQU5vuhlNjeJFmshxX", "VITE_PRICE_YEARLY"),
+  yearly: envOr("price_1Tw39XQQU5vuhlNjCRpZkL6a", "VITE_PRICE_YEARLY"),
 };

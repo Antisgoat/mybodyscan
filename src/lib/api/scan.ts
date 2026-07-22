@@ -26,6 +26,21 @@ export type ScanEstimate = {
   bmiCategory?: string | null;
   keyObservations?: string[];
   goalRecommendations?: string[];
+  visualObservations?: {
+    muscularDevelopment?: string;
+    upperBodyDevelopment?: string;
+    lowerBodyDevelopment?: string;
+    midsectionDefinition?: string;
+    postureObservation?: string;
+    balanceObservation?: string;
+    strongestAreas?: string;
+    priorityAreas?: string;
+    shouldersChest?: string;
+    arms?: string;
+    torsoCore?: string;
+    hips?: string;
+    legs?: string;
+  };
 };
 
 export type ScanErrorInfo = {

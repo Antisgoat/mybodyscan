@@ -17,6 +17,7 @@ jobs:
       cancel-in-progress: false
     env:
       VITE_APPCHECK_SITE_KEY: ${{ secrets.VITE_APPCHECK_SITE_KEY }}
+      VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
       VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
       VITE_APP_BASE_URL: https://mybodyscanapp.com
     steps:
@@ -36,6 +37,9 @@ jobs:
       - name: Install web deps
         run: npm ci --no-audit --no-fund
 
+      - name: Audit production web dependencies
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Verify production public configuration
         run: npm run check:production-config
 
@@ -50,13 +54,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: functions/package-lock.json
 
       - name: Install functions deps
         working-directory: functions
         run: npm ci --no-audit --no-fund
+
+      - name: Audit production Functions dependencies
+        working-directory: functions
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Build and test functions
         working-directory: functions
@@ -65,9 +73,8 @@ jobs:
       - name: Verify scan, credit, refund, and account deletion pipeline
         run: npm run verify:scan
 
-      # Keep production ADC out of unit tests and emulators. Firebase Admin v12
-      # does not parse the external-account file emitted for Workload Identity
-      # when it initializes during tests; deployment tools authenticate below.
+      # Keep production ADC out of unit tests and emulators. Deployment tools
+      # authenticate below only after all local-style verification has passed.
       - id: google-auth
         name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v3

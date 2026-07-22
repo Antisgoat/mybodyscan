@@ -222,10 +222,8 @@
     {
       "codebase": "default",
       "source": "functions",
-      "runtime": "nodejs20",
+      "runtime": "nodejs22",
       "predeploy": [
-        "npm --prefix \"$RESOURCE_DIR\" cache clean --force || true",
-        "npm --prefix \"$RESOURCE_DIR\" run ci-or-install",
         "npm --prefix \"$RESOURCE_DIR\" run build"
       ],
       "secrets": [

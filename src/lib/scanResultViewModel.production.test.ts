@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildScanResultViewModel } from "./scanResultViewModel";
+import {
+  buildScanComparisonViewModel,
+  buildScanResultViewModel,
+} from "./scanResultViewModel";
 import type { ScanDocument } from "./api/scan";
 
 const baseScan = (overrides: Partial<ScanDocument> = {}): ScanDocument =>
@@ -144,6 +147,38 @@ describe("scan result production view model", () => {
     ]);
   });
 
+  it("drops regional measurements and internal-fat claims", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        metrics: {
+          shouldersChest: "Visible development is balanced",
+          torsoCore: "Approximately 18% fat in this region",
+          hips: "Possible visceral fat pattern",
+        },
+      }),
+    });
+    expect(vm.regions).toEqual([
+      {
+        label: "Shoulders / chest",
+        value: "Visible development is balanced",
+      },
+    ]);
+  });
+
+  it("retains a supported overall body-fat estimate range", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        estimate: {
+          bodyFatPercent: 22,
+          bodyFatRange: "20-24%",
+          confidence: "moderate",
+        } as any,
+      }),
+    });
+    expect(vm.composition.estimateRange).toBe("20-24%");
+    expect(vm.composition.confidence).toBe("moderate");
+  });
+
   it("exposes qualitative regions but never maps unsupported BIA fields", () => {
     const vm = buildScanResultViewModel({
       scan: baseScan({
@@ -164,5 +199,96 @@ describe("scan result production view model", () => {
     expect(JSON.stringify(vm)).not.toMatch(
       /visceral|bodyWater|biologicalAge|segmental/i
     );
+  });
+
+  it("surfaces canonical day targets and scan-specific progression details", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        nutritionPlan: {
+          caloriesPerDay: 2300,
+          proteinGrams: 180,
+          carbsGrams: 230,
+          fatsGrams: 65,
+          fiberGrams: 32,
+          trainingDay: {
+            calories: 2450,
+            proteinGrams: 180,
+            carbsGrams: 270,
+            fatsGrams: 65,
+          },
+          restDay: {
+            calories: 2150,
+            proteinGrams: 180,
+            carbsGrams: 190,
+            fatsGrams: 65,
+          },
+          adjustmentRules: [],
+          sampleDay: [],
+        } as any,
+        workoutPlan: {
+          summary: "Three-day full body",
+          progressionRules: ["Add one rep before adding load."],
+          weeks: [
+            {
+              weekNumber: 1,
+              days: [
+                {
+                  day: "Monday",
+                  focus: "Full body",
+                  exercises: [{ name: "Goblet squat", sets: 3, reps: "8-12" }],
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+
+    expect(vm.nutrition.fiberGrams).toBe(32);
+    expect(vm.nutrition.trainingDayCalories).toBe(2450);
+    expect(vm.nutrition.restDayCalories).toBe(2150);
+    expect(vm.plan.summary).toContain("Three-day full body");
+    expect(vm.plan.progressionRules).toEqual([
+      "Add one rep before adding load.",
+    ]);
+    expect(vm.plan.exercisePriorities).toEqual(["Goblet squat"]);
+  });
+
+  it("compares only valid scans and calculates defensible changes", () => {
+    const previous = baseScan({
+      id: "scan_previous",
+      completedAt: new Date("2026-06-01T00:00:00Z"),
+      input: { currentWeightKg: 100, heightCm: 180 },
+      estimate: { bodyFatPercent: 25, bmi: 30.9 } as any,
+      nutritionPlan: {
+        caloriesPerDay: 2500,
+        proteinGrams: 180,
+        carbsGrams: 250,
+        fatsGrams: 70,
+      } as any,
+    });
+    const current = baseScan({
+      id: "scan_current",
+      completedAt: new Date("2026-07-01T00:00:00Z"),
+      input: { currentWeightKg: 90, heightCm: 180 },
+      estimate: { bodyFatPercent: 20, bmi: 27.8 } as any,
+    });
+
+    expect(buildScanComparisonViewModel(current, previous)).toEqual({
+      previousScanId: "scan_previous",
+      daysSincePrevious: 30,
+      weightDeltaKg: -10,
+      bodyFatDeltaPoints: -5,
+      fatMassDeltaKg: -7,
+      leanMassDeltaKg: -3,
+      calorieTargetDelta: -200,
+    });
+    expect(
+      buildScanComparisonViewModel(current, {
+        ...previous,
+        usedFallback: true,
+        resultSource: "fallback",
+      })
+    ).toBeNull();
   });
 });

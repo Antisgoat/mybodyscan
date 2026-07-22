@@ -57,6 +57,8 @@ export type CanonicalScanResultViewModel = {
     summary: string;
     setupNeeded: boolean;
     detailLines: string[];
+    progressionRules: string[];
+    exercisePriorities: string[];
   };
   diagnostics: {
     provider: string | null;
@@ -69,6 +71,16 @@ export type CanonicalScanResultViewModel = {
   };
 };
 
+export type ScanComparisonViewModel = {
+  previousScanId: string;
+  daysSincePrevious: number | null;
+  weightDeltaKg: number | null;
+  bodyFatDeltaPoints: number | null;
+  fatMassDeltaKg: number | null;
+  leanMassDeltaKg: number | null;
+  calorieTargetDelta: number | null;
+};
+
 function finite(value: unknown): number | null {
   if (value == null || value === "") return null;
   const n = Number(value);
@@ -79,6 +91,74 @@ function round(value: number | null, digits = 0): number | null {
   if (value == null) return null;
   const f = 10 ** digits;
   return Math.round(value * f) / f;
+}
+
+function dateMillis(value: unknown): number | null {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number" || typeof value === "string") {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (
+    value &&
+    typeof (value as { toMillis?: unknown }).toMillis === "function"
+  ) {
+    const parsed = (value as { toMillis: () => number }).toMillis();
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function delta(current: number | null, previous: number | null, digits = 1) {
+  return current != null && previous != null
+    ? round(current - previous, digits)
+    : null;
+}
+
+export function buildScanComparisonViewModel(
+  current: ScanDocument,
+  previous: ScanDocument
+): ScanComparisonViewModel | null {
+  if (
+    !isSuccessfulPersistedScan(current) ||
+    !isSuccessfulPersistedScan(previous)
+  ) {
+    return null;
+  }
+  const currentVm = buildScanResultViewModel({ scan: current });
+  const previousVm = buildScanResultViewModel({ scan: previous });
+  const currentAt = dateMillis(current.completedAt ?? current.createdAt);
+  const previousAt = dateMillis(previous.completedAt ?? previous.createdAt);
+  const daysSincePrevious =
+    currentAt != null && previousAt != null && currentAt >= previousAt
+      ? Math.floor((currentAt - previousAt) / (24 * 60 * 60 * 1000))
+      : null;
+
+  return {
+    previousScanId: previous.id,
+    daysSincePrevious,
+    weightDeltaKg: delta(
+      currentVm.primary.weightKg,
+      previousVm.primary.weightKg
+    ),
+    bodyFatDeltaPoints: delta(
+      currentVm.primary.bodyFatPercent,
+      previousVm.primary.bodyFatPercent
+    ),
+    fatMassDeltaKg: delta(
+      currentVm.primary.fatMassKg,
+      previousVm.primary.fatMassKg
+    ),
+    leanMassDeltaKg: delta(
+      currentVm.primary.leanMassKg,
+      previousVm.primary.leanMassKg
+    ),
+    calorieTargetDelta: delta(
+      currentVm.nutrition.calories,
+      previousVm.nutrition.calories,
+      0
+    ),
+  };
 }
 
 export function formatKgForUnits(
@@ -132,14 +212,28 @@ export function buildScanResultViewModel(args: {
     finite((profile as any)?.goal_weight_kg);
   const metrics = (scan.metrics ?? {}) as Record<string, unknown>;
   const estimate = (scan.estimate ?? {}) as any;
+  const visualObservations =
+    estimate.visualObservations &&
+    typeof estimate.visualObservations === "object"
+      ? estimate.visualObservations
+      : {};
   const observationSource = Array.isArray(estimate.keyObservations)
     ? estimate.keyObservations
     : [];
-  const safeObservation = (value: unknown) => {
+  const safeText = (value: unknown) => {
     if (typeof value !== "string" || !value.trim()) return null;
     const text = value.trim();
+    return /\b(diagnos(?:is|ed)|injur(?:y|ed)|tear|disease|disorder|syndrome|condition|scoliosis|kyphosis|lordosis|inflammation|hernia|surgery|tumou?r|lesion|fracture|arthritis|pain|visceral|subcutaneous|internal\s+(?:fat|tissue|organ))\b/i.test(
+      text
+    )
+      ? null
+      : text;
+  };
+  const safeObservation = (value: unknown) => {
+    const text = safeText(value);
+    if (!text) return null;
     if (
-      /\b(diagnos(?:is|ed)|injur(?:y|ed)|tear|disease|disorder|syndrome|condition|scoliosis|kyphosis|lordosis|inflammation|hernia|surgery|tumou?r|lesion|fracture|arthritis|pain)\b/i.test(
+      /\d+(?:\.\d+)?\s*(?:%|percent\b|kg\b|kilograms?\b|lb\b|lbs\b|pounds?\b)/i.test(
         text
       )
     ) {
@@ -148,14 +242,38 @@ export function buildScanResultViewModel(args: {
     return text;
   };
   const observations = [
-    ["Muscular development", metrics.muscularDevelopment],
-    ["Upper-body development", metrics.upperBodyDevelopment],
-    ["Lower-body development", metrics.lowerBodyDevelopment],
-    ["Midsection definition", metrics.midsectionDefinition],
-    ["Posture observation", metrics.postureObservation],
-    ["Visible left/right balance", metrics.balanceObservation],
-    ["Strongest areas", metrics.strongestAreas],
-    ["Priority improvement areas", metrics.priorityAreas],
+    [
+      "Muscular development",
+      metrics.muscularDevelopment ?? visualObservations.muscularDevelopment,
+    ],
+    [
+      "Upper-body development",
+      metrics.upperBodyDevelopment ?? visualObservations.upperBodyDevelopment,
+    ],
+    [
+      "Lower-body development",
+      metrics.lowerBodyDevelopment ?? visualObservations.lowerBodyDevelopment,
+    ],
+    [
+      "Midsection definition",
+      metrics.midsectionDefinition ?? visualObservations.midsectionDefinition,
+    ],
+    [
+      "Posture observation",
+      metrics.postureObservation ?? visualObservations.postureObservation,
+    ],
+    [
+      "Visible left/right balance",
+      metrics.balanceObservation ?? visualObservations.balanceObservation,
+    ],
+    [
+      "Strongest areas",
+      metrics.strongestAreas ?? visualObservations.strongestAreas,
+    ],
+    [
+      "Priority improvement areas",
+      metrics.priorityAreas ?? visualObservations.priorityAreas,
+    ],
   ]
     .map(([label, value]) => ({
       label: String(label),
@@ -175,11 +293,14 @@ export function buildScanResultViewModel(args: {
     });
   }
   const regions = [
-    ["Shoulders / chest", metrics.shouldersChest],
-    ["Arms", metrics.arms],
-    ["Torso / core", metrics.torsoCore],
-    ["Hips", metrics.hips],
-    ["Legs", metrics.legs],
+    [
+      "Shoulders / chest",
+      metrics.shouldersChest ?? visualObservations.shouldersChest,
+    ],
+    ["Arms", metrics.arms ?? visualObservations.arms],
+    ["Torso / core", metrics.torsoCore ?? visualObservations.torsoCore],
+    ["Hips", metrics.hips ?? visualObservations.hips],
+    ["Legs", metrics.legs ?? visualObservations.legs],
   ]
     .map(([label, value]) => ({
       label: String(label),
@@ -198,22 +319,53 @@ export function buildScanResultViewModel(args: {
   const prefsRaw = profile?.programPreferences as any;
   const hasPrefs = Boolean(prefsRaw && typeof prefsRaw === "object");
   const prefs = hasPrefs ? normalizeProgramPreferences(prefsRaw) : null;
-  const planDays = finite(plan?.days) ?? prefs?.daysPerWeek ?? null;
+  const scanWorkout = scan.workoutPlan;
+  const firstWeek = scanWorkout?.weeks?.[0];
+  const scanDays = Array.isArray(firstWeek?.days) ? firstWeek.days : [];
+  const planDays =
+    (scanDays.length > 0 ? scanDays.length : null) ??
+    finite(plan?.days) ??
+    prefs?.daysPerWeek ??
+    null;
   const planFocus =
+    (typeof scanWorkout?.summary === "string" && scanWorkout.summary.trim()) ||
     plan?.split ||
     (prefs ? prefs.focus.replace(/_/g, " ") : "Plan setup needed");
   const planAvailable = Boolean(
-    plan && planDays && Array.isArray(plan.sessions) && plan.sessions.length > 0
+    scanDays.length > 0 ||
+      (plan &&
+        planDays &&
+        Array.isArray(plan.sessions) &&
+        plan.sessions.length > 0)
   );
-  const detailLines =
-    plan?.sessions?.slice(0, 3).map((session) => {
-      const focuses = session.blocks
-        ?.map((block) => block.focus || block.title)
-        .filter(Boolean)
-        .slice(0, 2)
-        .join(" + ");
-      return `${session.day}: ${focuses || "training"}`;
-    }) ?? [];
+  const detailLines = scanDays.length
+    ? scanDays.slice(0, 4).map((day) => `${day.day}: ${day.focus}`)
+    : (plan?.sessions?.slice(0, 3).map((session) => {
+        const focuses = session.blocks
+          ?.map((block) => block.focus || block.title)
+          .filter(Boolean)
+          .slice(0, 2)
+          .join(" + ");
+        return `${session.day}: ${focuses || "training"}`;
+      }) ?? []);
+  const progressionRules = Array.isArray(scanWorkout?.progressionRules)
+    ? scanWorkout.progressionRules
+        .filter((rule): rule is string =>
+          Boolean(typeof rule === "string" && rule.trim())
+        )
+        .slice(0, 4)
+    : [];
+  const exercisePriorities = Array.from(
+    new Set(
+      scanDays.flatMap((day) =>
+        Array.isArray(day.exercises)
+          ? day.exercises
+              .map((exercise) => exercise.name?.trim())
+              .filter((name): name is string => Boolean(name))
+          : []
+      )
+    )
+  ).slice(0, 5);
 
   return {
     isValidResult,
@@ -272,18 +424,14 @@ export function buildScanResultViewModel(args: {
     composition: {
       heightCm: isValidResult ? round(heightCm, 1) : null,
       age: isValidResult ? round(finite((profile as any)?.age)) : null,
-      profileCategory: isValidResult
-        ? safeObservation((profile as any)?.sex)
-        : null,
+      profileCategory: isValidResult ? safeText((profile as any)?.sex) : null,
       goalWeightKg: isValidResult ? round(goalWeightKg, 1) : null,
       maintenanceCalories: isValidResult
         ? round(finite((scan.nutritionPlan as any)?.maintenanceCalories))
         : null,
-      confidence: isValidResult ? safeObservation(estimate.confidence) : null,
-      estimateRange: isValidResult
-        ? safeObservation(estimate.bodyFatRange)
-        : null,
-      scanQuality: isValidResult ? safeObservation(estimate.scanQuality) : null,
+      confidence: isValidResult ? safeText(estimate.confidence) : null,
+      estimateRange: isValidResult ? safeText(estimate.bodyFatRange) : null,
+      scanQuality: isValidResult ? safeText(estimate.scanQuality) : null,
     },
     observations: isValidResult ? observations : [],
     regions: isValidResult ? regions : [],
@@ -296,6 +444,8 @@ export function buildScanResultViewModel(args: {
         : "Complete plan setup to receive a personalized training plan.",
       setupNeeded: !planAvailable,
       detailLines,
+      progressionRules,
+      exercisePriorities,
     },
     diagnostics: {
       provider: scan.aiProcessing?.provider ?? null,

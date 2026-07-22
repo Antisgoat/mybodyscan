@@ -335,8 +335,8 @@ service cloud.firestore {
       }
 
       // Transformation Preview is read-only for clients. Request, status, provider,
-      // output URLs, prompts, and generated content must be written only by
-      // trusted server code when generation is implemented.
+      // output paths, prompts, and generated content are written only by trusted
+      // server code.
       match /transformationPreviews/{scanId} {
         allow read: if isOwner(uid);
         allow create, update, delete: if false;

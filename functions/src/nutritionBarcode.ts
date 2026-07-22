@@ -10,15 +10,12 @@ import type { Request, Response } from "express";
 
 import { getAuth } from "./firebase.js";
 import { ensureRateLimit, identifierFromRequest } from "./http/_middleware.js";
-import {
-  fromOpenFoodFacts,
-  fromUsdaFood,
-  type FoodItem,
-} from "./nutritionSearch.js";
+import { fromUsdaFood, type FoodItem } from "./nutritionSearch.js";
 import { HttpError, send } from "./util/http.js";
 import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
 import { chain } from "./middleware/chain.js";
+import { fetchOpenFoodFactsBundle } from "./nutrition/alternatives.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
@@ -54,7 +51,11 @@ function getUsdaApiKey(): string | undefined {
 
 interface CacheEntry {
   expires: number;
-  value: { item: FoodItem; source: "Open Food Facts" | "USDA" } | null;
+  value: {
+    item: FoodItem;
+    source: "Open Food Facts" | "USDA";
+    alternatives?: FoodItem[];
+  } | null;
   source: "Open Food Facts" | "USDA";
 }
 
@@ -171,18 +172,13 @@ async function requestJson(
 }
 
 async function fetchOff(code: string) {
-  const url = `https://world.openfoodfacts.org/api/v0/product/${encodeURIComponent(code)}.json`;
-  const data = (await requestJson(
-    url,
-    {
-      headers: { "User-Agent": "mybodyscan-nutrition-barcode/1.0" },
-    },
-    "off_product"
-  )) as any;
-  if (!data?.product) return null;
-  const normalized = fromOpenFoodFacts(data.product);
-  return normalized
-    ? { item: normalized, source: "Open Food Facts" as const }
+  const bundle = await fetchOpenFoodFactsBundle(code);
+  return bundle
+    ? {
+        item: bundle.item,
+        alternatives: bundle.alternatives,
+        source: "Open Food Facts" as const,
+      }
     : null;
 }
 
@@ -212,7 +208,11 @@ async function fetchUsdaByBarcode(apiKey: string, code: string) {
   return item ? { item, source: "USDA" as const } : null;
 }
 
-type ProviderResult = { item: FoodItem; source: "Open Food Facts" | "USDA" };
+type ProviderResult = {
+  item: FoodItem;
+  source: "Open Food Facts" | "USDA";
+  alternatives?: FoodItem[];
+};
 type ProviderOutcome = {
   result: ProviderResult | null;
   error?: HttpError | null;
@@ -330,6 +330,7 @@ async function handleNutritionBarcode(
       const cachedSource = cached.value.source === "USDA" ? "USDA" : "OFF";
       send(res, 200, {
         results: [cached.value.item],
+        alternatives: cached.value.alternatives ?? [],
         source: cachedSource,
         cached: true,
       });
@@ -366,6 +367,7 @@ async function handleNutritionBarcode(
       const normalizedSource = result.source === "USDA" ? "USDA" : "OFF";
       send(res, 200, {
         results: [result.item],
+        alternatives: result.alternatives ?? [],
         source: normalizedSource,
         cached: false,
       });
@@ -379,7 +381,9 @@ async function handleNutritionBarcode(
       throw errors.find((error) => error.code === "upstream_4xx") ?? errors[0]!;
     }
 
-    const fallbackSource: "Open Food Facts" | "USDA" = apiKey ? "USDA" : "Open Food Facts";
+    const fallbackSource: "Open Food Facts" | "USDA" = apiKey
+      ? "USDA"
+      : "Open Food Facts";
     cache.set(code, {
       value: null,
       source: fallbackSource,

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Clock, Lock, Sparkles } from "lucide-react";
+import { Clock, Lock, Sparkles, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Seo } from "@/components/Seo";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { useClaims } from "@/lib/claims";
@@ -12,11 +14,15 @@ import { hasPro } from "@/lib/entitlements/pro";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
 import {
   isPaidScanPreviewEligible,
+  loadTransformationPreviewBlob,
+  requestTransformationPreview,
   subscribeTransformationPreview,
+  type TransformationPreviewGoal,
 } from "@/lib/transformationPreview";
 import { buildScanResultViewModel } from "@/lib/scanResultViewModel";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
+import { toast } from "@/hooks/use-toast";
 
 export default function TransformationPreviewPage() {
   const { scanId = "" } = useParams();
@@ -40,6 +46,11 @@ export default function TransformationPreviewPage() {
   const canAccessPreview = previewEligible || internalAccess;
   const [state, setState] = useState<any>(null);
   const [loadingState, setLoadingState] = useState(true);
+  const [consent, setConsent] = useState(false);
+  const [goal, setGoal] = useState<TransformationPreviewGoal>("recomp");
+  const [timelineWeeks, setTimelineWeeks] = useState(12);
+  const [requesting, setRequesting] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.uid || !scanId || !canAccessPreview) {
@@ -59,6 +70,33 @@ export default function TransformationPreviewPage() {
     );
     return () => unsub();
   }, [user?.uid, scanId, canAccessPreview]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    setPreviewUrl(null);
+    if (state?.status !== "ready" || !state?.storagePath) return;
+    void loadTransformationPreviewBlob(state.storagePath)
+      .then((blob) => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setPreviewUrl(objectUrl);
+      })
+      .catch(() => {
+        if (active) {
+          toast({
+            title: "Preview unavailable",
+            description:
+              "We could not securely load this image. Please try again.",
+            variant: "destructive",
+          });
+        }
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [state?.status, state?.storagePath]);
 
   const vm = useMemo(
     () =>
@@ -110,23 +148,73 @@ export default function TransformationPreviewPage() {
         copy: "A completed scan is required before Transformation Preview can be prepared.",
       };
     }
-    if (vm.plan.setupNeeded) {
+    const age = Number((profile as any)?.age);
+    if (!Number.isFinite(age) || age < 18) {
       return {
-        label: "Plan setup needed",
-        copy: "Complete your plan setup so the preview can reflect your training target.",
+        label: "Profile age needed",
+        copy: "Transformation Preview is available only to adults. Add your age in Settings to continue.",
       };
     }
-    if (canAccessPreview && state?.status === "ready" && state?.imageUrl) {
+    if (canAccessPreview && state?.status === "ready" && state?.storagePath) {
       return {
         label: "Ready",
         copy: "Your Transformation Preview is ready.",
       };
     }
+    if (state?.status === "processing" || state?.status === "queued") {
+      return {
+        label: "Creating",
+        copy: "Your private preview is being created. This can take a couple of minutes.",
+      };
+    }
+    if (state?.status === "failed") {
+      return {
+        label: "Try again",
+        copy: "The previous attempt did not finish. You can safely try again.",
+      };
+    }
     return {
-      label: "Not ready",
-      copy: "Your scan is eligible. We’ll show your preview here when it is ready.",
+      label: "Ready to create",
+      copy: "Choose a goal and explicitly consent before creating your private preview.",
     };
   })();
+
+  const age = Number((profile as any)?.age);
+  const adult = Number.isFinite(age) && age >= 18;
+  const canRequest =
+    canAccessPreview &&
+    Boolean(vm?.isValidResult) &&
+    adult &&
+    consent &&
+    !requesting &&
+    state?.status !== "processing" &&
+    state?.status !== "queued";
+
+  const handleRequest = async () => {
+    if (!canRequest) return;
+    setRequesting(true);
+    try {
+      await requestTransformationPreview({
+        scanId,
+        goal,
+        timelineWeeks,
+        consent: true,
+      });
+      toast({
+        title: "Preview requested",
+        description: "Keep this page open or return in a few minutes.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Unable to create preview",
+        description:
+          error?.message || "Please check eligibility and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRequesting(false);
+    }
+  };
 
   return (
     <main className="min-h-screen p-4 md:p-6 max-w-3xl mx-auto space-y-4">
@@ -147,19 +235,33 @@ export default function TransformationPreviewPage() {
             </Badge>
           </div>
           <p className="text-xs text-zinc-400">
-            A realistic motivational visualization based on your scan, goal, and plan.
+            A realistic motivational visualization based on your scan, goal, and
+            plan.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           {canAccessPreview &&
           state?.status === "ready" &&
-          state?.imageUrl &&
+          state?.storagePath &&
           TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (
-            <img
-              src={state.imageUrl}
-              alt="Transformation preview"
-              className="w-full rounded-xl border border-zinc-700 object-cover"
-            />
+            previewUrl ? (
+              <div className="space-y-3">
+                <img
+                  src={previewUrl}
+                  alt="Illustrative future-goal fitness visualization"
+                  className="w-full rounded-xl border border-zinc-700 object-cover"
+                />
+                <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">
+                  This AI-created image is illustrative—not a forecast or
+                  guarantee. Real outcomes and appearance vary.
+                </p>
+              </div>
+            ) : (
+              <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-zinc-400">
+                <Loader2 className="h-4 w-4 animate-spin" /> Securely loading
+                preview…
+              </div>
+            )
           ) : (
             <Card className="border-zinc-700 bg-zinc-900/50">
               <CardContent className="pt-6 space-y-3 text-sm text-zinc-300">
@@ -181,6 +283,100 @@ export default function TransformationPreviewPage() {
                     Preview document status: {String(state.status)}.
                   </div>
                 ) : null}
+                {canAccessPreview &&
+                  vm?.isValidResult &&
+                  adult &&
+                  state?.status !== "processing" &&
+                  state?.status !== "queued" && (
+                    <div className="space-y-4 rounded-xl border border-zinc-700 bg-black/20 p-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="preview-goal">
+                            Visualization goal
+                          </Label>
+                          <select
+                            id="preview-goal"
+                            value={goal}
+                            onChange={(event) =>
+                              setGoal(
+                                event.target.value as TransformationPreviewGoal
+                              )
+                            }
+                            className="min-h-11 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
+                          >
+                            <option value="lose_fat">Leaner look</option>
+                            <option value="gain_muscle">Build muscle</option>
+                            <option value="recomp">Body recomposition</option>
+                            <option value="performance">
+                              Athletic development
+                            </option>
+                            <option value="maintain">Maintain</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="preview-timeline">
+                            Motivational horizon
+                          </Label>
+                          <select
+                            id="preview-timeline"
+                            value={timelineWeeks}
+                            onChange={(event) =>
+                              setTimelineWeeks(Number(event.target.value))
+                            }
+                            className="min-h-11 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100"
+                          >
+                            <option value={8}>8 weeks</option>
+                            <option value={12}>12 weeks</option>
+                            <option value={16}>16 weeks</option>
+                            <option value={24}>24 weeks</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Checkbox
+                          id="preview-consent"
+                          checked={consent}
+                          onCheckedChange={(checked) =>
+                            setConsent(checked === true)
+                          }
+                          className="mt-0.5"
+                        />
+                        <Label
+                          htmlFor="preview-consent"
+                          className="text-xs font-normal leading-relaxed text-zinc-300"
+                        >
+                          I consent to MyBodyScan sending my front scan photo
+                          and selected goal to OpenAI to create this one-time
+                          image. I understand it is AI-generated, can be
+                          inaccurate, and is not a prediction.
+                        </Label>
+                      </div>
+                      <Button
+                        className="w-full"
+                        disabled={!canRequest}
+                        onClick={handleRequest}
+                      >
+                        {requesting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+                            Creating private preview…
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="mr-2 h-4 w-4" /> Create
+                            private preview
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                {(state?.status === "processing" ||
+                  state?.status === "queued") && (
+                  <div className="flex items-center gap-2 rounded-lg border border-zinc-700 p-3 text-xs text-zinc-300">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Generation is
+                    in progress. Duplicate requests are blocked.
+                  </div>
+                )}
                 <div className="grid gap-2 sm:grid-cols-2">
                   <Button onClick={() => navigate(`/results/${scanId}`)}>
                     Back to results

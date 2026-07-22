@@ -10,6 +10,7 @@ import { onSnapshot } from "firebase/firestore";
 import { scanDocRef, type ScanDoc, extractScanMetrics } from "@/lib/scans";
 import { formatWeight } from "@/lib/units";
 import { useUnits } from "@/hooks/useUnits";
+import { isSuccessfulPersistedScan } from "@/lib/scanContract";
 
 export default function ScanComparePage() {
   const nav = useNavigate();
@@ -31,8 +32,16 @@ export default function ScanComparePage() {
     );
   }, [rightId]);
 
-  const L = useMemo(() => extractScanMetrics(left || undefined), [left]);
-  const R = useMemo(() => extractScanMetrics(right || undefined), [right]);
+  const leftValid = Boolean(left && isSuccessfulPersistedScan(left as any));
+  const rightValid = Boolean(right && isSuccessfulPersistedScan(right as any));
+  const L = useMemo(
+    () => extractScanMetrics(leftValid ? left || undefined : undefined),
+    [left, leftValid]
+  );
+  const R = useMemo(
+    () => extractScanMetrics(rightValid ? right || undefined : undefined),
+    [right, rightValid]
+  );
   const preferredUnit = units === "metric" ? "kg" : "lb";
   const weightUnitLabel = preferredUnit;
   const leftWeight = formatWeight(L.weightKg, preferredUnit, 1).value;
@@ -83,53 +92,72 @@ export default function ScanComparePage() {
         </button>
       </header>
 
-      <div className="grid grid-cols-2 gap-3">
-        <CompareCol
-          title="Left"
-          id={leftId}
-          BF={L.bodyFatPercent}
-          W={leftWeight}
-          BMI={L.bmi}
-          unitLabel={weightUnitLabel}
-        />
-        <CompareCol
-          title="Right"
-          id={rightId}
-          BF={R.bodyFatPercent}
-          W={rightWeight}
-          BMI={R.bmi}
-          unitLabel={weightUnitLabel}
-        />
-      </div>
+      {left && right && (!leftValid || !rightValid) ? (
+        <section className="rounded border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+          <h2 className="font-medium">These scans cannot be compared</h2>
+          <p className="mt-1">
+            Progress comparisons require two completed, non-fallback scans with
+            all four photos and a supported estimate. Failed or incomplete
+            results are excluded.
+          </p>
+          <button
+            onClick={() => nav("/history")}
+            className="mt-3 rounded border border-amber-500 px-3 py-2"
+          >
+            Choose valid scans
+          </button>
+        </section>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <CompareCol
+              title="Left"
+              id={leftId}
+              BF={L.bodyFatPercent}
+              W={leftWeight}
+              BMI={L.bmi}
+              unitLabel={weightUnitLabel}
+            />
+            <CompareCol
+              title="Right"
+              id={rightId}
+              BF={R.bodyFatPercent}
+              W={rightWeight}
+              BMI={R.bmi}
+              unitLabel={weightUnitLabel}
+            />
+          </div>
 
-      <section className="rounded border p-3">
-        <h2 className="text-sm font-medium mb-2">Change (Left → Right)</h2>
-        <ul className="text-sm space-y-1">
-          <li>
-            Body Fat: <strong>{label(dBF, "%")}</strong>
-          </li>
-          <li>
-            Weight: <strong>{label(dW, ` ${weightUnitLabel}`)}</strong>
-          </li>
-          <li>
-            BMI: <strong>{label(dBMI)}</strong>
-          </li>
-        </ul>
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            onClick={() => nav(`/scans/compare/${rightId}/${leftId}`)}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            Swap Sides
-          </button>
-          <button
-            onClick={() => nav("/scan")}
-            className="rounded border px-3 py-2 text-sm"
-          >
-            Rescan
-          </button>
-        </div>
-      </section>
+          <section className="rounded border p-3">
+            <h2 className="text-sm font-medium mb-2">Change (Left → Right)</h2>
+            <ul className="text-sm space-y-1">
+              <li>
+                Body Fat: <strong>{label(dBF, "%")}</strong>
+              </li>
+              <li>
+                Weight: <strong>{label(dW, ` ${weightUnitLabel}`)}</strong>
+              </li>
+              <li>
+                BMI: <strong>{label(dBMI)}</strong>
+              </li>
+            </ul>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={() => nav(`/scans/compare/${rightId}/${leftId}`)}
+                className="rounded border px-3 py-2 text-sm"
+              >
+                Swap Sides
+              </button>
+              <button
+                onClick={() => nav("/scan")}
+                className="rounded border px-3 py-2 text-sm"
+              >
+                Rescan
+              </button>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
