@@ -17,7 +17,11 @@ import {
 } from "./lib/appCheckSoft.js";
 import { scrubUndefined } from "./lib/scrub.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
+import { getEnvInt } from "./lib/env.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+
+const coachRequestsPerMinute = () =>
+  Math.max(1, Math.min(1_000, Math.trunc(getEnvInt("COACH_RPM", 12))));
 
 export interface CoachChatRequest {
   /** Optional thread support (ChatGPT-style). */
@@ -905,7 +909,7 @@ export const coachChat = onCall<CoachChatRequest>(
     await enforceRateLimit({
       uid,
       key: "coachChat",
-      limit: 12,
+      limit: coachRequestsPerMinute(),
       windowMs: 60_000,
     });
 
@@ -998,7 +1002,7 @@ export async function coachChatHandler(
     await enforceRateLimit({
       uid,
       key: "coachChat",
-      limit: 12,
+      limit: coachRequestsPerMinute(),
       windowMs: 60_000,
     });
     payload.context = await buildServerContext({

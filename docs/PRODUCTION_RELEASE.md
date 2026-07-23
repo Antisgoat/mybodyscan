@@ -88,8 +88,10 @@ exist before Functions deployment. RevenueCat is required when mobile purchase
 events are enabled. `ADMIN_EMAIL_ALLOWLIST` is a fail-closed binding for the
 admin credit-grant function and must exist before Functions deployment.
 
-Non-secret runtime configuration is committed in `firebase.json`, including
-`APP_CHECK_MODE=soft`, the canonical host, auth feature flags, and rate limits.
+Non-secret runtime configuration is committed in
+`functions/.env.mybodyscan-f3daf`, the Firebase-supported project-specific
+Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
+feature flags, and the effective Coach and nutrition rate limits.
 New scan credits expire after 12 months by default, matching the purchase and
 legal pages. `CREDIT_EXP_MONTHS` may override that period only after the same
 change is approved and published in every customer-facing purchase and policy
@@ -319,7 +321,8 @@ The web client initializes Firebase App Check only when
 and sends tokens through Firebase callable requests and the
 `X-Firebase-AppCheck` header.
 
-`APP_CHECK_MODE=soft` is the production bootstrap setting:
+`APP_CHECK_MODE=soft` in `functions/.env.mybodyscan-f3daf` is the production
+bootstrap setting:
 
 - missing or invalid tokens are logged by HTTP handlers but do not block;
 - callable `enforceAppCheck` is disabled;
@@ -334,10 +337,11 @@ become mode-aware; in `strict` they reject a missing or invalid token.
 Keep Firebase Console enforcement for Functions, Firestore, and Storage off
 until the site key is deployed and real sessions on every production domain
 show valid tokens. Then observe App Check metrics for at least one normal usage
-window. To harden Functions, change `APP_CHECK_MODE` to `strict`, redeploy
-Functions, and repeat auth, scan, nutrition, billing, account deletion, and
-mobile checks. Enable Firebase product enforcement one product at a time. Roll
-back to `soft` immediately if legitimate clients receive permission failures.
+window. To harden Functions, change `APP_CHECK_MODE` to `strict` in that file,
+redeploy Functions, and repeat auth, scan, nutrition, billing, account
+deletion, and mobile checks. Enable Firebase product enforcement one product at
+a time. Roll back to `soft` immediately if legitimate clients receive
+permission failures.
 
 Current verified console state on 2026-07-22: the web app is registered with
 reCAPTCHA Enterprise; Cloud Firestore and Authentication are in **Monitoring**
