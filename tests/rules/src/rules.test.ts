@@ -102,23 +102,44 @@ d("Firestore security rules", () => {
     );
   });
 
-  it("allows valid nutrition log writes", async () => {
-    const uid = "alice";
+  it("allows nutrition tracking only with a server-authored Pro entitlement", async () => {
+    const uid = "nutrition-pro";
+    const singlePurchaseUid = "nutrition-single";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      const admin = ctx.firestore();
+      await admin
+        .doc(`users/${uid}/entitlements/current`)
+        .set({ pro: true, source: "stripe" });
+      await admin
+        .doc(`users/${singlePurchaseUid}/entitlements/current`)
+        .set({ pro: false, source: "stripe" });
+    });
     const authed = testEnv.authenticatedContext(uid).firestore();
     await assertSucceeds(
       authed
         .doc(`users/${uid}/nutritionLogs/2024-01-01`)
         .set({ calories: 1000, protein_g: 50, carbs_g: 120, fat_g: 40 })
     );
+    const singlePurchase = testEnv
+      .authenticatedContext(singlePurchaseUid)
+      .firestore();
+    await assertFails(
+      singlePurchase
+        .doc(`users/${singlePurchaseUid}/nutritionLogs/2024-01-01`)
+        .set({ calories: 1000, protein_g: 50, carbs_g: 120, fat_g: 40 })
+    );
   });
 
-  it("allows owner to read transformation previews but blocks all client writes", async () => {
+  it("allows Pro owner to read transformation previews but blocks all client writes", async () => {
     const uid = "alice";
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
-      await ctx
-        .firestore()
+      const admin = ctx.firestore();
+      await admin
         .doc(`users/${uid}/transformationPreviews/scan1`)
         .set({ status: "not_started", scanId: "scan1" });
+      await admin
+        .doc(`users/${uid}/entitlements/current`)
+        .set({ pro: true, source: "stripe" });
     });
     const authed = testEnv.authenticatedContext(uid).firestore();
     const previewRef = authed.doc(`users/${uid}/transformationPreviews/scan1`);

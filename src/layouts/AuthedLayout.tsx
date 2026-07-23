@@ -16,18 +16,48 @@ import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { AppFooter } from "@/components/AppFooter";
 import { disableDemoEverywhere, isDemoAllowed } from "@/state/demo";
+import {
+  isSubscriberOnlyPath,
+  SubscriberFeatureGate,
+} from "@/components/SubscriberFeatureGate";
+import { useLocation } from "react-router-dom";
 
 interface AuthedLayoutProps {
   children: ReactNode;
 }
 
-const navItems: Array<{ to: string; label: string; feature?: FeatureName }> = [
+const navItems: Array<{
+  to: string;
+  label: string;
+  feature?: FeatureName;
+  subscriberOnly?: boolean;
+}> = [
   { to: "/home", label: "Home" },
   { to: "/scan", label: "Scan", feature: "scan" },
-  { to: "/meals", label: "Meals", feature: "nutrition" },
-  { to: "/workouts", label: "Workouts", feature: "workouts" },
-  { to: "/programs", label: "Programs", feature: "coach" },
-  { to: "/coach", label: "Coach", feature: "coach" },
+  {
+    to: "/meals",
+    label: "Meals",
+    feature: "nutrition",
+    subscriberOnly: true,
+  },
+  {
+    to: "/workouts",
+    label: "Workouts",
+    feature: "workouts",
+    subscriberOnly: true,
+  },
+  {
+    to: "/programs",
+    label: "Programs",
+    feature: "coach",
+    subscriberOnly: true,
+  },
+  {
+    to: "/coach",
+    label: "Coach",
+    feature: "coach",
+    subscriberOnly: true,
+  },
   { to: "/history", label: "History", feature: "scan" },
   { to: "/plans", label: "Plans", feature: "account" },
   { to: "/settings", label: "Settings", feature: "account" },
@@ -60,6 +90,7 @@ function softNavigate(path: string) {
 
 export default function AuthedLayout({ children }: AuthedLayoutProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const demoMode = useDemoMode();
   const { user } = useAuthUser();
@@ -85,7 +116,12 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
           }
           onClick={() => mobile && setMobileMenuOpen(false)}
         >
-          {item.label}
+          <span>{item.label}</span>
+          {item.subscriberOnly ? (
+            <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+              Pro
+            </span>
+          ) : null}
         </NavLink>
       ))}
     </>
@@ -237,7 +273,13 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">{children}</div>
+        <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+          {isSubscriberOnlyPath(location.pathname) ? (
+            <SubscriberFeatureGate>{children}</SubscriberFeatureGate>
+          ) : (
+            children
+          )}
+        </div>
       </main>
       <AppFooter />
     </div>

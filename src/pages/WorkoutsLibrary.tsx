@@ -138,7 +138,7 @@ export default function WorkoutsLibrary() {
                   {todayPlan.day}
                 </div>
                 <p className="text-muted-foreground">
-                  Complete each set to keep your streak alive. We’ll mark
+                  Complete each set to build today’s momentum. We’ll mark
                   completions as you log them.
                 </p>
                 <ul className="space-y-2">
@@ -161,7 +161,7 @@ export default function WorkoutsLibrary() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Completion streak</CardTitle>
+                <CardTitle>14-day completion pattern</CardTitle>
               </CardHeader>
               <CardContent>
                 <WorkoutStreakChart data={streak} />

@@ -2,6 +2,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { Timestamp, getFirestore } from "./firebase.js";
 import { coachPlanDocPath } from "./lib/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
+import { requireProEntitlement } from "./lib/proEntitlements.js";
 
 interface CoachProfile {
   goal?: string;
@@ -218,6 +219,7 @@ export const generatePlan = onCallWithOptionalAppCheck(
     if (!uid) {
       throw new HttpsError("unauthenticated", "Sign in to generate a plan");
     }
+    await requireProEntitlement(uid);
 
     const profile = await fetchProfile(uid);
     const plan = buildPlan(profile);

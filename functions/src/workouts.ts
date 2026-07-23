@@ -19,11 +19,7 @@ import type {
 import { ensureSoftAppCheckFromRequest } from "./lib/appCheckSoft.js";
 import { hasOpenAI } from "./lib/env.js";
 import { scrubUndefined } from "./lib/scrub.js";
-import {
-  hasActiveSubscriptionFromUserDoc,
-  hasUnlimitedAccessFromClaims,
-} from "./lib/entitlements.js";
-import { hasProEntitlement } from "./lib/proEntitlements.js";
+import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { structuredJsonChat } from "./openai/client.js";
 import { openAiSecretParam } from "./openai/keys.js";
@@ -601,24 +597,9 @@ function generateCustomPlanDays(prefs: CustomPlanPrefs): WorkoutDay[] {
   return toWorkoutDaysFromTemplates(prefs, fallbackTemplates);
 }
 
-async function requireProgramsEntitlement(uid: string, claims: any) {
-  // Eligibility: active subscription OR unlimited credits claim.
-  // Keep this logic server-side so UI gating can't be bypassed.
+async function requireProgramsEntitlement(uid: string) {
   try {
-    const unlimited = hasUnlimitedAccessFromClaims(claims);
-    const tokenEmail = (claims as any)?.email;
-    const email = typeof tokenEmail === "string" ? tokenEmail : null;
-    const staffOrPro = unlimited || (await hasProEntitlement(uid, email));
-    if (!staffOrPro) {
-      const userSnap = await db.doc(`users/${uid}`).get();
-      const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
-      if (!active) {
-        throw new HttpsError(
-          "permission-denied",
-          "Your account can't start programs yet. Visit Plans to activate your account."
-        );
-      }
-    }
+    await requireProEntitlement(uid);
   } catch (err) {
     if (err instanceof HttpsError) throw err;
     // If eligibility reads fail (rare), fail closed but with a neutral message.
@@ -627,6 +608,12 @@ async function requireProgramsEntitlement(uid: string, claims: any) {
       "Programs are temporarily unavailable. Please try again or contact support."
     );
   }
+}
+
+async function requireSubscriberAuth(req: Request): Promise<string> {
+  const uid = await requireAuth(req);
+  await requireProEntitlement(uid);
+  return uid;
 }
 
 function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
@@ -1059,7 +1046,7 @@ async function fetchCurrentPlan(uid: string) {
 }
 
 async function handleGenerate(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "generateWorkoutPlan",
     uid,
@@ -1083,13 +1070,13 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
   if (req.method !== "POST") {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
-  const { uid, claims } = await requireAuthWithClaims(req);
+  const { uid } = await requireAuthWithClaims(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "applyCatalogPlan",
     uid,
   });
 
-  await requireProgramsEntitlement(uid, claims);
+  await requireProgramsEntitlement(uid);
   const plan = sanitizeCatalogPlan(req.body);
   const now = Timestamp.now();
 
@@ -1162,7 +1149,7 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
 }
 
 async function handlePreviewCustomPlan(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "previewCustomPlan",
     uid,
@@ -1180,13 +1167,13 @@ async function handleApplyCustomPlan(req: Request, res: Response) {
   if (req.method !== "POST") {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
-  const { uid, claims } = await requireAuthWithClaims(req);
+  const { uid } = await requireAuthWithClaims(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "applyCustomPlan",
     uid,
   });
 
-  await requireProgramsEntitlement(uid, claims);
+  await requireProgramsEntitlement(uid);
 
   const prefs = sanitizeCustomPrefs(req.body?.prefs ?? {});
   const title =
@@ -1293,7 +1280,7 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
   if (req.method !== "POST") {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "updateWorkoutPlan",
     uid,
@@ -1384,7 +1371,7 @@ async function handleSetWorkoutPlanStatus(req: Request, res: Response) {
   if (req.method !== "POST") {
     throw new HttpsError("invalid-argument", "Method not allowed.");
   }
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "setWorkoutPlanStatus",
     uid,
@@ -1426,14 +1413,14 @@ async function handleSetWorkoutPlanStatus(req: Request, res: Response) {
 }
 
 async function handleGetPlan(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, { fn: "getPlan", uid });
   const plan = await fetchCurrentPlan(uid);
   res.json(plan);
 }
 
 async function handleMarkDone(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "markExerciseDone",
     uid,
@@ -1494,7 +1481,7 @@ async function handleMarkDone(req: Request, res: Response) {
 }
 
 async function handleLogWorkoutExercise(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
     fn: "logWorkoutExercise",
     uid,
@@ -1570,7 +1557,7 @@ async function handleLogWorkoutExercise(req: Request, res: Response) {
 }
 
 async function handleGetWorkouts(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, { fn: "getWorkouts", uid });
   const plan = await fetchCurrentPlan(uid);
   if (!plan) {
@@ -1639,7 +1626,7 @@ export const adjustWorkout = onRequest(
   withCors(async (req: ExpressRequest, res: ExpressResponse) => {
     const requestId = req.get("x-request-id")?.trim() || randomUUID();
     try {
-      const uid = await requireAuth(req as any);
+      const uid = await requireSubscriberAuth(req as any);
       await ensureSoftAppCheckFromRequest(req as any, {
         fn: "adjustWorkout",
         uid,

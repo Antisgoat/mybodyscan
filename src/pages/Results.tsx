@@ -46,6 +46,9 @@ import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { isSuccessfulPersistedScan } from "@/lib/scanContract";
 import { kgToLb } from "@/lib/units";
+import { useEntitlements } from "@/lib/entitlements/store";
+import { hasPro } from "@/lib/entitlements/pro";
+import { isNative } from "@/lib/platform";
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -130,7 +133,22 @@ const Results = () => {
   const activeScan = scan ?? (demo ? (demoLatestScan as any) : null);
   const { units } = useUnits();
   const { profile, plan } = useUserProfile();
+  const { entitlements } = useEntitlements();
+  const subscriberFeaturesAvailable = demo || hasPro(entitlements);
   const [previousScan, setPreviousScan] = useState<ScanDocument | null>(null);
+  const sampleDay = useMemo(() => {
+    const meals = (activeScan as ScanDocument | null)?.nutritionPlan?.sampleDay;
+    if (!Array.isArray(meals)) return [];
+    return meals.filter(
+      (meal) =>
+        meal &&
+        typeof meal.mealName === "string" &&
+        typeof meal.description === "string"
+    );
+  }, [activeScan]);
+  const subscriptionDestination = isNative()
+    ? "/paywall?reason=pro"
+    : "/plans?reason=pro";
 
   useEffect(() => {
     if (!user?.uid || !activeScan?.id || demo) {
@@ -745,9 +763,73 @@ const Results = () => {
                   Adjustment rule: {vm.nutrition.adjustmentRule}
                 </p>
               )}
-              <Button className="mt-4" onClick={() => navigate("/meals")}>
-                Open Meals <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              {sampleDay.length > 0 && (
+                <div className="mt-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-medium text-zinc-200">
+                      Sample day included with this scan
+                    </h3>
+                    <SourceTag>calculated plan</SourceTag>
+                  </div>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {sampleDay.map((meal, index) => (
+                      <div
+                        key={`${meal.mealName}-${index}`}
+                        className="rounded-xl border border-white/10 bg-white/[0.04] p-3"
+                      >
+                        <div className="font-medium text-white">
+                          {meal.mealName}
+                        </div>
+                        <p className="mt-1 text-sm text-zinc-300">
+                          {meal.description}
+                        </p>
+                        <p className="mt-2 text-xs text-zinc-400">
+                          {meal.calories} kcal · {meal.proteinGrams}g protein ·{" "}
+                          {meal.carbsGrams}g carbs · {meal.fatsGrams}g fat
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  onClick={() =>
+                    navigate(
+                      subscriberFeaturesAvailable
+                        ? "/meals/plan"
+                        : subscriptionDestination
+                    )
+                  }
+                >
+                  {subscriberFeaturesAvailable
+                    ? "Open 7-day meal plan"
+                    : "Unlock interactive meal planning"}
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-white/20 bg-transparent text-white"
+                  onClick={() =>
+                    navigate(
+                      subscriberFeaturesAvailable
+                        ? "/meals"
+                        : subscriptionDestination
+                    )
+                  }
+                >
+                  {subscriberFeaturesAvailable
+                    ? "Open meal diary"
+                    : "Unlock nutrition tracking"}
+                </Button>
+              </div>
+              {!subscriberFeaturesAvailable && (
+                <p className="mt-3 text-xs text-zinc-400">
+                  Your purchased scan report and sample plan stay available.
+                  Monthly or yearly Pro adds ongoing meal planning, search,
+                  barcode insights, and tracking.
+                </p>
+              )}
             </section>
 
             <section>

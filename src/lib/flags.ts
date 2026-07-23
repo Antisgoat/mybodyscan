@@ -40,7 +40,7 @@ export const MBS_FLAGS = {
   ...CONFIG_FLAGS,
   ENABLE_PUBLIC_MARKETING_PAGE: bool(
     env.VITE_ENABLE_PUBLIC_MARKETING_PAGE,
-    false
+    true
   ),
 } as const;
 

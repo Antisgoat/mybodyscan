@@ -65,6 +65,26 @@ describe("scan result production view model", () => {
     expect(vm.nutrition.proteinGrams).toBe(180);
   });
 
+  it("shows a canonical demo result without weakening production validation", () => {
+    const vm = buildScanResultViewModel({
+      scan: baseScan({
+        resultSource: "demo",
+        nutritionPlan: null,
+      }),
+    });
+
+    expect(vm.isValidResult).toBe(true);
+    expect(vm.isFailedOrFallback).toBe(false);
+    expect(vm.sourceLabel).toBe("Demo only");
+    expect(vm.primary.bodyFatPercent).toBe(20);
+    expect(
+      buildScanComparisonViewModel(
+        baseScan({ id: "demo-current", resultSource: "demo" }),
+        baseScan({ id: "demo-previous", resultSource: "demo" })
+      )
+    ).toBeNull();
+  });
+
   it("calculates fat and lean mass from weight and the photo estimate", () => {
     const vm = buildScanResultViewModel({
       scan: baseScan({

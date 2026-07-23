@@ -7,6 +7,10 @@ import { getFirestore } from "./firebase.js";
 import { getMessaging } from "firebase-admin/messaging";
 import { claimPushToken, releasePushToken } from "./pushTokenOwnership.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
+import {
+  hasProEntitlement,
+  requireProEntitlement,
+} from "./lib/proEntitlements.js";
 
 const db = getFirestore();
 const messaging = getMessaging();
@@ -33,6 +37,7 @@ export const registerPushToken = onCallWithOptionalAppCheck(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    await requireProEntitlement(uid);
     const token = validatedToken(request.data?.token);
     await claimPushToken(db, {
       uid,
@@ -215,6 +220,7 @@ export const sendPlateauNotifications = onSchedule(
 
     let sent = 0;
     for (const [uid, tokens] of byUser) {
+      if (!(await hasProEntitlement(uid))) continue;
       const [preferencesSnap, profileSnap, scansSnap] = await Promise.all([
         db.doc(`users/${uid}/settings/notifications`).get(),
         db.doc(`users/${uid}/coach/profile`).get(),

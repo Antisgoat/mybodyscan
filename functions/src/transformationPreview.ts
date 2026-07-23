@@ -3,7 +3,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { FieldValue } from "firebase-admin/firestore";
 
 import { getFirestore, getStorage } from "./firebase.js";
-import { hasProEntitlement } from "./lib/proEntitlements.js";
+import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { getOpenAIKey, openAiSecretParam } from "./openai/keys.js";
 import { scanObjectPath } from "./scan/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
@@ -57,16 +57,6 @@ function normalizeGoal(value: unknown): Goal {
 function readAge(profile: Record<string, unknown>): number | null {
   const age = Number(profile.age);
   return Number.isFinite(age) ? Math.round(age) : null;
-}
-
-function paidScan(scan: Record<string, unknown>): boolean {
-  return Boolean(
-    scan.charged === true ||
-      scan.paid === true ||
-      scan.creditConsumed === true ||
-      scan.creditStatus === "consumed" ||
-      scan.creditStatus === "charged"
-  );
 }
 
 function isValidScan(scan: Record<string, unknown>): boolean {
@@ -138,6 +128,7 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    await requireProEntitlement(uid);
     const scanId =
       typeof request.data?.scanId === "string"
         ? request.data.scanId.trim()
@@ -175,25 +166,6 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
         "Transformation Preview is available only to adults with age completed in their profile."
       );
     }
-    const pro = await hasProEntitlement(
-      uid,
-      request.auth?.token?.email as string | undefined
-    );
-    const claims = request.auth?.token || {};
-    const internal = Boolean(
-      claims.admin ||
-        claims.staff ||
-        claims.dev ||
-        claims.unlimited ||
-        claims.unlimitedCredits
-    );
-    if (!paidScan(scan) && !pro && !internal) {
-      throw new HttpsError(
-        "permission-denied",
-        "An eligible paid scan or premium membership is required."
-      );
-    }
-
     const previewRef = db.doc(`users/${uid}/transformationPreviews/${scanId}`);
     const requestId = randomUUID();
     const claim = await db.runTransaction(async (transaction) => {

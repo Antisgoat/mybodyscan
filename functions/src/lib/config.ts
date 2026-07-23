@@ -1,5 +1,3 @@
-import { config as firebaseConfig } from "firebase-functions";
-
 import { getOpenAIKey, openAiSecretParam } from "../openai/keys.js";
 import {
   getStripeKey,
@@ -10,64 +8,33 @@ import {
   stripeWebhookSecretParam,
 } from "../stripe/keys.js";
 
-type RuntimeConfig = Record<string, any>;
-
-let cachedRuntimeConfig: RuntimeConfig | null | undefined;
-let runtimeConfigOverride: RuntimeConfig | null | undefined;
-
 const DEFAULT_PRICE_MAP: Record<string, string> = {
-  single: "price_1RuOpKQQU5vuhlNjipfFBsR0",
-  one: "price_1RuOpKQQU5vuhlNjipfFBsR0",
+  single: "price_1TwQ1OQQU5vuhlNj5peGUJbZ",
+  one: "price_1TwQ1OQQU5vuhlNj5peGUJbZ",
+  single_legacy: "price_1RuOpKQQU5vuhlNjipfFBsR0",
   pack3: "price_1RuOr2QQU5vuhlNjcqTckCHL",
   pack5: "price_1RuOrkQQU5vuhlNj15ebWfNP",
   monthly: "price_1RuOtOQQU5vuhlNjmXnQSsYq",
   annual: "price_1RuOw0QQU5vuhlNjA5NZ66qq",
-  extra: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
-  pro_monthly: "price_1S4XsVQQU5vuhlNjzdQzeySA",
-  elite_annual: "price_1Tw39XQQU5vuhlNjCRpZkL6a",
-  // Keep the superseded monthly-cadence price recognizable for webhook events
-  // from Checkout sessions that started before the corrected price deploys.
-  elite_annual_legacy: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
+  extra: "price_1TwPx2QQU5vuhlNjJFboU9DZ",
+  extra_legacy: "price_1S4Y9JQQU5vuhlNjB7cBfmaW",
+  pro_monthly: "price_1TwPxXQQU5vuhlNj9ybv7iLZ",
+  pro_monthly_legacy: "price_1S4XsVQQU5vuhlNjzdQzeySA",
+  elite_annual: "price_1TwPyFQQU5vuhlNjyCq1Nt1y",
+  // Keep superseded prices recognizable for delayed pre-cutover webhook events.
+  elite_annual_legacy: "price_1Tw39XQQU5vuhlNjCRpZkL6a",
+  elite_annual_legacy_monthly: "price_1S4Y6YQQU5vuhlNjeJFmshxX",
 };
 
 const SUBSCRIPTION_PLAN_KEYS = new Set([
   "monthly",
   "annual",
   "pro_monthly",
+  "pro_monthly_legacy",
   "elite_annual",
   "elite_annual_legacy",
+  "elite_annual_legacy_monthly",
 ]);
-
-function getRuntimeConfig(): RuntimeConfig {
-  if (runtimeConfigOverride !== undefined) {
-    return runtimeConfigOverride ?? {};
-  }
-  if (cachedRuntimeConfig !== undefined) {
-    return cachedRuntimeConfig ?? {};
-  }
-  try {
-    cachedRuntimeConfig = firebaseConfig();
-  } catch {
-    cachedRuntimeConfig = {};
-  }
-  return cachedRuntimeConfig ?? {};
-}
-
-function readRuntimeConfig(path: string[]): string | null {
-  const cfg = getRuntimeConfig();
-  let current: any = cfg;
-  for (const segment of path) {
-    if (!current || typeof current !== "object") {
-      return null;
-    }
-    current = current[segment];
-  }
-  if (typeof current === "string") {
-    const trimmed = current.trim();
-    return trimmed ? trimmed : null;
-  }
-  return null;
-}
 
 function firstNonEmpty(
   values: Array<string | null | undefined>
@@ -96,22 +63,6 @@ function collectEnvPrices(): Record<string, string> {
   return entries;
 }
 
-function collectConfigPrices(): Record<string, string> {
-  const result: Record<string, string> = {};
-  const cfg = getRuntimeConfig();
-  const prices = cfg?.stripe?.prices;
-  if (!prices || typeof prices !== "object") {
-    return result;
-  }
-  for (const [key, value] of Object.entries(prices)) {
-    if (typeof value !== "string") continue;
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    result[key.toLowerCase()] = trimmed;
-  }
-  return result;
-}
-
 export function getStripeSecret(): string | null {
   try {
     return getStripeKey();
@@ -121,10 +72,6 @@ export function getStripeSecret(): string | null {
       typeof error === "object" &&
       (error as { code?: string }).code === "payments_disabled"
     ) {
-      const configSecret = readRuntimeConfig(["stripe", "secret"]);
-      if (configSecret) {
-        return configSecret;
-      }
       return null;
     }
     throw error;
@@ -135,11 +82,6 @@ export function getWebhookSecret(): string | null {
   const secret = readStripeWebhookSecret();
   if (secret) {
     return secret;
-  }
-
-  const configSecret = readRuntimeConfig(["stripe", "webhook_secret"]);
-  if (configSecret) {
-    return configSecret;
   }
 
   return null;
@@ -154,10 +96,6 @@ export function getOpenAiSecret(): string | null {
       typeof error === "object" &&
       (error as { code?: string }).code === "openai_missing_key"
     ) {
-      const configSecret = readRuntimeConfig(["openai", "api_key"]);
-      if (configSecret) {
-        return configSecret;
-      }
       return null;
     }
     throw error;
@@ -173,11 +111,6 @@ export function getAppOrigin(): string | null {
     return envOrigin;
   }
 
-  const configOrigin = readRuntimeConfig(["app", "origin"]);
-  if (configOrigin) {
-    return configOrigin;
-  }
-
   return null;
 }
 
@@ -190,11 +123,6 @@ export type PriceAllowlist = {
 export function getPriceAllowlist(): PriceAllowlist {
   const allowlist = new Set<string>();
   const planToPrice: Record<string, string> = { ...DEFAULT_PRICE_MAP };
-
-  const configPrices = collectConfigPrices();
-  for (const [key, value] of Object.entries(configPrices)) {
-    planToPrice[key] = value;
-  }
 
   const envPrices = collectEnvPrices();
   for (const [key, value] of Object.entries(envPrices)) {
@@ -226,12 +154,7 @@ export {
   stripeWebhookSecretParam,
 };
 
-export function __setRuntimeConfigForTest(config: RuntimeConfig | null): void {
-  runtimeConfigOverride = config ?? {};
-  cachedRuntimeConfig = undefined;
-}
-
 export function __resetConfigForTest(): void {
-  runtimeConfigOverride = undefined;
-  cachedRuntimeConfig = undefined;
+  // Configuration is now sourced from Secret Manager, environment variables,
+  // and committed non-secret defaults. Kept as a no-op for test compatibility.
 }

@@ -43,8 +43,11 @@ const ENDPOINTS = [
     path: "/api/nutrition/search?q=chicken breast",
     method: "GET",
     expect: ({ status, parsed }) => {
+      if (status === 403) {
+        return { ok: true, message: "subscriber gate verified" };
+      }
       if (status !== 200)
-        return { ok: false, message: `expected 200, got ${status}` };
+        return { ok: false, message: `expected 200 or 403, got ${status}` };
       if (!isObject(parsed) || parsed.status !== "ok") {
         return { ok: false, message: "nutrition search was not healthy" };
       }
@@ -60,8 +63,11 @@ const ENDPOINTS = [
     path: "/api/nutrition/barcode?code=737628064502",
     method: "GET",
     expect: ({ status, parsed }) => {
+      if (status === 403) {
+        return { ok: true, message: "subscriber gate verified" };
+      }
       if (status !== 200)
-        return { ok: false, message: `expected 200, got ${status}` };
+        return { ok: false, message: `expected 200 or 403, got ${status}` };
       if (!isObject(parsed) || !Array.isArray(parsed.results)) {
         return { ok: false, message: "unexpected barcode response shape" };
       }

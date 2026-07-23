@@ -11,7 +11,7 @@ function envOr(def: string, key: string): string {
 
 // LIVE defaults (from project notes). Override via env when needed.
 export const PRICE_IDS: PriceMap = {
-  single: envOr("price_1RuOpKQQU5vuhlNjipfFBsR0", "VITE_PRICE_SINGLE"),
-  monthly: envOr("price_1S4XsVQQU5vuhlNjzdQzeySA", "VITE_PRICE_MONTHLY"),
-  yearly: envOr("price_1Tw39XQQU5vuhlNjCRpZkL6a", "VITE_PRICE_YEARLY"),
+  single: envOr("price_1TwQ1OQQU5vuhlNj5peGUJbZ", "VITE_PRICE_SINGLE"),
+  monthly: envOr("price_1TwPxXQQU5vuhlNj9ybv7iLZ", "VITE_PRICE_MONTHLY"),
+  yearly: envOr("price_1TwPyFQQU5vuhlNjyCq1Nt1y", "VITE_PRICE_YEARLY"),
 };

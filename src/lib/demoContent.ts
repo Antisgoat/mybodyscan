@@ -114,6 +114,14 @@ export const DEMO_WORKOUT_PLAN = {
       ],
     },
     {
+      day: "Thu",
+      exercises: [
+        { id: "thu-1", name: "Romanian deadlift", sets: 3, reps: 10 },
+        { id: "thu-2", name: "Incline dumbbell press", sets: 3, reps: 10 },
+        { id: "thu-3", name: "Lat pulldown", sets: 3, reps: 12 },
+      ],
+    },
+    {
       day: "Fri",
       exercises: [
         { id: "fri-1", name: "Walking lunges", sets: 3, reps: 12 },

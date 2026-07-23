@@ -16,6 +16,7 @@ import { withCors } from "./middleware/cors.js";
 import { appCheckSoft } from "./middleware/appCheckSoft.js";
 import { chain } from "./middleware/chain.js";
 import { fetchOpenFoodFactsBundle } from "./nutrition/alternatives.js";
+import { hasProEntitlement } from "./lib/proEntitlements.js";
 
 const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
 const FETCH_TIMEOUT_MS = 8000;
@@ -290,6 +291,9 @@ async function handleNutritionBarcode(
     const uid = auth.uid;
     if (!uid) {
       throw new HttpError(401, "unauthorized");
+    }
+    if (!(await hasProEntitlement(uid))) {
+      throw new HttpError(403, "permission_denied", "subscription_required");
     }
 
     const rateLimit = await ensureRateLimit({

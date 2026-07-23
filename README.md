@@ -358,16 +358,26 @@ The `functions/package.json` scripts keep the runtime on Node 22 and fail fast i
 
 ### Payments config sources & troubleshooting
 
-- Stripe HTTPS handlers resolve secrets in order: Firebase Secret Manager entry `STRIPE_SECRET` → `process.env.STRIPE_SECRET`/`STRIPE_API_KEY` → `functions.config().stripe.secret`. If none are present, handlers return `501 { error: "payments_disabled", code: "no_secret" }` and log `{ "svc":"checkout", ... , "ok":false }`.
+- Stripe HTTPS handlers resolve secrets from their bound Firebase Secret Manager
+  entries, with documented environment aliases retained only for local
+  compatibility. The retired `functions.config()` service is not used. If no
+  bound secret is present, handlers return
+  `501 { error: "payments_disabled", code: "no_secret" }` and log
+  `{ "svc":"checkout", ... , "ok":false }`.
 - Webhook verification uses the bound `STRIPE_WEBHOOK_SECRET`; legacy environment aliases are read only for backwards compatibility.
-- Allowlisted price IDs load from `stripe.prices.*` runtime config, matching plan keys `single`, `pack3`, `pack5`, `monthly`, `annual`, plus compatibility keys (`one`, `extra`, `pro_monthly`, `elite_annual`, `elite_annual_legacy`). The default table includes:
-  - `price_1RuOpKQQU5vuhlNjipfFBsR0` (`single` / `one`)
+- Allowlisted price IDs load from committed fail-closed defaults with optional
+  environment overrides. The retired `functions.config()` service is not used.
+  Canonical launch IDs and explicitly named legacy IDs are the only accepted
+  values. The default launch table includes:
+  - `price_1TwQ1OQQU5vuhlNj5peGUJbZ` (`single` / `one`, $4.99)
   - `price_1RuOr2QQU5vuhlNjcqTckCHL` (`pack3`)
   - `price_1RuOrkQQU5vuhlNj15ebWfNP` (`pack5`)
   - `price_1RuOtOQQU5vuhlNjmXnQSsYq` (`monthly`)
   - `price_1RuOw0QQU5vuhlNjA5NZ66qq` (`annual`)
-  - `price_1Tw39XQQU5vuhlNjCRpZkL6a` (`elite_annual`, $199/year)
-  - The superseded Elite price remains allowlisted only for delayed pre-cutover webhook events; it is not offered by the web client.
+  - `price_1TwPxXQQU5vuhlNj9ybv7iLZ` (`pro_monthly`, $9.99/month)
+  - `price_1TwPyFQQU5vuhlNjyCq1Nt1y` (`elite_annual`, $79.99/year)
+  - Superseded Starter, Pro, and Elite prices remain allowlisted only for delayed
+    pre-cutover webhook events; the web client does not offer them.
 - Successful checkout/portal requests emit one-line JSON logs (`svc` = `checkout` or `portal`) with `uid`, `price`, `mode`, `customer`, and `ok:true`. Failures log the same shape with `ok:false` and a `code` value for triage.
 - Run `npm --prefix functions test` to confirm the active secret source resolves in your environment before deploying.
 
@@ -423,11 +433,13 @@ match /user_uploads/{uid}/{scanId}/{filename} {
 Run this sequence before shipping a release (desktop Chrome and iOS WebView/Safari):
 
 1. Sign in with Google (redirect flow) and verify return to `/home`.
-2. From `/plans`, start checkout for the One Scan plan and ensure Stripe test checkout loads.
+2. From `/plans`, start checkout for the One Scan plan and ensure the expected Stripe mode loads.
 3. From Settings, open the Billing Portal (after completing a purchase) and verify it loads; confirm the `no_customer` message appears without purchases.
 4. Complete a full scan: upload four photos, confirm retries succeed on flaky network, and wait for the processing toast.
-5. Visit Coach and send a prompt; confirm reply renders.
-6. Search for a meal in Nutrition, add it, and see the log update.
+5. With Monthly or Yearly active, visit Coach and confirm a reply renders; with
+   only a One Scan purchase, confirm the subscriber paywall appears.
+6. With Monthly or Yearly active, search for a meal, add it, and see the log
+   update; with only a One Scan purchase, confirm search and logging stay locked.
 7. Visit `/__diag` or `/__smoke` (SmokeKit) and run the Stripe, App Check, and nutrition probes.
 
 ## UAT harness
@@ -549,11 +561,14 @@ After deploying this PR, validate end-to-end:
 - After successful payment and webhook, credits/subscription reflect on the account
 - “Manage Billing” opens Stripe Customer Portal via `https://createcustomerportal-534gpapj7q-uc.a.run.app` with the same optional hosting shim fallback
 
-4. Coach & Nutrition
+4. Subscriber features
 
-- Coach chat responds for authed users; errors show friendly toasts
-- Nutrition: search returns results (USDA first, OFF fallback); barcode works (OFF first)
-- Add/edit/delete meal entries updates daily totals
+- Coach, recurring workout programs/tracking, interactive meal planning,
+  nutrition search/logging/barcodes, Momentum, plateau coaching, health sync,
+  and Transformation Preview require an active Monthly or Yearly entitlement.
+- A One Scan purchase grants one scan credit and keeps the complete generated
+  scan report, workout plan, nutrition targets, and sample-day meal outline
+  available. It never grants `pro`.
 
 5. Stability
 

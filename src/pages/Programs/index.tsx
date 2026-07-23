@@ -93,7 +93,10 @@ const dayNames: Array<"Sun" | "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat"> = [
 ];
 
 function toIso(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function next7Days(): Array<{ iso: string; day: string }> {
@@ -501,7 +504,7 @@ export default function ProgramsCatalog() {
                           <div className="font-medium text-foreground">
                             {day}{" "}
                             <span className="text-xs text-muted-foreground">
-                              ({new Date(iso).toLocaleDateString()})
+                              ({new Date(`${iso}T00:00:00`).toLocaleDateString()})
                             </span>
                           </div>
                           <div className="text-xs text-muted-foreground">

@@ -23,6 +23,15 @@ test("transformation prompt is restrained and prohibits predictive or revealing 
   assert.doesNotMatch(prompt, /exact body fat|exact weight/i);
 });
 
+test("transformation preview requires the canonical Pro entitlement", () => {
+  const source = readFileSync(
+    new URL("../src/transformationPreview.ts", import.meta.url),
+    "utf8"
+  );
+  assert.match(source, /await requireProEntitlement\(uid\)/);
+  assert.doesNotMatch(source, /paidScan|eligible paid scan/);
+});
+
 test("server plateau detector uses current scan schema and rejects failed scans", () => {
   const timestamp = (day) => ({ toMillis: () => Date.UTC(2026, 0, 1 + day) });
   const valid = (id, day, bf) => ({

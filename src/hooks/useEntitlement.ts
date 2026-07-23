@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
 import { useCredits } from "./useCredits";
+import { useEntitlements } from "@/lib/entitlements/store";
+import { hasPro } from "@/lib/entitlements/pro";
 
 interface Entitlement {
   subscribed: boolean;
@@ -8,52 +9,23 @@ interface Entitlement {
 }
 
 export function useEntitlement() {
-  const { credits, uid } = useCredits();
-  const [entitlement, setEntitlement] = useState<Entitlement>({
-    subscribed: false,
-    plan: null,
-    credits: 0,
-  });
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!uid) {
-      setEntitlement({ subscribed: false, plan: null, credits: 0 });
-      setLoading(false);
-      return;
-    }
-
-    // In a real app, this would call the backend entitlement() function
-    // For now, we'll simulate based on credits
-    const fetchEntitlement = async () => {
-      try {
-        // Simulated entitlement logic
-        const subscribed = credits > 0;
-        const plan = subscribed ? "pro" : null;
-
-        setEntitlement({
-          subscribed,
-          plan,
-          credits,
-        });
-      } catch (error) {
-        console.error("Failed to fetch entitlement:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchEntitlement();
-  }, [uid, credits]);
+  const { credits, loading: creditsLoading } = useCredits();
+  const { entitlements, loading: entitlementsLoading } = useEntitlements();
+  const subscribed = hasPro(entitlements);
+  const entitlement: Entitlement = {
+    subscribed,
+    plan: subscribed ? "pro" : null,
+    credits,
+  };
 
   return {
     ...entitlement,
-    loading,
+    loading: creditsLoading || entitlementsLoading,
     hasAccess: (feature: "scan" | "coach" | "nutrition") => {
       if (feature === "scan") {
-        return entitlement.credits > 0 || entitlement.subscribed;
+        return entitlement.credits > 0;
       }
-      return entitlement.subscribed; // Coach and Nutrition require subscription
+      return entitlement.subscribed;
     },
   };
 }

@@ -2,8 +2,8 @@
   "latest": {
     "id": "demo-scan-003",
     "status": "complete",
-    "takenAt": "2024-05-18T14:20:00Z",
-    "completedAt": "2024-05-18T14:21:45Z",
+    "takenAt": "2026-07-18T14:20:00Z",
+    "completedAt": "2026-07-18T14:21:45Z",
     "notes": "Trimmed 0.3% body fat over the last month by staying consistent with protein and steps.",
     "metrics": {
       "bodyFatPct": 22.1,
@@ -21,7 +21,7 @@
     {
       "id": "demo-scan-002",
       "status": "complete",
-      "completedAt": "2024-04-15T13:52:00Z",
+      "completedAt": "2026-06-15T13:52:00Z",
       "notes": "Held weight steady while tightening macros.",
       "metrics": {
         "bodyFatPct": 22.4,
@@ -38,7 +38,7 @@
     {
       "id": "demo-scan-001",
       "status": "complete",
-      "completedAt": "2024-03-10T11:18:00Z",
+      "completedAt": "2026-05-10T11:18:00Z",
       "notes": "Baseline scan to kick off the current training block.",
       "metrics": {
         "bodyFatPct": 23.0,

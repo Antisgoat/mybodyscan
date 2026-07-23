@@ -36,6 +36,8 @@ import { scanStatusLabel } from "@/lib/scanStatus";
 import { useUnits } from "@/hooks/useUnits";
 import { useUserProfile } from "@/lib/useUserProfile";
 import { derivePlateauAlert } from "@/lib/plateauAlert";
+import { useEntitlements } from "@/lib/entitlements/store";
+import { hasPro } from "@/lib/entitlements/pro";
 
 type LastScan = {
   id: string;
@@ -97,6 +99,8 @@ const Home = () => {
   const { units } = useUnits();
   const onboardingStatus = useOnboardingStatus();
   const { profile: rootProfile } = useUserProfile();
+  const { entitlements } = useEntitlements();
+  const subscriberFeaturesAvailable = demo || hasPro(entitlements);
   const initialDemoScan = isDemo() ? buildDemoLastScan() : null;
   const [recentScans, setRecentScans] = useState<LastScan[]>(
     initialDemoScan ? [initialDemoScan] : []
@@ -195,7 +199,10 @@ const Home = () => {
     : null;
   const [dismissedPlateauKey, setDismissedPlateauKey] = useState<string | null>(null);
   const showPlateauAlert = Boolean(
-    plateauAlert && plateauDismissKey && dismissedPlateauKey !== plateauDismissKey
+    subscriberFeaturesAvailable &&
+      plateauAlert &&
+      plateauDismissKey &&
+      dismissedPlateauKey !== plateauDismissKey
   );
 
   useEffect(() => {
@@ -398,15 +405,21 @@ const Home = () => {
                 {done ? (
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div>
-                      <p className="text-2xl font-semibold">{bf}</p>
+                      <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">
+                        {bf}
+                      </p>
                       <p className="text-xs text-muted-foreground">Body Fat</p>
                     </div>
                     <div>
-                      <p className="text-2xl font-semibold">{weight}</p>
+                      <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">
+                        {weight}
+                      </p>
                       <p className="text-xs text-muted-foreground">Weight</p>
                     </div>
                     <div>
-                      <p className="text-2xl font-semibold">{bmi}</p>
+                      <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">
+                        {bmi}
+                      </p>
                       <p className="text-xs text-muted-foreground">BMI</p>
                     </div>
                   </div>

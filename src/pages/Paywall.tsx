@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { useEntitlements } from "@/lib/entitlements/store";
@@ -169,8 +169,27 @@ export default function PaywallPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Pro unlocks premium features across web and mobile.
+            Connect every scan to the actions that move your progress forward.
           </p>
+          <ul className="space-y-2 text-sm">
+            {[
+              "Source-labeled four-photo body reports",
+              "Personalized workout plans and progression",
+              "Personalized 7-day meal plans, targets, and meal logging",
+              "MBS Product Insight and same-category alternatives",
+              "Scan comparisons, AI Coach, and opt-in plateau check-ins",
+              "Process-based daily Momentum without appearance rankings",
+              "Optional adult Transformation Previews",
+            ].map((feature) => (
+              <li key={feature} className="flex items-start gap-2">
+                <Check
+                  className="mt-0.5 h-4 w-4 shrink-0 text-primary"
+                  aria-hidden="true"
+                />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
           {entitlementsLoading ? (
             <div className="text-sm text-muted-foreground">Checking your access…</div>
           ) : entitled ? (
