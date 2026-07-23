@@ -52,7 +52,7 @@ export default function WorkoutsCompleted() {
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <Seo
         title="Completed Workouts - MyBodyScan"
-        description="Celebrate your recent streak"
+        description="Review your recent workout momentum"
       />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
         <DemoBanner />
@@ -62,7 +62,8 @@ export default function WorkoutsCompleted() {
             Completed Workouts
           </h1>
           <p className="text-sm text-muted-foreground">
-            Keep the streak alive! These were logged over the last 14 days.
+            Every completed session counts. These were logged over the last 14
+            days.
           </p>
         </div>
         {systemHealthError ? (

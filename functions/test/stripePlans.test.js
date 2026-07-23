@@ -4,6 +4,11 @@ import test from "node:test";
 import { resolveStripePlan } from "../lib/stripe/plans.js";
 
 test("Stripe plan allowlist resolves every production plan family", () => {
+  assert.deepEqual(resolveStripePlan("price_1TwQ1OQQU5vuhlNj5peGUJbZ"), {
+    plan: "one",
+    credits: 1,
+    mode: "payment",
+  });
   assert.deepEqual(resolveStripePlan("price_1RuOpKQQU5vuhlNjipfFBsR0"), {
     plan: "one",
     credits: 1,
@@ -24,7 +29,17 @@ test("Stripe plan allowlist resolves every production plan family", () => {
     credits: 3,
     mode: "subscription",
   });
+  assert.deepEqual(resolveStripePlan("price_1TwPxXQQU5vuhlNj9ybv7iLZ"), {
+    plan: "monthly",
+    credits: 3,
+    mode: "subscription",
+  });
   assert.deepEqual(resolveStripePlan("price_1Tw39XQQU5vuhlNjCRpZkL6a"), {
+    plan: "yearly",
+    credits: 36,
+    mode: "subscription",
+  });
+  assert.deepEqual(resolveStripePlan("price_1TwPyFQQU5vuhlNjyCq1Nt1y"), {
     plan: "yearly",
     credits: 36,
     mode: "subscription",
@@ -33,6 +48,11 @@ test("Stripe plan allowlist resolves every production plan family", () => {
     plan: "yearly",
     credits: 36,
     mode: "subscription",
+  });
+  assert.deepEqual(resolveStripePlan("price_1TwPx2QQU5vuhlNjJFboU9DZ"), {
+    plan: "extra",
+    credits: 1,
+    mode: "payment",
   });
 });
 

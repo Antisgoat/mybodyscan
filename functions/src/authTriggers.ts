@@ -1,5 +1,4 @@
 import { auth } from "firebase-functions/v1";
-import { config } from "firebase-functions";
 
 import { getFirestore } from "./firebase.js";
 import { addCredits } from "./credits.js";
@@ -10,17 +9,13 @@ import { ensureUnlimitedEntitlements } from "./lib/unlimitedEntitlements.js";
 const db = getFirestore();
 
 function parseFounderEmails(): Set<string> {
-  try {
-    const raw = config().founders?.emails as string | undefined;
-    if (!raw) return new Set();
-    const entries = raw
-      .split(/[,\s]+/)
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean);
-    return new Set(entries);
-  } catch {
-    return new Set();
-  }
+  const raw = process.env.FOUNDER_EMAILS;
+  if (!raw) return new Set();
+  const entries = raw
+    .split(/[,\s]+/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(entries);
 }
 
 export const handleUserCreate = auth.user().onCreate(async (user: any) => {

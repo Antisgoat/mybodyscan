@@ -11,7 +11,7 @@ const PLAN_RULES: Array<{
   info: StripePlanInfo;
 }> = [
   {
-    keys: ["single", "one", "starter"],
+    keys: ["single", "one", "starter", "single_legacy"],
     info: { plan: "one", credits: 1, mode: "payment" },
   },
   {
@@ -23,15 +23,21 @@ const PLAN_RULES: Array<{
     info: { plan: "pack5", credits: 5, mode: "payment" },
   },
   {
-    keys: ["monthly", "pro_monthly"],
+    keys: ["monthly", "pro_monthly", "pro_monthly_legacy"],
     info: { plan: "monthly", credits: 3, mode: "subscription" },
   },
   {
-    keys: ["annual", "yearly", "elite_annual", "elite_annual_legacy"],
+    keys: [
+      "annual",
+      "yearly",
+      "elite_annual",
+      "elite_annual_legacy",
+      "elite_annual_legacy_monthly",
+    ],
     info: { plan: "yearly", credits: 36, mode: "subscription" },
   },
   {
-    keys: ["extra"],
+    keys: ["extra", "extra_legacy"],
     info: { plan: "extra", credits: 1, mode: "payment" },
   },
 ];

@@ -13,7 +13,6 @@ import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
 import {
-  isPaidScanPreviewEligible,
   loadTransformationPreviewBlob,
   requestTransformationPreview,
   subscribeTransformationPreview,
@@ -41,9 +40,7 @@ export default function TransformationPreviewPage() {
       (claims as any)?.unlimited ||
       (claims as any)?.unlimitedCredits
   );
-  const paidScanPreviewEligible = isPaidScanPreviewEligible(scan);
-  const previewEligible = pro || paidScanPreviewEligible;
-  const canAccessPreview = previewEligible || internalAccess;
+  const canAccessPreview = pro;
   const [state, setState] = useState<any>(null);
   const [loadingState, setLoadingState] = useState(true);
   const [consent, setConsent] = useState(false);
@@ -136,10 +133,10 @@ export default function TransformationPreviewPage() {
         copy: "Checking scan and preview eligibility…",
       };
     }
-    if (!previewEligible) {
+    if (!pro) {
       return {
         label: "Locked",
-        copy: "Transformation Preview is included with eligible paid scans and premium memberships.",
+        copy: "Transformation Preview requires an active monthly or yearly plan.",
       };
     }
     if (!vm?.isValidResult) {
@@ -230,7 +227,7 @@ export default function TransformationPreviewPage() {
               <Sparkles className="h-5 w-5 text-primary" /> Transformation
               Preview
             </CardTitle>
-            <Badge variant={previewEligible ? "default" : "secondary"}>
+            <Badge variant={pro ? "default" : "secondary"}>
               {eligibility.label}
             </Badge>
           </div>
@@ -266,7 +263,7 @@ export default function TransformationPreviewPage() {
             <Card className="border-zinc-700 bg-zinc-900/50">
               <CardContent className="pt-6 space-y-3 text-sm text-zinc-300">
                 <div className="flex gap-3 items-start">
-                  {previewEligible ? (
+                  {pro ? (
                     <Clock className="h-4 w-4 mt-0.5" />
                   ) : (
                     <Lock className="h-4 w-4 mt-0.5" />

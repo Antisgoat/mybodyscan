@@ -1,6 +1,9 @@
 import type { ScanDocument } from "@/lib/api/scan";
 import { canonicalizeScanStatus } from "@/lib/scanStatus";
-import { isSuccessfulPersistedScan } from "@/lib/scanContract";
+import {
+  hasAllRequiredPhotoPaths,
+  isSuccessfulPersistedScan,
+} from "@/lib/scanContract";
 import { kgToLb } from "@/lib/units";
 import type { CoachPlan, CoachProfile } from "@/hooks/useUserProfile";
 import { normalizeProgramPreferences } from "@/lib/programs/preferences";
@@ -202,8 +205,19 @@ export function buildScanResultViewModel(args: {
     Boolean(scan.nutritionPlan) &&
     finite(scan.nutritionPlan?.caloriesPerDay) != null;
   const isComplete = canonical === "complete";
+  const isCompleteDemoResult =
+    isComplete &&
+    resultSource === "demo" &&
+    !usedFallback &&
+    bf != null &&
+    weightKg != null &&
+    Boolean(scan.estimate) &&
+    hasAllRequiredPhotoPaths(scan.photoPaths) &&
+    Boolean(scan.completedAt);
   const isValidResult =
-    isSuccessfulPersistedScan(scan) && bf != null && Boolean(scan.estimate);
+    (isSuccessfulPersistedScan(scan) || isCompleteDemoResult) &&
+    bf != null &&
+    Boolean(scan.estimate);
   const isFailedOrFallback =
     canonical === "error" || usedFallback || (isComplete && !isValidResult);
 

@@ -1,14 +1,9 @@
 import {
   Home as HomeIcon,
   Camera,
-  CalendarCheck,
   Dumbbell,
   Utensils,
   Bot,
-  History,
-  CreditCard,
-  Settings,
-  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -21,16 +16,33 @@ const navItems: Array<{
   icon: LucideIcon;
   label: string;
   feature?: FeatureName;
+  subscriberOnly?: boolean;
+  matchPrefixes?: string[];
 }> = [
   { path: "/home", icon: HomeIcon, label: "Home" },
   { path: "/scan", icon: Camera, label: "Scan", feature: "scan" },
-  { path: "/meals", icon: Utensils, label: "Meals", feature: "nutrition" },
-  { path: "/workouts", icon: Dumbbell, label: "Workouts", feature: "workouts" },
-  { path: "/programs", icon: Layers, label: "Plans", feature: "coach" },
-  { path: "/coach", icon: Bot, label: "Coach", feature: "coach" },
-  { path: "/history", icon: History, label: "History", feature: "scan" },
-  { path: "/plans", icon: CreditCard, label: "Billing", feature: "account" },
-  { path: "/settings", icon: Settings, label: "Settings", feature: "account" },
+  {
+    path: "/meals",
+    icon: Utensils,
+    label: "Meals",
+    feature: "nutrition",
+    subscriberOnly: true,
+  },
+  {
+    path: "/workouts",
+    icon: Dumbbell,
+    label: "Train",
+    feature: "workouts",
+    subscriberOnly: true,
+    matchPrefixes: ["/workouts", "/programs"],
+  },
+  {
+    path: "/coach",
+    icon: Bot,
+    label: "Coach",
+    feature: "coach",
+    subscriberOnly: true,
+  },
 ];
 
 export function BottomNav() {
@@ -43,10 +55,18 @@ export function BottomNav() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t md:hidden">
       <div className="flex items-center justify-around">
-        {filteredNavItems.map(({ path, icon: Icon, label }) => {
+        {filteredNavItems.map(
+          ({ path, icon: Icon, label, subscriberOnly, matchPrefixes }) => {
           const isActive =
             location.pathname === path ||
-            location.pathname.startsWith(`${path}/`);
+            location.pathname.startsWith(`${path}/`) ||
+            Boolean(
+              matchPrefixes?.some(
+                (prefix) =>
+                  location.pathname === prefix ||
+                  location.pathname.startsWith(`${prefix}/`)
+              )
+            );
           return (
             <Link
               key={path}
@@ -58,10 +78,18 @@ export function BottomNav() {
               )}
             >
               <Icon size={20} />
-              <span>{label}</span>
+              <span>
+                {label}
+                {subscriberOnly ? (
+                  <span className="ml-1 text-[9px] font-semibold uppercase text-primary">
+                    Pro
+                  </span>
+                ) : null}
+              </span>
             </Link>
           );
-        })}
+          }
+        )}
       </div>
     </nav>
   );

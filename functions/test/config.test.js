@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getStripeSecret, __resetConfigForTest, __setRuntimeConfigForTest } from "../lib/lib/config.js";
+import { getStripeSecret, __resetConfigForTest } from "../lib/lib/config.js";
 
 const SECRET_ENV_KEYS = ["STRIPE_SECRET", "STRIPE_API_KEY", "STRIPE_KEY"];
 
@@ -41,17 +41,15 @@ test("getStripeSecret prefers STRIPE_SECRET environment variable", () => {
   }
 });
 
-test("getStripeSecret falls back to functions.config() when env unset", () => {
+test("getStripeSecret fails closed when environment and bound secrets are absent", () => {
   const snapshot = snapshotSecrets();
   try {
     __resetConfigForTest();
     for (const key of SECRET_ENV_KEYS) {
       delete process.env[key];
     }
-    __setRuntimeConfigForTest({ stripe: { secret: "sk_test_cfg_456" } });
-
     const secret = getStripeSecret();
-    assert.equal(secret, "sk_test_cfg_456");
+    assert.equal(secret, null);
   } finally {
     restoreSecrets(snapshot);
     __resetConfigForTest();

@@ -1,4 +1,5 @@
 import { getFirestore } from "../firebase.js";
+import { HttpsError } from "firebase-functions/v2/https";
 
 function readNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -34,3 +35,10 @@ export async function hasProEntitlement(
   return expiresAtMs > Date.now();
 }
 
+export async function requireProEntitlement(uid: string): Promise<void> {
+  if (await hasProEntitlement(uid)) return;
+  throw new HttpsError(
+    "permission-denied",
+    "An active MyBodyScan monthly or yearly plan is required."
+  );
+}

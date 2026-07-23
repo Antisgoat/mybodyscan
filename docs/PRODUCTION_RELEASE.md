@@ -99,6 +99,25 @@ configuration: `com.mybodyscan.pro.monthly` (3 credits per renewal),
 `com.mybodyscan.pro.yearly` (36 credits per annual renewal), and
 `com.mybodyscan.scan.single` (one consumable credit). RevenueCat events for any
 other product are recorded as ignored and cannot grant Pro or credits.
+
+### Product access boundary
+
+The canonical entitlement is the server-authored
+`users/{uid}/entitlements/current` document. A credit balance is never a
+subscription signal, and native builds do not bypass this check.
+
+- One Scan (`$4.99`) grants one consumable scan credit. The purchaser keeps the
+  complete source-labeled report, generated workout plan, nutrition targets,
+  adjustment guidance, and sample-day meal outline for that scan.
+- Monthly (`$9.99`) and Yearly (`$79.99`) are the only customer purchases that
+  grant `pro`. They unlock Coach, recurring workout programs and tracking,
+  interactive seven-day meal planning, nutrition logging/search/barcodes and
+  MBS Product Insight, Momentum, plateau coaching and opt-in alerts, health
+  sync, and adult Transformation Preview.
+- Client route guards, callable/HTTP Functions, scheduled plateau delivery, and
+  Firestore rules all enforce the same boundary. A one-time scan credit must
+  never unlock a subscriber endpoint.
+
 The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
 override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
 replacement has passed the scan reliability suite.
@@ -162,14 +181,13 @@ the current-state notes below say it was configured:
      `customer.subscription.deleted`.
      As of 2026-07-22 the current destination is active and listens to all four
      required events; its Function has a webhook secret bound and rejects an
-     intentionally invalid signature with HTTP 400. The live monthly and
-     one-time prices match the committed IDs. On 2026-07-22, the product owner
-     approved $199 billed once per year for “Elite Plan (Annual)”; a corrected
-     immutable yearly price was created, made the Stripe product default, and
-     installed in the web and Functions allowlists. The superseded $199/month
-     price remains recognized only for delayed pre-cutover webhook events and
-     must be archived immediately after the corrected web/Functions release is
-     live and a yearly Checkout opens successfully. A stale zero-activity
+     intentionally invalid signature with HTTP 400. On 2026-07-23 the product
+     owner approved the launch catalog: $4.99 for one scan, $9.99/month, and
+     $79.99/year. New immutable live prices were created on the existing
+     MyBodyScan products, made the product defaults, and installed in the web
+     and Functions allowlists. Verify all three live Checkouts before archiving
+     superseded prices. Old price IDs remain recognized temporarily for delayed
+     pre-cutover webhook events. A stale zero-activity
      `stripeWebhook2` destination also remains; disable it
      only after a successful signed delivery to the current destination.
      Customer Portal subscription cancellation, payment-method updates, and
@@ -228,6 +246,9 @@ the current-state notes below say it was configured:
    - For native iPhone push, upload an active APNs authentication key associated
      with the correct Apple Team and bundle ID. Web push does not substitute for
      APNs.
+     As of 2026-07-23, APNs key `9R5X23CQQ9` is uploaded for both development
+     and production on the Firebase iOS app. An older unusable key can remain
+     during validation; revoke it only after a real TestFlight push succeeds.
      Verify with an opted-in non-admin browser: permission is requested only after
      the user enables the setting, a token document is created under that user,
      and a targeted test notification opens `/history`. Never log a registration
@@ -237,14 +258,14 @@ the current-state notes below say it was configured:
       `com.mybodyscan.app`.
     - Create the three exact product IDs listed above. Put monthly and yearly in
       one auto-renewable subscription group; the single-scan item is a
-      consumable and must never be attached to `pro`. Use $24.99/month with a
-      one-month $14.99 introductory offer, $199/year with 36 credits granted
-      per annual renewal, and $9.99 for the single-scan consumable so App Store
-      copy matches the committed plan UI.
+      consumable and must never be attached to `pro`. Use $9.99/month,
+      $79.99/year with 36 credits granted per annual renewal, and $4.99 for the
+      single-scan consumable. Do not configure an introductory offer. App Store
+      copy must match the committed plan UI.
     - Import the products into RevenueCat. Attach only monthly and yearly to
       entitlement `pro`; place all three in the current/default offering using
       monthly, annual, and custom/single-scan packages.
-    - RevenueCat App Store credentials must remain valid. As of 2026-07-22 the
+    - RevenueCat App Store credentials must remain valid. As of 2026-07-23 the
       replacement in-app-purchase key `9Z23GBB5M7` is accepted by RevenueCat.
       Keep the downloaded `.p8` outside Git and never paste it into logs or
       tickets.
@@ -261,14 +282,29 @@ the current-state notes below say it was configured:
       Apple sign-in remain enabled. Do not advertise native social sign-in or
       add its buttons until a replacement native flow passes device tests.
 
-Current iOS external state on 2026-07-22: the App Store app record exists,
-Xcode is signed into the ADLR Labs team, the physical iPhone is paired with
-Developer Mode, RevenueCat App Store credentials are valid, and a signed build
-has launched on the device. The real App Store products/default offering, APNs
-key upload, server-notification URLs, store metadata, screenshots, privacy
-questionnaire, TestFlight purchase test, and final RevenueCat-enabled signed
-device install remain release blockers. These are console/device gates and
-cannot be inferred from a successful local build.
+Current iOS external state on 2026-07-23: the App Store app record exists;
+Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
+Developer Mode; App Store build 3 was signed, exported, accepted by Apple's
+upload service, and is processing for TestFlight. This release increments the
+repository to build 4; build 4 must be archived, validated, uploaded, and
+device-tested after the web/Firebase release gates pass. The three exact App
+Store products exist at the approved prices. RevenueCat accepts in-app-purchase key
+`9Z23GBB5M7`; monthly and yearly are attached to `pro`; all three products are
+in the current/default offering. App Store production and sandbox server
+notification URLs are set, and APNs key `9R5X23CQQ9` is uploaded to Firebase
+for development and production.
+
+App Store metadata, age rating, categories, and the App Privacy answers are
+configured. The privacy declaration is not published because the Account
+Holder must personally accept Apple's legal attestation. Content Rights,
+general App Store Connect API access, and Digital Services Act/trader
+attestations are also owner-only gates. Four 1242 × 2688 iPhone screenshots are
+generated under `release-artifacts/app-store-screenshots/`; upload those files
+manually because browser automation is not an acceptable release credential.
+The remaining critical gates are build processing/selection, review contact
+and demo credentials, screenshot upload, the real TestFlight device/purchase/
+push checklist, the owner attestations, and final submission. A successful
+archive or upload does not prove those device and store flows.
 
 Purchase restoration is verified only when the customer returns to the same
 Firebase account. Deleting that account and then creating a different Firebase
@@ -318,8 +354,8 @@ Run from the repository root:
 npm ci --no-audit --no-fund
 npm --prefix functions ci --no-audit --no-fund
 npm ci --prefix tests/rules --no-audit --no-fund
-npm audit --omit=dev --audit-level=high
-npm --prefix functions audit --omit=dev --audit-level=high
+npx --yes npm@11 audit --omit=dev --audit-level=high
+(cd functions && npx --yes npm@11 audit --omit=dev --audit-level=high)
 npm ls --depth=0
 npm --prefix functions ls --depth=0
 npm --prefix tests/rules ls --depth=0
@@ -348,6 +384,14 @@ After `build:prod`, start the local production preview in a second terminal:
 npm run preview -- --host 127.0.0.1 --port 4173
 ```
 
+Generate the four App Store screenshot candidates from that reviewed preview.
+The script uses a 414 × 896 point viewport at 3× scale and writes exact
+1242 × 2688 PNGs:
+
+```bash
+node scripts/capture-app-store-screenshots.mjs http://127.0.0.1:4173
+```
+
 Then run the public/local browser gates from the first terminal. Authenticated
 specs in the broader suite run only when `PLAYWRIGHT_STORAGE_STATE` points to a
 real test-account state file.
@@ -360,7 +404,10 @@ BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.confi
 `build:prod` includes program validation, bundle-size safeguards, forbidden
 Storage REST URL checks, and build metadata. Historical lint warnings may be
 reported; lint must exit zero and any new correctness/security warning must be
-reviewed. `verify:scan` uses local Auth, Firestore, Storage, and Functions
+reviewed. The audit commands intentionally use npm 11's supported bulk advisory
+API; npm 10 may fall back to the retired quick-audit endpoint and report a
+registry error instead of an audit result. `verify:scan` uses local Auth,
+Firestore, Storage, and Functions
 emulators plus a local OpenAI-compatible mock. It verifies successful analysis,
 one atomic debit and ledger entry, duplicate-submit idempotency, one refund with
 a matching ledger entry on analysis failure, and complete account deletion
@@ -415,10 +462,10 @@ Run all items with a non-admin production test account and inspect data/logs
 without recording photo, health, token, or payment details in tickets.
 
 `npm run smoke` is a safe preliminary probe: it creates and deletes a
-disposable anonymous account, requires non-empty healthy nutrition search and
-barcode-fallback responses, and confirms that Coach and Checkout reject an
-account without an entitlement or email. It does not replace the real-account
-scan and purchase checks below.
+disposable anonymous account and confirms that Coach, nutrition search, and
+barcode lookup reject the account without a subscription while Checkout
+rejects the account without an email. It does not exercise upstream nutrition
+providers and does not replace the subscribed real-account checks below.
 
 - `GET /api/system/health`, `/system/health`, and the public health endpoint
   return success and report scan/OpenAI/Stripe/USDA wiring as configured.
@@ -431,6 +478,13 @@ scan and purchase checks below.
 - Live Stripe checkout completes; the webhook returns 2xx and grants the
   expected credits/entitlement once in `users/{uid}/private/credits` with one
   matching `credits_ledger` entry; Customer Portal opens for that customer.
+- With only a One Scan purchase, the scan can be completed and the generated
+  report/plan remains readable, but Coach, workout tracking, meal
+  planning/logging/search/barcodes, Momentum, plateau coaching, health sync,
+  and Transformation Preview all redirect or return permission denied.
+- With Monthly and then Yearly active, every subscriber feature above opens and
+  its backend request succeeds. Expiry/cancellation removes access after the
+  paid period without deleting prior scan reports.
 - Nutrition text search returns USDA data and a known barcode exercises the
   Open Food Facts/USDA fallback path. A product with sufficient category and
   nutrient data shows at most three alternatives that share a declared

@@ -38,7 +38,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Audit production web dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npx --yes npm@11 audit --omit=dev --audit-level=high
 
       - name: Verify production public configuration
         run: npm run check:production-config
@@ -64,7 +64,7 @@ jobs:
 
       - name: Audit production Functions dependencies
         working-directory: functions
-        run: npm audit --omit=dev --audit-level=high
+        run: npx --yes npm@11 audit --omit=dev --audit-level=high
 
       - name: Build and test functions
         working-directory: functions

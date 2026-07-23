@@ -20,20 +20,20 @@ export type PricingCatalog = {
 
 // Direct catalog definition - no dynamic imports needed
 const catalog: PricingCatalog = {
-  oneScan: { id: "one-scan", label: "1 Scan", priceText: "$9.99" },
+  oneScan: { id: "one-scan", label: "1 Scan", priceText: "$4.99" },
   threePack: { id: "three-pack", label: "3 Scans", priceText: "$19.99" },
   fivePack: { id: "five-pack", label: "5 Scans", priceText: "$29.99" },
   monthly: {
     id: "monthly",
     label: "Monthly",
-    priceText: "$14.99",
-    blurb: "First month, then $24.99/mo · 3 scans/month",
+    priceText: "$9.99",
+    blurb: "3 scans/month · workout and meal plans",
   },
   yearly: {
     id: "yearly",
     label: "Yearly",
-    priceText: "$199",
-    blurb: "36 scan credits per year",
+    priceText: "$79.99",
+    blurb: "36 scan credits/year · save 33%",
   },
 };
 

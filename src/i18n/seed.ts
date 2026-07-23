@@ -25,7 +25,8 @@ export const I18N_DICTIONARY = {
 
     // Plans
     "plans.title": "Choose Your Plan",
-    "plans.description": "Get started with accurate body composition scanning",
+    "plans.description":
+      "Choose the scan and coaching access that fits your progress goals",
     "plans.starter": "Starter Scan",
     "plans.pro": "Pro Monthly",
     "plans.elite": "Elite Annual",

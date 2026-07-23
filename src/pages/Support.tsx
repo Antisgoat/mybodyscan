@@ -8,7 +8,7 @@ const Support = () => {
     <>
       <Seo
         title="Support – MyBodyScan"
-        description="Get help with MyBodyScan. Contact support@mybodyscanapp.com or call our support line."
+        description="Get help with MyBodyScan. Contact support@mybodyscanapp.com."
         canonical="https://mybodyscanapp.com/support"
       />
       <section className="space-y-6">
@@ -20,7 +20,6 @@ const Support = () => {
               support@mybodyscanapp.com
             </a>
           </p>
-          <p className="text-sm text-muted-foreground">Phone: (555) 555-1234</p>
           <Button
             className="mt-4"
             onClick={async () => {
@@ -44,14 +43,12 @@ const Support = () => {
             <div>
               <h3 className="font-medium">How do I delete my account?</h3>
               <p className="text-sm text-muted-foreground">
-                Email{" "}
-                <a
-                  className="underline"
-                  href="mailto:support@mybodyscanapp.com"
-                >
+                Open Settings, choose Account &amp; Privacy, then use Delete my
+                account. You can also email{" "}
+                <a className="underline" href="mailto:support@mybodyscanapp.com">
                   support@mybodyscanapp.com
                 </a>{" "}
-                from your account email and we’ll process the deletion.
+                if you cannot access the app.
               </p>
             </div>
           </div>

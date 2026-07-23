@@ -15,6 +15,14 @@ export interface CoachProfile {
   unit?: WeightUnit;
   activity_level?: "sedentary" | "light" | "moderate" | "very" | "extra";
   goal?: "lose_fat" | "gain_muscle" | "improve_heart";
+  diet?: "balanced" | "low-carb" | "vegetarian" | "vegan" | "keto";
+  diet_preference?:
+    | "balanced"
+    | "low_carb"
+    | "low-carb"
+    | "vegetarian"
+    | "vegan"
+    | "keto";
   timeframe_weeks?: number;
   style?: "ease_in" | "all_in";
   medical_flags?: Record<string, boolean>;

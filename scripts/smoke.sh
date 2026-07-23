@@ -168,6 +168,10 @@ call_endpoint() {
         FAILURES+=("nutritionSearch:${status}")
         return
       fi
+      if [[ "$status" == "403" ]] && echo "$content" | grep -qiE 'permission|subscription'; then
+        echo "[smoke] nutritionSearch subscriber gate verified for disposable account"
+        return
+      fi
       FAILURES+=("nutritionSearch:${status}")
       ;;
     nutritionBarcode)
@@ -177,6 +181,10 @@ call_endpoint() {
         if [[ "$result_count" =~ ^[1-9][0-9]*$ ]]; then
           return
         fi
+      fi
+      if [[ "$status" == "403" ]] && echo "$content" | grep -qiE 'permission|subscription'; then
+        echo "[smoke] nutritionBarcode subscriber gate verified for disposable account"
+        return
       fi
       FAILURES+=("nutritionBarcode:${status}")
       ;;

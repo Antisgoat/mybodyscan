@@ -63,6 +63,38 @@ export type DemoScanFixture = {
     bmi: number;
   };
   analysis: Record<string, unknown>;
+  resultSource: "demo";
+  usedFallback: false;
+  input: {
+    currentWeightKg: number;
+    heightCm: number;
+  };
+  estimate: {
+    bodyFatPercent: number;
+    bmi: number;
+    notes: string;
+    bodyFatRange: string;
+    confidence: string;
+    scanQuality: string;
+    visualObservations: {
+      muscularDevelopment: string;
+      midsectionDefinition: string;
+      balanceObservation: string;
+      shouldersChest: string;
+      torsoCore: string;
+      legs: string;
+    };
+  };
+  photoPaths: {
+    front: string;
+    back: string;
+    left: string;
+    right: string;
+  };
+  aiProcessing: {
+    status: "complete";
+    provider: "demo";
+  };
   charged: true;
   mode: "4";
 };
@@ -87,6 +119,14 @@ function normalizeScan(entry: RawScanEntry): DemoScanFixture {
   const createdAtMs = toEpochMs(createdAtIso);
   const updatedAtMs = toEpochMs(entry.updatedAt ?? entry.completedAt ?? createdAtIso);
   const weightKg = lbToKg(entry.metrics.weightLb);
+  const bodyFatLow = Math.max(3, entry.metrics.bodyFatPct - 1.5);
+  const bodyFatHigh = Math.min(60, entry.metrics.bodyFatPct + 1.5);
+  const photoPaths = {
+    front: entry.thumbnails?.front ?? "/demo/scan-front.png",
+    back: entry.thumbnails?.back ?? "/demo/scan-back.png",
+    left: entry.thumbnails?.left ?? "/demo/scan-left.png",
+    right: entry.thumbnails?.right ?? "/demo/scan-right.png",
+  };
   return {
     id: entry.id,
     status: entry.status ?? "complete",
@@ -96,6 +136,37 @@ function normalizeScan(entry: RawScanEntry): DemoScanFixture {
     updatedAt: updatedAtMs,
     charged: true,
     mode: "4",
+    resultSource: "demo",
+    usedFallback: false,
+    input: {
+      currentWeightKg: weightKg ?? 82.7,
+      heightCm: 178,
+    },
+    estimate: {
+      bodyFatPercent: entry.metrics.bodyFatPct,
+      bmi: entry.metrics.bmi,
+      notes:
+        "Sample photo-based wellness estimate for demonstrating the report.",
+      bodyFatRange: `${bodyFatLow.toFixed(1)}–${bodyFatHigh.toFixed(1)}%`,
+      confidence: "Moderate",
+      scanQuality: "Sample",
+      visualObservations: {
+        muscularDevelopment:
+          "Balanced visible development across the submitted views.",
+        midsectionDefinition:
+          "Moderate visible definition under the sample lighting.",
+        balanceObservation:
+          "No meaningful visible left/right difference in the sample.",
+        shouldersChest: "Balanced visible development",
+        torsoCore: "Moderate visible definition",
+        legs: "Balanced visible development",
+      },
+    },
+    photoPaths,
+    aiProcessing: {
+      status: "complete",
+      provider: "demo",
+    },
     note: entry.notes,
     notes: entry.notes,
     metrics: {
@@ -121,7 +192,7 @@ function normalizeScan(entry: RawScanEntry): DemoScanFixture {
     method: entry.method ?? "photo",
     confidence: entry.confidence ?? 0.86,
     analysis: {},
-    thumbnails: entry.thumbnails ?? {},
+    thumbnails: entry.thumbnails ?? photoPaths,
   };
 }
 
@@ -146,10 +217,10 @@ export const DEMO_USER_PROFILE: CoachProfile = {
   weightKg: 82.7,
   unit: "us",
   goal: "lose_fat",
+  diet_preference: "balanced",
   activity_level: "moderate",
   currentProgramId: "demo-balanced",
   activeProgramId: "demo-balanced",
   currentWeekIdx: 0,
   currentDayIdx: 1,
 };
-

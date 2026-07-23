@@ -106,6 +106,7 @@ const Plans = lazy(() => import("./pages/Plans"));
 const Paywall = lazy(() => import("./pages/Paywall"));
 const Coach = lazy(() => import("./pages/Coach"));
 const Meals = lazy(() => import("./pages/Meals"));
+const MealPlan = lazy(() => import("./pages/MealPlan"));
 const ScanResult = lazy(() => import("./pages/ScanResult"));
 const ScanComparePage = lazy(() => import("./pages/ScanCompare"));
 const Nutrition = lazy(() => import("./pages/Nutrition"));
@@ -638,6 +639,27 @@ const App = () => (
                   <AuthedLayout>
                     <RouteBoundary>
                       <MealsSearch />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/meals/plan"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <PageSuspense>
+                        <MealPlan />
+                      </PageSuspense>
                     </RouteBoundary>
                   </AuthedLayout>
                 </PersonalizationGate>

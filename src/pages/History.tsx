@@ -18,6 +18,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoScanHistory } from "@/lib/demoDataset";
 import { toDateOrNull } from "@/lib/time";
 import { isSuccessfulPersistedScan } from "@/lib/scanContract";
+import { ImageOff } from "lucide-react";
 
 export default function HistoryPage() {
   const nav = useNavigate();
@@ -197,8 +198,13 @@ export default function HistoryPage() {
                       loading="lazy"
                       className="h-full w-full object-cover"
                     />
-                  ) : (
+                  ) : thumbs[it.id] === undefined ? (
                     <div className="h-full w-full animate-pulse" />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <ImageOff className="h-6 w-6" aria-hidden="true" />
+                      <span className="text-xs">Preview unavailable</span>
+                    </div>
                   )}
                 </div>
                 <div className="p-2 space-y-1">
@@ -262,13 +268,15 @@ export default function HistoryPage() {
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={() => onDelete(it.id)}
-                  className="text-[11px] text-red-700 underline"
-                  disabled={busyDelete === it.id}
-                >
-                  {busyDelete === it.id ? "Deleting…" : "Delete"}
-                </button>
+                {!(demo && !user) ? (
+                  <button
+                    onClick={() => onDelete(it.id)}
+                    className="text-[11px] text-red-700 underline"
+                    disabled={busyDelete === it.id}
+                  >
+                    {busyDelete === it.id ? "Deleting…" : "Delete"}
+                  </button>
+                ) : null}
               </div>
             </li>
           );
@@ -288,24 +296,26 @@ export default function HistoryPage() {
       )}
 
       {/* Sticky compare bar */}
-      <div className="fixed inset-x-0 bottom-3 flex justify-center">
-        <button
-          disabled={demo && !user ? true : selected.length !== 2}
-          onClick={() => {
-            if (demo && !user) {
-              toast({
-                title: "Demo is read-only",
-                description: "Sign up to compare scans.",
-              });
-              return;
-            }
-            nav(`/scans/compare/${selected[0]}/${selected[1]}`);
-          }}
-          className="rounded-full border bg-white px-4 py-2 text-sm shadow disabled:opacity-50"
-        >
-          Compare ({selected.length}/2)
-        </button>
-      </div>
+      {!(demo && !user) ? (
+        <div className="fixed inset-x-0 bottom-20 flex justify-center md:bottom-3">
+          <button
+            disabled={selected.length !== 2}
+            onClick={() => {
+              if (demo && !user) {
+                toast({
+                  title: "Demo is read-only",
+                  description: "Sign up to compare scans.",
+                });
+                return;
+              }
+              nav(`/scans/compare/${selected[0]}/${selected[1]}`);
+            }}
+            className="rounded-full border bg-white px-4 py-2 text-sm shadow disabled:opacity-50"
+          >
+            Compare ({selected.length}/2)
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

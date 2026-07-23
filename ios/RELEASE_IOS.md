@@ -15,10 +15,10 @@ are in `docs/PRODUCTION_RELEASE.md`; if the files differ, follow that runbook.
 - Yearly product: `com.mybodyscan.pro.yearly` (36 credits per annual renewal)
 - Consumable product: `com.mybodyscan.scan.single` (1 credit, no Pro access)
 
-The intended US prices are $24.99/month with a one-month $14.99 introductory
-offer, $199/year with 36 credits granted per annual renewal, and $9.99 for the
-consumable. Store localization must match the plan UI and disclose that scan
-estimates are wellness information.
+The approved US launch prices are $9.99/month, $79.99/year with 36 credits
+granted per annual renewal, and $4.99 for the consumable. There is no
+introductory offer. Store localization must match the plan UI and disclose that
+scan estimates are wellness information.
 
 Do not substitute the Firebase project, Apple team, bundle ID, or RevenueCat
 entitlement. The Xcode project uses automatic signing for the ADLR Labs team.
@@ -107,6 +107,27 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
+Current release snapshot (2026-07-23):
+
+- Build 3 (`1.0.0`) passed the repository archive and export gates and was
+  accepted by Apple's upload service for TestFlight processing.
+- The repository now targets build 4. Build 4 contains the final subscription
+  boundary and must be archived, validated, uploaded, and tested; build 3 is
+  not release evidence for this code.
+- The monthly, yearly, and single-scan App Store products exist at the approved
+  prices. RevenueCat's `pro` entitlement and current/default offering are
+  wired to the exact products described above.
+- RevenueCat production and sandbox App Store server-notification URLs are set.
+- APNs key `9R5X23CQQ9` is uploaded to the MyBodyScan Firebase iOS app for both
+  development and production.
+- Store metadata, age rating, categories, and App Privacy answers are
+  configured. Publishing the privacy declaration and the remaining Content
+  Rights, API-access, and DSA/trader attestations require the Account Holder.
+- Four exact 1242 × 2688 screenshot candidates are generated in
+  `release-artifacts/app-store-screenshots/` and still require manual upload.
+- Build selection, review contact/demo credentials, the checklist below, and
+  final submission remain incomplete.
+
 ## Required TestFlight/device smoke test
 
 - Fresh install launches without a blank screen or debug tools.
@@ -118,8 +139,12 @@ enabled on the device.
 - A failed/retried scan does not consume or double-consume a credit.
 - Scan results distinguish user input, photo estimates, visual observations,
   and calculated values and make no diagnostic/medical claims.
-- Workout, nutrition, barcode fallback, food scoring/alternatives, progress,
-  and plateau guidance work.
+- With Monthly and Yearly active, workout tracking, meal planning/logging,
+  barcode fallback, food scoring/alternatives, Momentum, plateau coaching,
+  health sync, and Transformation Preview work.
+- With only One Scan active, the complete purchased scan report and generated
+  plan remain available while every recurring subscriber feature above stays
+  locked in both the UI and backend.
 - The RevenueCat sandbox monthly, annual, and one-scan purchase, cancellation
   state, restore, reinstall/restore, webhook-to-`pro`, and idempotent credit
   ledger flows work. The one-scan consumable never grants Pro.

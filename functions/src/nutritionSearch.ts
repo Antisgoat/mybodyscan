@@ -15,6 +15,10 @@ import {
   ensureSoftAppCheckFromRequest,
 } from "./lib/appCheckSoft.js";
 import { HttpError, send } from "./util/http.js";
+import {
+  hasProEntitlement,
+  requireProEntitlement,
+} from "./lib/proEntitlements.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -963,6 +967,12 @@ async function handleNutritionSearch(
 
     const auth = await verifyAuthorization(req);
     const uid = auth.uid;
+    if (!uid) {
+      throw new HttpError(401, "unauthorized", "sign_in_required");
+    }
+    if (!(await hasProEntitlement(uid))) {
+      throw new HttpError(403, "permission_denied", "subscription_required");
+    }
     await ensureSoftAppCheckFromRequest(req, {
       fn: "nutritionSearch",
       uid,
@@ -998,6 +1008,11 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
       uid: request.auth?.uid ?? null,
       requestId,
     });
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "Sign in required");
+    }
+    await requireProEntitlement(uid);
 
     const normalized = normalizeSearchRecord(
       (request.data && typeof request.data === "object"
@@ -1013,10 +1028,8 @@ export const nutritionSearch = onCall<NutritionSearchRequest>(
 
     try {
       return await runNutritionSearchCore(normalized, {
-        uid: request.auth?.uid ?? null,
-        identifier:
-          request.auth?.uid ??
-          identifierFromRequest(request.rawRequest as Request),
+        uid,
+        identifier: uid,
         requestId,
       });
     } catch (error) {

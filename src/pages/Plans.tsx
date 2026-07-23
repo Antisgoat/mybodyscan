@@ -25,7 +25,9 @@ import { isCapacitorNative } from "@/lib/platform/isNative";
 const PRICE_ID_ONE = PRICE_IDS.single;
 const PRICE_ID_MONTHLY = PRICE_IDS.monthly;
 const PRICE_ID_YEARLY = PRICE_IDS.yearly;
-const PRICE_ID_EXTRA = (import.meta.env.VITE_PRICE_EXTRA ?? "").trim();
+const PRICE_ID_EXTRA = (
+  import.meta.env.VITE_PRICE_EXTRA ?? "price_1TwPx2QQU5vuhlNjJFboU9DZ"
+).trim();
 const STRIPE_PUBLISHABLE_KEY = (
   import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || ""
 ).trim();
@@ -287,7 +289,7 @@ export default function Plans() {
   const corePlans: PlanConfig[] = [
     {
       name: "One Scan",
-      price: "$9.99",
+      price: "$4.99",
       period: "one-time",
       credits: "1 scan credit",
       plan: "one" as const,
@@ -295,11 +297,13 @@ export default function Plans() {
       envKey: "VITE_PRICE_SINGLE",
       mode: "payment" as const,
       features: [
-        "1 body composition scan",
-        "Detailed analysis",
-        "Progress tracking",
+        "1 guided four-photo scan",
+        "Source-labeled body-composition report",
+        "Complete generated workout and nutrition plan",
+        "Sample-day meal outline included in the report",
+        "Save the result for future comparisons",
       ],
-      description: "Perfect for trying out MyBodyScan",
+      description: "Try the complete scan-to-plan experience",
       popular: false,
       badge: undefined,
       originalPrice: undefined,
@@ -307,20 +311,23 @@ export default function Plans() {
     },
     {
       name: "Monthly",
-      price: "$14.99",
-      originalPrice: "$24.99",
-      period: "first month, then $24.99/mo",
+      price: "$9.99",
+      period: "per month",
       credits: "3 scans/month + Coach + Nutrition",
       plan: "pro_monthly" as const,
       priceId: PRICE_ID_MONTHLY,
       envKey: "VITE_PRICE_MONTHLY",
       mode: "subscription" as const,
       features: [
-        "3 scans per month",
-        "AI Coach & workout plans",
-        "Nutrition tracking & advice",
-        "Progress analytics",
-        "Priority support",
+        "3 scan credits per month",
+        "Full scan history and valid-result comparisons",
+        "Personalized workout plan and progression",
+        "Personalized 7-day meal plan, targets, and meal log",
+        "Barcode search and MBS Product Insight",
+        "Better-fit same-category food alternatives",
+        "AI Coach and opt-in plateau check-ins",
+        "Daily Momentum based on completed actions—not appearance",
+        "Optional adult Transformation Previews",
       ],
       popular: false,
       badge: undefined,
@@ -329,7 +336,7 @@ export default function Plans() {
     },
     {
       name: "Yearly",
-      price: "$199",
+      price: "$79.99",
       period: "per year",
       credits: "36 scan credits/year + Everything included",
       plan: "elite_annual" as const,
@@ -339,11 +346,10 @@ export default function Plans() {
       popular: true,
       features: [
         "36 scan credits per annual renewal",
-        "All Monthly features",
-        "Save $100.88 vs 12 standard monthly payments",
-        "Advanced analytics",
-        "Export data",
-        "Early access to new features",
+        "Everything in Monthly",
+        "Save $39.89 (33%) vs 12 monthly payments",
+        "Year-round scan, workout, and nutrition history",
+        "Longer progress comparisons across training phases",
       ],
       badge: "Best Value",
       description: undefined,
@@ -355,7 +361,7 @@ export default function Plans() {
   const scanPackPlans: PlanConfig[] = [
     {
       name: "Extra Scan",
-      price: "$9.99",
+      price: "$4.99",
       period: "one-time",
       credits: "1 scan credit",
       plan: "extra" as const,
@@ -542,6 +548,30 @@ export default function Plans() {
           )}
         </div>
 
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">
+              The scan is the start—not the whole experience
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 text-sm">
+            <p>
+              <strong>Understand:</strong> a source-labeled report separates
+              your inputs, photo estimates, visual observations, and calculated
+              values.
+            </p>
+            <p>
+              <strong>Act:</strong> follow connected training, nutrition, meal,
+              food-insight, and coaching tools.
+            </p>
+            <p>
+              <strong>Improve:</strong> rescan under similar conditions,
+              compare valid results, and optionally receive conservative
+              plateau check-ins.
+            </p>
+          </CardContent>
+        </Card>
+
         {uniqueMissingEnvKeys.length > 0 && (
           <Alert className="border-amber-300 bg-amber-50 text-amber-900">
             <AlertTriangle className="h-4 w-4" />
@@ -689,7 +719,7 @@ export default function Plans() {
           <div className="grid grid-cols-1 gap-3 text-sm">
             <div className="flex justify-between items-center py-2">
               <span className="text-muted-foreground">🥗 Nutrition tools</span>
-              <span className="font-semibold">Included</span>
+              <span className="font-semibold">Meal plans included</span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-muted-foreground">💪 Workout plans</span>
@@ -703,12 +733,9 @@ export default function Plans() {
             <div className="flex justify-between items-center py-2 text-lg">
               <span className="text-primary font-bold">MyBodyScan</span>
               <div className="text-right">
-                <div className="font-bold text-primary">$24.99/month</div>
-                <div className="text-xs text-muted-foreground">
-                  (first month $14.99)
-                </div>
+                <div className="font-bold text-primary">$9.99/month</div>
                 <div className="text-sm font-semibold text-accent">
-                  or $199/year
+                  or $79.99/year
                 </div>
               </div>
             </div>

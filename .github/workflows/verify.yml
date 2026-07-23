@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Audit production web dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: npx --yes npm@11 audit --omit=dev --audit-level=high
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -77,7 +77,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Audit production Functions dependencies
         working-directory: functions
-        run: npm audit --omit=dev --audit-level=high
+        run: npx --yes npm@11 audit --omit=dev --audit-level=high
       - name: Build and test functions
         working-directory: functions
         run: npm test

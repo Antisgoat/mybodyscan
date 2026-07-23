@@ -6,6 +6,53 @@ import silhouetteFront from "@/assets/silhouette-front.png";
 import { HOW_IT_WORKS } from "@/content/howItWorks";
 import { PRICING_CATALOG } from "@/content/pricing";
 import { enableDemo } from "@/state/demo";
+import {
+  BellRing,
+  Dumbbell,
+  ScanLine,
+  SearchCheck,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
+
+const PRODUCT_HIGHLIGHTS = [
+  {
+    title: "Transparent four-photo report",
+    description:
+      "Understand what you entered, what was estimated from photos, what was visually observed, and what was calculated.",
+    icon: ScanLine,
+  },
+  {
+    title: "Training built around your life",
+    description:
+      "Get a workout plan shaped by your goal, experience, schedule, equipment, and stated limitations.",
+    icon: Dumbbell,
+  },
+  {
+    title: "A practical seven-day meal plan",
+    description:
+      "Turn your calculated calorie and macro targets into daily meal ideas matched to your saved diet preference, then log what you actually eat.",
+    icon: Sparkles,
+  },
+  {
+    title: "Original food insights",
+    description:
+      "Search or scan a barcode to see a transparent MBS Product Insight and higher-scoring same-category alternatives when the data supports them.",
+    icon: SearchCheck,
+  },
+  {
+    title: "A progress loop—not a one-off number",
+    description:
+      "Compare valid scans, follow workout progression, and see trends without treating a photo estimate like a medical test.",
+    icon: TrendingUp,
+  },
+  {
+    title: "Optional accountability",
+    description:
+      "Build momentum with process-based milestones and opt into conservative plateau check-ins. Notifications stay off until you enable them.",
+    icon: BellRing,
+  },
+] as const;
 
 const PublicLanding = () => {
   const navigate = useNavigate();
@@ -18,19 +65,24 @@ const PublicLanding = () => {
   return (
     <>
       <Seo
-        title="Body scans from your phone – MyBodyScan"
-        description="Estimate body fat %, weight, and BMI from a required 4-photo scan (front, left, right, back). Track progress over time."
+        title="Body progress, training, and nutrition in one place – MyBodyScan"
+        description="Turn four guided photos into a transparent wellness estimate, then follow connected workout, nutrition, food, and progress tools."
         canonical="https://mybodyscanapp.com/"
       />
       <section className="py-8">
         <div className="grid gap-8 md:grid-cols-2 md:items-center">
           <article>
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-              Body scans from your phone
+              See your progress. Know what to do next.
             </h1>
             <p className="mt-3 text-muted-foreground">
-              Estimate body fat %, weight, and BMI from a required 4-photo
-              scan (front, left, right, back). Track progress over time.
+              Four guided photos create a transparent body-composition wellness
+              estimate. MyBodyScan then connects that report to personalized
+              training, nutrition, food insights, and progress coaching.
+            </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Photo-based results are estimates, not medical measurements or
+              diagnoses.
             </p>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button size="lg" onClick={handleLaunch}>
@@ -60,6 +112,35 @@ const PublicLanding = () => {
               loading="lazy"
             />
           </aside>
+        </div>
+      </section>
+
+      <section className="py-8">
+        <div className="max-w-2xl">
+          <p className="text-sm font-medium text-primary">
+            More than a scan result
+          </p>
+          <h2 className="mt-1 text-2xl font-semibold">
+            One connected body-progress system
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Your scan, plan, daily actions, and future check-ins work together
+            so you can focus on the next useful step.
+          </p>
+        </div>
+        <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {PRODUCT_HIGHLIGHTS.map(({ title, description, icon: Icon }) => (
+            <article
+              key={title}
+              className="rounded-xl border bg-card p-5 shadow-sm"
+            >
+              <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
+              <h3 className="mt-3 font-medium">{title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {description}
+              </p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -99,9 +180,10 @@ const PublicLanding = () => {
       <section className="py-8">
         <h2 className="text-xl font-semibold">Privacy & Security</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          We take privacy seriously. Your account email and uploaded media are
-          used only to provide estimates and stored securely. Data is never
-          sold, and you can request deletion at any time.
+          Your uploaded media stays private to your account and is used to
+          provide the scan and optional features you request. We do not sell
+          your data. You can delete your account and associated scan data from
+          Settings.
         </p>
       </section>
 

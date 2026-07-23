@@ -64,6 +64,7 @@ ios/App/App/public/**
 secrets/GoogleService-Info.plist
 
 # Native build artifacts
+ios/build/
 ios/App/Pods/
 ios/App/build/
 ios/App/DerivedData/

@@ -16,10 +16,6 @@ import {
   ensureSoftAppCheckFromRequest,
 } from "./lib/appCheckSoft.js";
 import { scrubUndefined } from "./lib/scrub.js";
-import {
-  hasActiveSubscriptionFromUserDoc,
-  hasUnlimitedAccessFromClaims,
-} from "./lib/entitlements.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 
@@ -759,41 +755,14 @@ async function generateCoachResponseForThread(
 
 async function ensureCoachEntitled(
   uid: string,
-  tokenOrClaims?: Record<string, unknown> | null,
-  email?: string | null
+  _tokenOrClaims?: Record<string, unknown> | null,
+  _email?: string | null
 ): Promise<void> {
-  const tokenEmail =
-    typeof email === "string" && email.trim()
-      ? email.trim()
-      : typeof tokenOrClaims?.email === "string"
-        ? tokenOrClaims.email
-        : null;
-  const role =
-    typeof tokenOrClaims?.role === "string"
-      ? tokenOrClaims.role.toLowerCase()
-      : "";
-  const claimEntitled =
-    hasUnlimitedAccessFromClaims(tokenOrClaims as any) ||
-    tokenOrClaims?.dev === true ||
-    tokenOrClaims?.pro === true ||
-    role === "dev" ||
-    role === "staff" ||
-    role === "pro";
-  const staffOrPro =
-    claimEntitled || (await hasProEntitlement(uid, tokenEmail));
-
-  if (staffOrPro) {
-    return;
-  }
-
-  const userSnap = await db.doc(`users/${uid}`).get();
-  const active = hasActiveSubscriptionFromUserDoc(userSnap.data());
-  if (!active) {
-    throw new HttpsError(
-      "permission-denied",
-      "Coach is available on an active plan or Unlimited. Visit Plans to activate your account."
-    );
-  }
+  if (await hasProEntitlement(uid)) return;
+  throw new HttpsError(
+    "permission-denied",
+    "Coach requires an active MyBodyScan monthly or yearly plan."
+  );
 }
 
 function getHttpsErrorDetails(error: HttpsError): any {

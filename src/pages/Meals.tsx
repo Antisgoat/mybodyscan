@@ -10,6 +10,7 @@ import {
   Trash,
   ChevronLeft,
   ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
@@ -301,13 +302,19 @@ export default function Meals() {
       if (meal && typeof meal === "object") {
         setLog((prev) => {
           const existing = Array.isArray(prev.meals) ? [...prev.meals] : [];
-          const idx = meal.id ? existing.findIndex((m) => m.id === meal.id) : -1;
+          const idx = meal.id
+            ? existing.findIndex((m) => m.id === meal.id)
+            : -1;
           if (idx >= 0) {
             existing[idx] = meal;
           } else {
             existing.push(meal);
           }
-          return { ...prev, meals: existing, totals: normalizeDailyTotals(prev.totals) };
+          return {
+            ...prev,
+            meals: existing,
+            totals: normalizeDailyTotals(prev.totals),
+          };
         });
         if (typeof meal.id === "string" && meal.id) {
           setHighlightMealId(meal.id);
@@ -608,10 +615,16 @@ export default function Meals() {
     // Use persisted plan targets when available, but always derive a full macro set
     // (carbs/fat) deterministically so all pages agree.
     const overrides: { calories?: number; proteinGrams?: number } = {};
-    if (typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)) {
+    if (
+      typeof plan?.calorieTarget === "number" &&
+      Number.isFinite(plan.calorieTarget)
+    ) {
       overrides.calories = plan.calorieTarget;
     }
-    if (typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)) {
+    if (
+      typeof plan?.proteinFloor === "number" &&
+      Number.isFinite(plan.proteinFloor)
+    ) {
       overrides.proteinGrams = plan.proteinFloor;
     }
     return deriveNutritionGoals({
@@ -620,11 +633,22 @@ export default function Meals() {
       age: profile?.age ?? null,
       sex: profile?.sex ?? null,
       goalWeightKg: undefined,
-      goal: profile?.goal === "lose_fat" ? "lose_fat" : profile?.goal === "gain_muscle" ? "gain_muscle" : null,
+      goal:
+        profile?.goal === "lose_fat"
+          ? "lose_fat"
+          : profile?.goal === "gain_muscle"
+            ? "gain_muscle"
+            : null,
       activityLevel: profile?.activity_level ?? null,
       overrides,
     });
-  }, [plan?.calorieTarget, plan?.proteinFloor, profile?.activity_level, profile?.goal, profile?.weight_kg]);
+  }, [
+    plan?.calorieTarget,
+    plan?.proteinFloor,
+    profile?.activity_level,
+    profile?.goal,
+    profile?.weight_kg,
+  ]);
 
   const targetCalories = computedGoals.calories || DEFAULT_DAILY_TARGET;
   const targetProtein = computedGoals.proteinGrams || 140;
@@ -689,9 +713,7 @@ export default function Meals() {
       <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
         <div className="space-y-2 text-center">
           <Utensils className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-3xl font-semibold text-foreground">
-            Diary
-          </h1>
+          <h1 className="text-3xl font-semibold text-foreground">Diary</h1>
           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Button
               type="button"
@@ -729,6 +751,12 @@ export default function Meals() {
               Today
             </Button>
           </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href="/meals/plan">
+              <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
+              Open my 7-day meal plan
+            </a>
+          </Button>
         </div>
 
         {nutritionUnavailable && (
@@ -739,9 +767,9 @@ export default function Meals() {
         )}
 
         <Card className="border bg-card/60">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-lg">Today</CardTitle>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
               <Button
                 size="sm"
                 variant="outline"
@@ -751,6 +779,7 @@ export default function Meals() {
                 }}
                 disabled={processing || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
+                className="w-full sm:w-auto"
               >
                 <Plus className="mr-1 h-4 w-4" /> Quick add
               </Button>
@@ -760,10 +789,16 @@ export default function Meals() {
                 onClick={copyYesterday}
                 disabled={processing || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
+                className="w-full sm:w-auto"
               >
                 <Copy className="mr-1 h-4 w-4" /> Copy yesterday
               </Button>
-              <Button size="sm" variant="ghost" asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="w-full sm:w-auto"
+                asChild
+              >
                 <a href="/meals/history">
                   <History className="mr-1 h-4 w-4" /> History
                 </a>
@@ -821,7 +856,10 @@ export default function Meals() {
                     style={{
                       width: `${
                         targetProtein > 0
-                          ? Math.min(100, (consumedProtein / targetProtein) * 100)
+                          ? Math.min(
+                              100,
+                              (consumedProtein / targetProtein) * 100
+                            )
                           : 0
                       }%`,
                     }}
@@ -883,7 +921,10 @@ export default function Meals() {
           {MEAL_TYPES.map((type) => {
             const items = mealsByType[type] ?? [];
             const mealCalories = Math.round(
-              items.reduce((sum, meal) => sum + safeNumber((meal as any)?.calories), 0)
+              items.reduce(
+                (sum, meal) => sum + safeNumber((meal as any)?.calories),
+                0
+              )
             );
             return (
               <Card key={type} className="border bg-card/60">
@@ -971,7 +1012,9 @@ export default function Meals() {
                           variant="ghost"
                           onClick={() => meal.id && handleDelete(meal.id)}
                           disabled={processing || demo}
-                          title={demo ? "Demo mode: sign in to save" : undefined}
+                          title={
+                            demo ? "Demo mode: sign in to save" : undefined
+                          }
                         >
                           Remove
                         </Button>
@@ -1031,7 +1074,9 @@ export default function Meals() {
               </p>
               <p>
                 Carbs:{" "}
-                <span className="font-medium">{Math.round(consumedCarbs)} g</span>
+                <span className="font-medium">
+                  {Math.round(consumedCarbs)} g
+                </span>
               </p>
               <p>
                 Fat:{" "}

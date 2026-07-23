@@ -16,6 +16,8 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { track } from "@/lib/analytics";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { useAuthUser } from "@/auth/mbs-auth";
+import { CheckCircle2, Circle } from "lucide-react";
+import { deriveDailyMomentum } from "@/lib/momentum";
 
 export default function Today() {
   const navigate = useNavigate();
@@ -155,6 +157,11 @@ export default function Today() {
     calorieTarget && calorieTarget > 0
       ? Math.max(0, Math.round(calorieTarget - (mealTotals.calories || 0)))
       : null;
+  const momentum = deriveDailyMomentum({
+    mealCalories: mealTotals.calories,
+    workoutDone: workout.done,
+    workoutTotal: workout.total,
+  });
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -224,6 +231,65 @@ export default function Today() {
               Consumed • P {mealTotals.protein ?? 0}g · C{" "}
               {mealTotals.carbs ?? 0}g · F {mealTotals.fat ?? 0}g
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Today’s momentum</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">
+                {momentum.completed} of {momentum.available} supportive actions
+              </span>
+              <span className="font-medium tabular-nums">
+                {momentum.percent}%
+              </span>
+            </div>
+            <div
+              className="h-2 overflow-hidden rounded-full bg-secondary"
+              role="progressbar"
+              aria-label="Today's momentum"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={momentum.percent}
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width]"
+                style={{ width: `${momentum.percent}%` }}
+              />
+            </div>
+            <ul className="space-y-2 text-sm">
+              {momentum.actions.map((action) => (
+                <li key={action.id} className="flex items-center gap-2">
+                  {action.complete ? (
+                    <CheckCircle2
+                      className="h-4 w-4 text-primary"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <Circle
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
+                    className={
+                      action.complete
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {action.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Missing a day never erases prior work. Momentum highlights
+              repeatable actions, not body size or appearance.
+            </p>
           </CardContent>
         </Card>
 

@@ -25,9 +25,16 @@ import type {
   MealServingSelection,
   NutritionItemSnapshot,
 } from "./types.js";
+import { requireProEntitlement } from "./lib/proEntitlements.js";
 
 const express = expressModule as any;
 const db = getFirestore();
+
+async function requireSubscriberAuth(req: Request): Promise<string> {
+  const uid = await requireAuth(req);
+  await requireProEntitlement(uid);
+  return uid;
+}
 
 function round(value: number, decimals = 0) {
   const factor = 10 ** decimals;
@@ -240,7 +247,7 @@ async function readDailyLog(uid: string, day: string) {
 }
 
 async function handleAddMeal(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   const body = req.body as { dateISO?: string; meal?: Partial<MealRecord> };
   if (!body?.dateISO || !body.meal?.name) {
     throw new HttpsError("invalid-argument", "dateISO and meal required");
@@ -283,7 +290,7 @@ async function handleAddMeal(req: Request, res: Response) {
 }
 
 async function handleDeleteMeal(req: Request, res: Response) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   const body = req.body as { dateISO?: string; mealId?: string };
   if (!body?.dateISO || !body.mealId) {
     throw new HttpsError("invalid-argument", "dateISO and mealId required");
@@ -295,7 +302,7 @@ async function handleDeleteMeal(req: Request, res: Response) {
 }
 
 async function buildDailyLogResponse(req: Request) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   const dateISO =
     (req.body?.dateISO as string) ||
     (req.query?.dateISO as string) ||
@@ -314,7 +321,7 @@ async function buildDailyLogResponse(req: Request) {
 }
 
 async function buildHistoryResponse(req: Request) {
-  const uid = await requireAuth(req);
+  const uid = await requireSubscriberAuth(req);
   const rangeRaw =
     (req.body?.range as number | string | undefined) ||
     (req.query?.range as string | undefined) ||
