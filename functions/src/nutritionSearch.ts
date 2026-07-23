@@ -875,41 +875,70 @@ async function runNutritionSearchCore(
   };
 }
 
-function handleError(res: Response, error: unknown, requestId: string): void {
-  if (error instanceof HttpError) {
-    if (error.status === 429) {
-      res.status(429).json({
+export function nutritionHttpErrorResponse(
+  error: HttpError,
+  requestId: string
+): { status: number; body: Record<string, unknown> } {
+  if (error.status === 429) {
+    return {
+      status: 429,
+      body: {
         code: "rate_limited",
         message: "Too many requests. Please slow down.",
         debugId: requestId,
         reason: "rate_limited",
-      });
-      return;
-    }
-    if (error.status === 401) {
-      res.status(401).json({
+      },
+    };
+  }
+  if (error.status === 401) {
+    return {
+      status: 401,
+      body: {
         code: error.code || "unauthorized",
         message: error.message || "Unauthorized",
         debugId: requestId,
         reason: "unauthorized",
-      });
-      return;
-    }
-    if (error.status === 501) {
-      res.status(503).json({
+      },
+    };
+  }
+  if (error.status === 403) {
+    return {
+      status: 403,
+      body: {
+        code: "permission_denied",
+        error: "permission_denied",
+        message: "An active monthly or yearly plan is required.",
+        debugId: requestId,
+        reason: "subscription_required",
+      },
+    };
+  }
+  if (error.status === 501) {
+    return {
+      status: 503,
+      body: {
         code: error.code || "nutrition_missing_usda_key",
         message: error.message || "Missing USDA_API_KEY",
         debugId: requestId,
         reason: "nutrition_not_configured",
-      });
-      return;
-    }
-    res.status(503).json({
+      },
+    };
+  }
+  return {
+    status: 503,
+    body: {
       code: "nutrition_backend_error",
       message: "Food database temporarily unavailable; please try again.",
       debugId: requestId,
       reason: "upstream_unavailable",
-    });
+    },
+  };
+}
+
+function handleError(res: Response, error: unknown, requestId: string): void {
+  if (error instanceof HttpError) {
+    const response = nutritionHttpErrorResponse(error, requestId);
+    res.status(response.status).json(response.body);
     return;
   }
 

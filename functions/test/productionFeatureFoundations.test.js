@@ -10,6 +10,10 @@ const { buildTransformationPrompt } = await import(
 const { buildPlateauMulticastMessage, deriveServerPlateauSignature } = await import(
   "../lib/pushNotifications.js"
 );
+const { nutritionHttpErrorResponse } = await import(
+  "../lib/nutritionSearch.js"
+);
+const { HttpError } = await import("../lib/util/http.js");
 
 test("transformation prompt is restrained and prohibits predictive or revealing output", () => {
   const prompt = buildTransformationPrompt({
@@ -30,6 +34,16 @@ test("transformation preview requires the canonical Pro entitlement", () => {
   );
   assert.match(source, /await requireProEntitlement\(uid\)/);
   assert.doesNotMatch(source, /paidScan|eligible paid scan/);
+});
+
+test("nutrition subscription failures remain 403 instead of looking like upstream outages", () => {
+  const response = nutritionHttpErrorResponse(
+    new HttpError(403, "permission_denied", "subscription_required"),
+    "request-id"
+  );
+  assert.equal(response.status, 403);
+  assert.equal(response.body.reason, "subscription_required");
+  assert.equal(response.body.code, "permission_denied");
 });
 
 test("server plateau detector uses current scan schema and rejects failed scans", () => {
