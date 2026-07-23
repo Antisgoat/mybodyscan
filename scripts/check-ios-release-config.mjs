@@ -1,6 +1,17 @@
 import fs from "node:fs";
 
 const read = (file) => fs.readFileSync(file, "utf8");
+const parseEnv = (contents) =>
+  Object.fromEntries(
+    contents
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#") && line.includes("="))
+      .map((line) => {
+        const separator = line.indexOf("=");
+        return [line.slice(0, separator), line.slice(separator + 1)];
+      })
+  );
 const failures = [];
 const requireText = (contents, needle, message) => {
   if (!contents.includes(needle)) failures.push(message);
@@ -16,7 +27,7 @@ const packageJson = JSON.parse(read("package.json"));
 const entitlements = read("ios/App/App/App.entitlements");
 const iapClient = read("src/lib/billing/iapProducts.ts");
 const iapServer = read("functions/src/revenuecat/plans.ts");
-const firebaseJson = JSON.parse(read("firebase.json"));
+const functionEnv = parseEnv(read("functions/.env.mybodyscan-f3daf"));
 
 const expectedNativePackages = {
   "@capacitor/core": "7.6.8",
@@ -162,10 +173,11 @@ const revenueCatProductIds = {
   REVENUECAT_YEARLY_PRODUCT_ID: "com.mybodyscan.pro.yearly",
   REVENUECAT_ONE_SCAN_PRODUCT_ID: "com.mybodyscan.scan.single",
 };
-const functionEnv = firebaseJson.functions?.[0]?.environmentVariables ?? {};
 for (const [envName, productId] of Object.entries(revenueCatProductIds)) {
   if (functionEnv[envName] !== productId) {
-    failures.push(`firebase.json must set ${envName}=${productId}.`);
+    failures.push(
+      `functions/.env.mybodyscan-f3daf must set ${envName}=${productId}.`
+    );
   }
   requireText(
     iapClient,

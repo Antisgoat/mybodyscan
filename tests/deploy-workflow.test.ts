@@ -38,6 +38,15 @@ const FUNCTIONS_PACKAGE_JSON = JSON.parse(
 const FIREBASE_JSON = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../firebase.json"), "utf8")
 );
+const FUNCTIONS_ENV_VALUES = Object.fromEntries(
+  FUNCTIONS_ENV.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && line.includes("="))
+    .map((line) => {
+      const separator = line.indexOf("=");
+      return [line.slice(0, separator), line.slice(separator + 1)];
+    })
+);
 
 describe("production deployment authentication", () => {
   it("uses repository-restricted keyless Google authentication", () => {
@@ -76,12 +85,27 @@ describe("production deployment authentication", () => {
 
     expect(keys).toEqual([
       "APP_CHECK_MODE",
+      "AUTH_APPLE_ENABLED",
+      "AUTH_DEMO_ENABLED",
+      "AUTH_EMAIL_ENABLED",
+      "AUTH_GOOGLE_ENABLED",
+      "COACH_RPM",
+      "CREDIT_EXP_MONTHS",
+      "HOST_BASE_URL",
+      "NUTRITION_RPM",
       "OPENAI_BASE_URL",
       "OPENAI_MODEL",
       "OPENAI_PROVIDER",
+      "REVENUECAT_ENTITLEMENT_ID",
+      "REVENUECAT_MONTHLY_PRODUCT_ID",
+      "REVENUECAT_ONE_SCAN_PRODUCT_ID",
+      "REVENUECAT_YEARLY_PRODUCT_ID",
     ]);
     expect(FUNCTIONS_ENV).not.toMatch(
       /(?:API_KEY|SECRET|PASSWORD|PRIVATE_KEY|WEBHOOK)=/
+    );
+    expect(FIREBASE_JSON.functions[0]).not.toHaveProperty(
+      "environmentVariables"
     );
   });
 
@@ -107,9 +131,12 @@ describe("production deployment authentication", () => {
   });
 
   it("pins the production credit expiry to the published 12-month policy", () => {
-    expect(
-      FIREBASE_JSON.functions[0].environmentVariables.CREDIT_EXP_MONTHS
-    ).toBe("12");
+    expect(FUNCTIONS_ENV_VALUES.CREDIT_EXP_MONTHS).toBe("12");
+  });
+
+  it("pins the effective production rate limits", () => {
+    expect(FUNCTIONS_ENV_VALUES.COACH_RPM).toBe("12");
+    expect(FUNCTIONS_ENV_VALUES.NUTRITION_RPM).toBe("20");
   });
 
   it("pins Java 21 anywhere the current Firebase emulators run", () => {

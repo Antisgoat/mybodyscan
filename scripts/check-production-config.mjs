@@ -29,6 +29,10 @@ const fileValues = {
   ...parseEnvFile(".env.production"),
   ...parseEnvFile(".env.production.local"),
 };
+const functionValues = parseEnvFile("functions/.env.mybodyscan-f3daf");
+const firebaseJson = JSON.parse(
+  fs.readFileSync(path.join(root, "firebase.json"), "utf8")
+);
 
 const read = (key) => String(process.env[key] || fileValues[key] || "").trim();
 const missing = [];
@@ -61,4 +65,39 @@ if (missing.length) {
   process.exit(1);
 }
 
+const expectedFunctionValues = {
+  APP_CHECK_MODE: "soft",
+  AUTH_APPLE_ENABLED: "true",
+  AUTH_DEMO_ENABLED: "true",
+  AUTH_EMAIL_ENABLED: "true",
+  AUTH_GOOGLE_ENABLED: "true",
+  COACH_RPM: "12",
+  CREDIT_EXP_MONTHS: "12",
+  HOST_BASE_URL: "https://mybodyscanapp.com",
+  NUTRITION_RPM: "20",
+  OPENAI_BASE_URL: "https://api.openai.com/v1",
+  OPENAI_MODEL: "gpt-4o-mini",
+  OPENAI_PROVIDER: "openai",
+  REVENUECAT_ENTITLEMENT_ID: "pro",
+  REVENUECAT_MONTHLY_PRODUCT_ID: "com.mybodyscan.pro.monthly",
+  REVENUECAT_ONE_SCAN_PRODUCT_ID: "com.mybodyscan.scan.single",
+  REVENUECAT_YEARLY_PRODUCT_ID: "com.mybodyscan.pro.yearly",
+};
+for (const [key, expected] of Object.entries(expectedFunctionValues)) {
+  if (functionValues[key] !== expected) {
+    console.error(
+      `Production Functions configuration is missing or incorrect: ${key}.`
+    );
+    process.exit(1);
+  }
+}
+
+if ("environmentVariables" in (firebaseJson.functions?.[0] ?? {})) {
+  console.error(
+    "Non-secret Functions values must use functions/.env.mybodyscan-f3daf, not firebase.json.environmentVariables."
+  );
+  process.exit(1);
+}
+
 console.log("Production public configuration is present and live-mode safe.");
+console.log("Production non-secret Functions configuration is present.");

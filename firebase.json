@@ -233,23 +233,7 @@
         "STRIPE_SECRET_KEY",
         "STRIPE_WEBHOOK_SECRET",
         "USDA_FDC_API_KEY"
-      ],
-      "environmentVariables": {
-        "AUTH_GOOGLE_ENABLED": "true",
-        "AUTH_APPLE_ENABLED": "true",
-        "AUTH_EMAIL_ENABLED": "true",
-        "AUTH_DEMO_ENABLED": "true",
-        "APP_CHECK_MODE": "soft",
-        "HOST_BASE_URL": "https://mybodyscanapp.com",
-        "COACH_RPM": "10",
-        "NUTRITION_RPM": "30",
-        "CREDIT_EXP_MONTHS": "12",
-        "REVENUECAT_ENTITLEMENT_ID": "pro",
-        "REVENUECAT_MONTHLY_PRODUCT_ID": "com.mybodyscan.pro.monthly",
-        "REVENUECAT_YEARLY_PRODUCT_ID": "com.mybodyscan.pro.yearly",
-        "REVENUECAT_ONE_SCAN_PRODUCT_ID": "com.mybodyscan.scan.single",
-        "FIREBASE_WEB_API_KEY": "AIzaSyCmtvkIuKNP-NRzH_yFUt4PyWdWCCeO0k8"
-      }
+      ]
     }
   ],
   "firestore": {

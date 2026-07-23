@@ -582,11 +582,11 @@ After deploying this PR, validate end-to-end:
 ## Secrets & Deploy Quick Reference
 
 - Inspect secret metadata: `firebase functions:secrets:get SECRET_NAME --project <projectId>`
-- Set secrets (one at a time):
-  - `firebase functions:secrets:set HOST_BASE_URL --project <projectId>`
-  - App Check mode is the non-secret `APP_CHECK_MODE` value in `firebase.json`.
+- Non-secret `HOST_BASE_URL`, `APP_CHECK_MODE`, and rate limits belong in
+  `functions/.env.mybodyscan-f3daf`.
+- Set actual secrets one at a time:
   - `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`
-  - Optional: `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
+  - `firebase functions:secrets:set STRIPE_SECRET --project <projectId>`
 - Run Playwright end-to-end tests locally: `BASE_URL=https://mybodyscanapp.com npm run test:e2e`
 - Full production runbook: see [`docs/PRODUCTION_RELEASE.md`](docs/PRODUCTION_RELEASE.md)
 

@@ -19,6 +19,7 @@ import {
   hasProEntitlement,
   requireProEntitlement,
 } from "./lib/proEntitlements.js";
+import { getEnvInt } from "./lib/env.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -796,7 +797,10 @@ async function runNutritionSearchCore(
   const rateLimit = await ensureRateLimit({
     key: "nutrition_search",
     identifier,
-    limit: 20,
+    limit: Math.max(
+      1,
+      Math.min(1_000, Math.trunc(getEnvInt("NUTRITION_RPM", 20)))
+    ),
     windowSeconds: 60,
   });
 
