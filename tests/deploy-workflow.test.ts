@@ -202,6 +202,13 @@ describe("production deployment authentication", () => {
     expect(PRODUCTION_SMOKE).not.toContain(
       'echo "[smoke] ${name}: ${method} ${url}"'
     );
+    expect(PRODUCTION_SMOKE).toContain(
+      'response_status="$(json_field status)"'
+    );
+    expect(PRODUCTION_SMOKE).toContain('response_status" == "ok"');
+    expect(PRODUCTION_SMOKE).toContain('call_endpoint "nutritionBarcode"');
+    expect(PRODUCTION_SMOKE).toContain("json_array_length results");
+    expect(PRODUCTION_SMOKE).not.toContain("nutritionSearch skipped");
     expect(PRODUCTION_SMOKE).toContain("permission-denied");
     expect(PRODUCTION_SMOKE).toContain("missing_email");
   });

@@ -73,3 +73,25 @@ test("RevenueCat credit grants keep bucket totals as the balance source of truth
   assert.doesNotMatch(source, /currentCredits/);
   assert.doesNotMatch(source, /credits:\s*currentCredits/);
 });
+
+test("USDA search filters are sent as JSON arrays for search and barcode fallback", () => {
+  const searchSource = readFileSync(
+    new URL("../src/nutritionSearch.ts", import.meta.url),
+    "utf8"
+  );
+  assert.match(
+    searchSource,
+    /method:\s*"POST"[\s\S]*dataType:\s*USDA_DATA_TYPES/
+  );
+  assert.doesNotMatch(searchSource, /searchParams\.set\("dataType"/);
+
+  const barcodeSource = readFileSync(
+    new URL("../src/nutritionBarcode.ts", import.meta.url),
+    "utf8"
+  );
+  assert.match(
+    barcodeSource,
+    /method:\s*"POST"[\s\S]*dataType:\s*\["Branded"\]/
+  );
+  assert.doesNotMatch(barcodeSource, /searchParams\.set\("dataType"/);
+});
