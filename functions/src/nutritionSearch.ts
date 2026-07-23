@@ -573,15 +573,20 @@ async function searchUsda(
   if (!apiKey) return [];
   const url = new URL(USDA_SEARCH_URL);
   url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("query", query);
-  url.searchParams.set("pageSize", "20");
-  url.searchParams.set("dataType", USDA_DATA_TYPES.join(","));
 
   const data = (await requestJson(
     url,
     {
-      method: "GET",
-      headers: { Accept: "application/json" },
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query,
+        pageSize: 20,
+        dataType: USDA_DATA_TYPES,
+      }),
     },
     "usda"
   )) as any;

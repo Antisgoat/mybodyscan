@@ -31,6 +31,7 @@ BASE_URL="${BASE_URL:-https://mybodyscanapp.com}"
 COACH_URL="${BASE_URL}/api/coach/chat"
 CHECKOUT_URL="${BASE_URL}/api/createCheckout"
 NUTRITION_URL="${BASE_URL}/api/nutrition/search?q=chicken%20breast"
+BARCODE_URL="${BASE_URL}/api/nutrition/barcode?code=737628064502"
 SYSTEM_URL="${BASE_URL}/systemHealth?clientKey=${FIREBASE_API_KEY}"
 
 PRICE_ID="${VITE_PRICE_STARTER:-}"
@@ -107,6 +108,13 @@ call_endpoint() {
     echo "$value"
   }
 
+  json_array_length() {
+    local key="$1"
+    local value=""
+    value=$(printf '%s' "$content" | node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync(0,'utf8'));const v=d&&typeof d==='object'?d['$key']:undefined;process.stdout.write(Array.isArray(v)?String(v.length):'');}catch(e){}" 2>/dev/null || true)
+    echo "$value"
+  }
+
   case "$name" in
     coachChat)
       # Accept healthy responses or transient upstream failures.
@@ -147,14 +155,11 @@ call_endpoint() {
       ;;
     nutritionSearch)
       if [[ "$status" == "200" ]]; then
-        return
-      fi
-      # Treat missing USDA key / not-configured as a soft skip.
-      if [[ "$status" == "501" ]]; then
-        local code
-        code="$(json_field code)"
-        if [[ "$code" == "nutrition_not_configured" ]] || echo "$content" | grep -qi 'USDA_FDC_API_KEY'; then
-          echo "[smoke] nutritionSearch skipped (backend not configured)"
+        local response_status
+        local result_count
+        response_status="$(json_field status)"
+        result_count="$(json_array_length results)"
+        if [[ "$response_status" == "ok" ]] && [[ "$result_count" =~ ^[1-9][0-9]*$ ]]; then
           return
         fi
       fi
@@ -164,6 +169,16 @@ call_endpoint() {
         return
       fi
       FAILURES+=("nutritionSearch:${status}")
+      ;;
+    nutritionBarcode)
+      if [[ "$status" == "200" ]]; then
+        local result_count
+        result_count="$(json_array_length results)"
+        if [[ "$result_count" =~ ^[1-9][0-9]*$ ]]; then
+          return
+        fi
+      fi
+      FAILURES+=("nutritionBarcode:${status}")
       ;;
     systemHealth)
       if [[ "$status" == "200" ]]; then
@@ -176,6 +191,7 @@ call_endpoint() {
 
 call_endpoint "systemHealth" "GET" "$SYSTEM_URL"
 call_endpoint "nutritionSearch" "GET" "$NUTRITION_URL"
+call_endpoint "nutritionBarcode" "GET" "$BARCODE_URL"
 call_endpoint "coachChat" "POST" "$COACH_URL" '{"message":"Diagnostics smoke test"}'
 
 if [[ -n "$PRICE_ID" ]]; then

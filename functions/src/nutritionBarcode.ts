@@ -185,14 +185,19 @@ async function fetchOff(code: string) {
 async function fetchUsdaByBarcode(apiKey: string, code: string) {
   const url = new URL("https://api.nal.usda.gov/fdc/v1/foods/search");
   url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("query", code);
-  url.searchParams.set("pageSize", "5");
-  url.searchParams.set("dataType", "Branded");
   const data = (await requestJson(
     url,
     {
-      method: "GET",
-      headers: { Accept: "application/json" },
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: code,
+        pageSize: 5,
+        dataType: ["Branded"],
+      }),
     },
     "usda_barcode"
   )) as any;
