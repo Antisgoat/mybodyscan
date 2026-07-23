@@ -286,11 +286,11 @@ the current-state notes below say it was configured:
 
 Current iOS external state on 2026-07-23: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode; App Store build 3 was signed, exported, accepted by Apple's
-upload service, and is processing for TestFlight. This release increments the
-repository to build 4; build 4 must be archived, validated, uploaded, and
-device-tested after the web/Firebase release gates pass. The three exact App
-Store products exist at the approved prices. RevenueCat accepts in-app-purchase key
+Developer Mode; App Store build 4 was archived, distribution-signed, accepted
+by Apple's upload service, and is processing for TestFlight. The same build was
+installed and launched on the paired iPhone, but the real photo, purchase,
+restore, notification, and offline device checklist remains mandatory. The
+three exact App Store products exist at the approved prices. RevenueCat accepts in-app-purchase key
 `9Z23GBB5M7`; monthly and yearly are attached to `pro`; all three products are
 in the current/default offering. App Store production and sandbox server
 notification URLs are set, and APNs key `9R5X23CQQ9` is uploaded to Firebase
