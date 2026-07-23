@@ -57,7 +57,6 @@ SIGNUP_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
   "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}")
 
 ID_TOKEN=$(printf '%s' "$SIGNUP_RESPONSE" | node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync(0,'utf8'));console.log(d.idToken||'');")
-LOCAL_ID=$(printf '%s' "$SIGNUP_RESPONSE" | node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync(0,'utf8'));console.log(d.localId||'');")
 
 if [[ -z "$ID_TOKEN" ]]; then
   echo "[smoke] Failed to obtain ID token" >&2
@@ -74,7 +73,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "[smoke] Temporary UID ${LOCAL_ID}"
+echo "[smoke] Temporary account created"
 
 FAILURES=()
 
@@ -84,7 +83,8 @@ call_endpoint() {
   local url="$3"
   local body="${4:-}"
 
-  echo "[smoke] ${name}: ${method} ${url}"
+  local display_url="${url%%\?*}"
+  echo "[smoke] ${name}: ${method} ${display_url}"
   local response
   if [[ "$method" == "GET" ]]; then
     response=$(curl -s -w '\n%{http_code}' -H "Accept: application/json" -H "Authorization: Bearer ${ID_TOKEN}" "$url")
@@ -117,6 +117,10 @@ call_endpoint() {
         echo "[smoke] coachChat responded with app_check requirement"
         return
       fi
+      if [[ "$status" == "403" ]] && echo "$content" | grep -q 'permission-denied'; then
+        echo "[smoke] coachChat entitlement gate verified for disposable account"
+        return
+      fi
       # Treat missing OpenAI key / not-configured as a soft skip (still reported in logs).
       if [[ "$status" == "400" ]]; then
         local code
@@ -134,6 +138,10 @@ call_endpoint() {
         if [[ "$sessionField" == "1" ]]; then
           return
         fi
+      fi
+      if [[ "$status" == "400" ]] && echo "$content" | grep -q 'missing_email'; then
+        echo "[smoke] checkout email gate verified for disposable account"
+        return
       fi
       FAILURES+=("createCheckout:${status}")
       ;;

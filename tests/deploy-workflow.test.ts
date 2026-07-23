@@ -18,6 +18,10 @@ const PROD_PROBE = fs.readFileSync(
   path.resolve(__dirname, "../scripts/probe.mjs"),
   "utf8"
 );
+const PRODUCTION_SMOKE = fs.readFileSync(
+  path.resolve(__dirname, "../scripts/smoke.sh"),
+  "utf8"
+);
 const FIRESTORE_INDEXES = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, "../firestore.indexes.json"), "utf8")
 );
@@ -187,5 +191,18 @@ describe("production deployment authentication", () => {
     expect(scanCleanupIndex).toBeGreaterThan(-1);
     expect(accountCleanupIndex).toBeGreaterThan(scanCleanupIndex);
     expect(PROD_PROBE).toContain('functionName: "deleteAccount"');
+  });
+
+  it("keeps disposable smoke output private and recognizes expected access gates", () => {
+    expect(PRODUCTION_SMOKE).toContain('display_url="${url%%\\?*}"');
+    expect(PRODUCTION_SMOKE).not.toContain("LOCAL_ID");
+    expect(PRODUCTION_SMOKE).toContain(
+      'echo "[smoke] ${name}: ${method} ${display_url}"'
+    );
+    expect(PRODUCTION_SMOKE).not.toContain(
+      'echo "[smoke] ${name}: ${method} ${url}"'
+    );
+    expect(PRODUCTION_SMOKE).toContain("permission-denied");
+    expect(PRODUCTION_SMOKE).toContain("missing_email");
   });
 });

@@ -414,6 +414,11 @@ checklist below.
 Run all items with a non-admin production test account and inspect data/logs
 without recording photo, health, token, or payment details in tickets.
 
+`npm run smoke` is a safe preliminary probe: it creates and deletes a
+disposable anonymous account, verifies health and nutrition responses, and
+confirms that Coach and Checkout reject an account without an entitlement or
+email. It does not replace the real-account scan and purchase checks below.
+
 - `GET /api/system/health`, `/system/health`, and the public health endpoint
   return success and report scan/OpenAI/Stripe/USDA wiring as configured.
 - Email, Google, and Apple sign-in work on the apex domain, `www`, and Firebase
