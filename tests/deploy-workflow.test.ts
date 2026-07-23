@@ -195,7 +195,13 @@ describe("production deployment authentication", () => {
 
   it("keeps disposable smoke output private and recognizes expected access gates", () => {
     expect(PRODUCTION_SMOKE).toContain('display_url="${url%%\\?*}"');
-    expect(PRODUCTION_SMOKE).not.toContain("Temporary UID ${LOCAL_ID}");
+    expect(PRODUCTION_SMOKE).not.toContain("LOCAL_ID");
+    expect(PRODUCTION_SMOKE).toContain(
+      'echo "[smoke] ${name}: ${method} ${display_url}"'
+    );
+    expect(PRODUCTION_SMOKE).not.toContain(
+      'echo "[smoke] ${name}: ${method} ${url}"'
+    );
     expect(PRODUCTION_SMOKE).toContain("permission-denied");
     expect(PRODUCTION_SMOKE).toContain("missing_email");
   });
