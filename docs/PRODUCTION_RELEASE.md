@@ -1,8 +1,9 @@
 # MyBodyScan production release runbook
 
-This is the authoritative web/Firebase release runbook. `docs/GO-LIVE.md`,
-`docs/DEPLOY.md`, and README deployment notes point here; older audit reports are
-historical and must not be used as deployment instructions.
+This is the single authoritative production runbook for the web app, Firebase
+backend, and Capacitor iOS app. `docs/GO-LIVE.md`, `docs/DEPLOY.md`,
+`ios/RELEASE_IOS.md`, and README deployment notes defer to this file; older
+audit reports are historical and must not be used as deployment instructions.
 
 ## Scope and release policy
 
@@ -18,6 +19,9 @@ historical and must not be used as deployment instructions.
 - Firebase Hosting sites: `mybodyscan-f3daf.web.app` and
   `mybodyscan-f3daf.firebaseapp.com`
 - Functions region/runtime: `us-central1`, Node.js 22
+- iOS app: `MyBodyScan: Body Progress`, App Store ID `6793707279`, bundle ID
+  `com.mybodyscan.app`, Apple team `LSSBW4456K`
+- RevenueCat project/app: `ADLR LABS` / `MyBodyScan`; entitlement `pro`
 - Production deploys come from reviewed `main`. Never deploy a dirty tree.
 - The `main` workflow verifies and deploys indexes, Functions, rules, Storage,
   and Hosting through keyless Google Workload Identity Federation.
@@ -43,6 +47,8 @@ values still must not be pasted into tickets or logs.
 - `VITE_APPCHECK_SITE_KEY` (reCAPTCHA Enterprise site key created in Google
   Cloud project `mybodyscan-f3daf`)
 - the `VITE_PRICE_*` IDs represented in `.env.production.example`
+- for an iOS release, `VITE_RC_API_KEY_IOS` must be RevenueCat's public Apple
+  SDK key (`appl_…`) and `VITE_RC_ENTITLEMENT_ID` must be `pro`
 
 The generated production bundle fails if any required Firebase Web field is
 empty. Run this status-only check; it never prints values:
@@ -88,6 +94,11 @@ New scan credits expire after 12 months by default, matching the purchase and
 legal pages. `CREDIT_EXP_MONTHS` may override that period only after the same
 change is approved and published in every customer-facing purchase and policy
 surface.
+The fail-closed iOS product IDs are committed in both client and Functions
+configuration: `com.mybodyscan.pro.monthly` (3 credits per renewal),
+`com.mybodyscan.pro.yearly` (36 credits per annual renewal), and
+`com.mybodyscan.scan.single` (one consumable credit). RevenueCat events for any
+other product are recorded as ignored and cannot grant Pro or credits.
 The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
 override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
 replacement has passed the scan reliability suite.
@@ -221,6 +232,49 @@ the current-state notes below say it was configured:
      the user enables the setting, a token document is created under that user,
      and a targeted test notification opens `/history`. Never log a registration
      token.
+10. Apple, App Store Connect, and RevenueCat:
+    - App Store Connect must contain `MyBodyScan: Body Progress` for bundle
+      `com.mybodyscan.app`.
+    - Create the three exact product IDs listed above. Put monthly and yearly in
+      one auto-renewable subscription group; the single-scan item is a
+      consumable and must never be attached to `pro`. Use $24.99/month with a
+      one-month $14.99 introductory offer, $199/year with 36 credits granted
+      per annual renewal, and $9.99 for the single-scan consumable so App Store
+      copy matches the committed plan UI.
+    - Import the products into RevenueCat. Attach only monthly and yearly to
+      entitlement `pro`; place all three in the current/default offering using
+      monthly, annual, and custom/single-scan packages.
+    - RevenueCat App Store credentials must remain valid. As of 2026-07-22 the
+      replacement in-app-purchase key `9Z23GBB5M7` is accepted by RevenueCat.
+      Keep the downloaded `.p8` outside Git and never paste it into logs or
+      tickets.
+    - Configure App Store server notifications using RevenueCat's production
+      and sandbox URLs, then send a dashboard test event and confirm HTTP 200.
+    - Upload an APNs authentication key to Firebase Cloud Messaging for the
+      MyBodyScan iOS app. Do not guess between downloaded Apple keys; confirm
+      the key has APNs service enabled and belongs to team `LSSBW4456K` first.
+    - Complete App Privacy, age rating, review contact, support/privacy URLs,
+      pricing/localization, and required iPhone screenshots before submission.
+    - Native builds currently expose email/password authentication only;
+      Google and Apple buttons are deliberately hidden because the retired
+      native Firebase Auth integration caused startup failures. Web Google and
+      Apple sign-in remain enabled. Do not advertise native social sign-in or
+      add its buttons until a replacement native flow passes device tests.
+
+Current iOS external state on 2026-07-22: the App Store app record exists,
+Xcode is signed into the ADLR Labs team, the physical iPhone is paired with
+Developer Mode, RevenueCat App Store credentials are valid, and a signed build
+has launched on the device. The real App Store products/default offering, APNs
+key upload, server-notification URLs, store metadata, screenshots, privacy
+questionnaire, TestFlight purchase test, and final RevenueCat-enabled signed
+device install remain release blockers. These are console/device gates and
+cannot be inferred from a successful local build.
+
+Purchase restoration is verified only when the customer returns to the same
+Firebase account. Deleting that account and then creating a different Firebase
+identity does not yet provide a secure automatic entitlement reassignment path;
+handle that case through support until a server-verified RevenueCat identity
+resync is implemented. Do not advertise cross-account restoration.
 
 ## App Check behavior
 
@@ -270,6 +324,8 @@ npm ls --depth=0
 npm --prefix functions ls --depth=0
 npm --prefix tests/rules ls --depth=0
 npm run check:production-config
+npm run check:ios-release-config
+npm run check:ios-release-guard
 npm run lint
 npm run typecheck
 npm test
@@ -278,6 +334,10 @@ npm run build:prod
 npm run rules:check
 npx firebase-tools emulators:exec --only firestore --project demo-mbs "npm run test:rules"
 npm run verify:scan
+npm run build:native:release
+npx cap sync ios
+npm run smoke:native:ios
+npm run smoke:ios
 npm run storage:cors:check
 npx firebase-tools deploy --only firestore:indexes,functions,firestore:rules,storage,hosting --project mybodyscan-f3daf --non-interactive --dry-run
 ```
@@ -305,8 +365,14 @@ emulators plus a local OpenAI-compatible mock. It verifies successful analysis,
 one atomic debit and ledger entry, duplicate-submit idempotency, one refund with
 a matching ledger entry on analysis failure, and complete account deletion
 across Auth, Firestore, scan uploads, user uploads, and private transformation
-previews. CI repeats the same
-release-critical gates.
+previews. CI repeats the same release-critical gates.
+
+The iOS archive gate additionally requires the ignored
+`ios/App/App/GoogleService-Info.plist` for project `mybodyscan-f3daf` and the
+real public RevenueCat Apple SDK key in `.env.production.local`. After every
+RevenueCat or native-config change, install the freshly signed build from Xcode
+on the paired iPhone; an older installed build is not evidence for the current
+bundle.
 
 ## Deployment order
 
@@ -329,6 +395,19 @@ Indexes are submitted first because they may build asynchronously. Backend code
 is deployed before the web bundle. Rules and Storage policy are updated before
 the new client becomes live. Do not continue to Hosting if any earlier command
 fails.
+
+After the Firebase smoke test passes, prepare the iOS binary from the same
+reviewed commit. The command creates `ios/build/MyBodyScan.xcarchive`:
+
+```bash
+npm run ios:archive
+open ios/build/MyBodyScan.xcarchive
+```
+
+In Xcode Organizer choose **Validate App**, then **Distribute App → App Store
+Connect → Upload**. Release only to internal TestFlight first. Apple submission
+is not authorized by a Firebase deploy and must wait for the device/purchase
+checklist below.
 
 ## Mandatory post-deploy smoke test
 
@@ -369,6 +448,15 @@ without recording photo, health, token, or payment details in tickets.
   lockouts, or scan-worker retry storms.
 - Verify `index.html` is `no-store`, hashed assets are immutable, and the
   security headers in `firebase.json` are present.
+- On TestFlight, purchase monthly, yearly, and one scan in sandbox. Each
+  purchase produces one RevenueCat event and one matching `credits_ledger`
+  grant; subscription renewal does not double-grant on webhook retries, the
+  consumable never grants Pro, cancellation retains access only through the
+  paid period, and restore on the same Firebase account recovers `pro` without
+  adding duplicate credits. Test account deletion separately and confirm the
+  support path for a customer who later returns with a different account.
+- On the physical iPhone, opt into plateau alerts, accept the system prompt,
+  receive one visible APNs notification, and confirm tapping it opens History.
 
 Useful status-only commands:
 
@@ -419,3 +507,10 @@ Then repeat the full smoke test. Firestore documents and Stripe/vendor state are
 not rolled back by code deployment. This release performs no destructive data
 migration; if a future release does, it must add a separately tested data
 rollback before approval.
+
+An uploaded iOS binary cannot be replaced with the same build number. For an
+iOS rollback, pause the manual/phased release or remove the affected version
+from sale in App Store Connect, restore the previous backend if compatibility
+requires it, fix the app, increment `CURRENT_PROJECT_VERSION`, and archive,
+validate, and upload a replacement. Do not disable the existing RevenueCat
+products or delete purchase history during rollback.

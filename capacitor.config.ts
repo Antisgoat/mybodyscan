@@ -19,6 +19,11 @@ const config = {
   android: {
     allowMixedContent: false,
   },
+  plugins: {
+    FirebaseMessaging: {
+      presentationOptions: ["alert", "badge", "sound"],
+    },
+  },
 } as const;
 
 export default config;

@@ -12,6 +12,12 @@ describe("production pricing copy", () => {
       expect(content, file).toContain("$199");
       expect(content, file).not.toContain("$199.99");
     }
+    expect(read("src/pages/Plans.tsx")).toContain(
+      "36 scan credits per annual renewal"
+    );
+    expect(read("src/content/pricing.ts")).toContain(
+      "36 scan credits per year"
+    );
   });
 
   it("does not imply the wellness app replaces licensed or clinical services", () => {

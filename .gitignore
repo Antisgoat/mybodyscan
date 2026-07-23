@@ -53,6 +53,7 @@ functions/lib/
 # Temporary/debug artifacts (should never be committed)
 prod-*.js
 gha-creds-*.json
+*.p8
 
 # Capacitor sync output (keep placeholder index tracked)
 ios/App/App/public/**

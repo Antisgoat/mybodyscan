@@ -15,7 +15,7 @@ export type PricingCatalog = {
   threePack: PriceSnapshot;
   fivePack: PriceSnapshot;
   monthly: PriceSnapshot; // 3 scans/month
-  yearly: PriceSnapshot; // 3 scans/month (annual)
+  yearly: PriceSnapshot; // 36 scan credits per annual renewal
 };
 
 // Direct catalog definition - no dynamic imports needed
@@ -33,7 +33,7 @@ const catalog: PricingCatalog = {
     id: "yearly",
     label: "Yearly",
     priceText: "$199",
-    blurb: "3 scans/month",
+    blurb: "36 scan credits per year",
   },
 };
 

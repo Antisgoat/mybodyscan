@@ -43,8 +43,8 @@ jobs:
       - name: Verify production public configuration
         run: npm run check:production-config
 
-      - name: Verify web release
-        run: npm run lint && npm run typecheck && npm test && npm run build:prod && npm run rules:check && node scripts/verify-dist-assets.js
+      - name: Verify web and iOS release configuration
+        run: npm run lint && npm run typecheck && npm test && npm run build:prod && npm run check:ios-release-config && npm run check:ios-release-guard && npm run rules:check && node scripts/verify-dist-assets.js
 
       - name: Install Firestore rules test dependencies
         run: npm ci --prefix tests/rules --no-audit --no-fund

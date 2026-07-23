@@ -68,6 +68,12 @@ export async function sendReset(email: string) {
 }
 
 export async function signOutToAuth(): Promise<void> {
+  try {
+    const { releasePushSession } = await import("@/lib/pushNotifications");
+    await releasePushSession();
+  } catch {
+    // Sign-out must still complete if notification cleanup is unavailable.
+  }
   await impl.signOut().catch(() => undefined);
   navigateToAuthRoute();
 }
