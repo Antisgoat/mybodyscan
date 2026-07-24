@@ -283,7 +283,11 @@ the current-state notes below say it was configured:
       MyBodyScan iOS app. Do not guess between downloaded Apple keys; confirm
       the key has APNs service enabled and belongs to team `LSSBW4456K` first.
     - Complete App Privacy, age rating, review contact, support/privacy URLs,
-      pricing/localization, and required iPhone screenshots before submission.
+      pricing/localization, and required iPhone and iPad screenshots before
+      submission. The Account Holder or an Admin must publish the App Privacy
+      answers and make the Content Rights declaration; an operator must also
+      provide truthful App Review contact details and working reviewer
+      credentials. Do not invent any of those values.
     - Native builds currently expose email/password authentication only;
       Google and Apple buttons are deliberately hidden because the retired
       native Firebase Auth integration caused startup failures. Web Google and
@@ -300,33 +304,50 @@ successfully. Fresh iPhone and iPad simulator builds also install, launch, and
 render the reviewed responsive layouts. Build 5 was accepted by Apple's upload
 service but was superseded before device testing by the redirect-hardening fix.
 Build 4 must not be submitted because its native plan route bypassed the
-RevenueCat paywall. The real photo, purchase, restore,
-notification, and offline device checklist remains mandatory. The three exact
-App Store products exist, but the live U.S. prices still require correction:
-single scan is $9.99 instead of $4.99, monthly is $24.99 instead of $9.99 and
-has a conflicting $14.99 first-month offer, and yearly is $199 instead of
-$79.99. Single-scan availability is not configured. RevenueCat accepts
-in-app-purchase key `9Z23GBB5M7`; monthly and yearly are attached to `pro`; all
-three products are in the current/default offering. Native plan links open the
+RevenueCat paywall. The real photo, purchase, restore, notification, and
+offline device checklist remains mandatory.
+
+Build 6 is selected for App Store version 1.0. Six ordered 1242 × 2688 iPhone
+screenshots and six ordered 2064 × 2752 iPad screenshots are uploaded: body
+results, training, nutrition progress, meal planning, four-photo scanning, and
+AI coaching. The app download price is $0.00 and the app is scheduled to be
+available in all 175 countries or regions on release. The three exact purchase
+products have their required review screenshot and are in one App Review draft
+with status **Ready for Review**:
+
+- `com.mybodyscan.scan.single`: consumable, $4.99, available in all 175
+  countries or regions;
+- `com.mybodyscan.pro.monthly`: $9.99/month, available in all countries or
+  regions, with no introductory offer;
+- `com.mybodyscan.pro.yearly`: $79.99/year, available in all countries or
+  regions.
+
+RevenueCat accepts in-app-purchase key `9Z23GBB5M7`; monthly and yearly are
+attached to `pro`; all three products are in the current/default offering.
+The RevenueCat webhook Authorization header is synchronized with the deployed
+Firebase secret. A dashboard test on 2026-07-23 returned HTTP 200 with `[ok]`,
+and the corresponding Function invocation completed without an unexpected
+error. This verifies provider-to-Function connectivity but does not replace a
+real App Store sandbox purchase and renewal event. Native plan links open the
 RevenueCat purchase/restore paywall, while Settings opens Apple's
 subscription-management screen; native builds never open Stripe checkout.
 APNs key `9R5X23CQQ9` is uploaded to Firebase for development and production.
-RevenueCat reports no App Store server-notification or webhook deliveries yet,
-so both integrations still require a sandbox event.
 
 App Store metadata, age rating, categories, and the App Privacy answers are
-configured. The privacy declaration is not published because the Account
-Holder must personally accept Apple's legal attestation. Content Rights,
-general App Store Connect API access, and Digital Services Act/trader
-attestations are also owner-only gates. The screenshot generator produces six
-1242 × 2688 iPhone and six 2064 × 2752 iPad candidates that highlight body
-results, training, nutrition, meal planning, four-photo scanning, and coaching
-under
-`release-artifacts/app-store-screenshots/`. The remaining critical gates are
-price and availability correction, build selection, review contact and demo
-credentials, screenshot upload, the real TestFlight device/purchase/push
-checklist, the owner attestations, and final submission. A successful archive
-or upload does not prove those device and store flows.
+configured. App Store Connect will not add version 1.0 to the review draft
+until all of the following are completed truthfully:
+
+1. App Review **Contact Information** (first name, last name, phone, and email)
+   and working reviewer sign-in credentials for the gated experience.
+2. An Admin publishes the configured **App Privacy** answers; the Account
+   Holder must personally accept any legal attestation Apple presents.
+3. The Account Holder or an authorized Admin completes **Content Rights** in
+   App Information based on the actual third-party content and licenses.
+
+Digital Services Act/trader status and any other agreement or legal
+attestations remain owner-only. The final submission is intentionally not
+sent. A successful archive, upload, or provider test does not prove the
+remaining physical-device, purchase, restore, notification, or store flows.
 
 Purchase restoration is verified only when the customer returns to the same
 Firebase account. Deleting that account and then creating a different Firebase
