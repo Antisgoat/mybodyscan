@@ -2,16 +2,19 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Demo mode", () => {
   test("starting demo sets local flag", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.removeItem("mbs_policy_ok_v1");
+    });
     await page.goto("/", { waitUntil: "domcontentloaded" });
     const policyDialog = page.getByRole("dialog", {
       name: "Welcome to MyBodyScan",
     });
-    if (await policyDialog.isVisible()) {
-      for (const checkbox of await policyDialog.getByRole("checkbox").all()) {
-        if (!(await checkbox.isChecked())) await checkbox.check();
-      }
-      await policyDialog.getByRole("button", { name: "I Accept" }).click();
+    await expect(policyDialog).toBeVisible();
+    for (const checkbox of await policyDialog.getByRole("checkbox").all()) {
+      await checkbox.check();
     }
+    await policyDialog.getByRole("button", { name: "I Accept" }).click();
+    await expect(policyDialog).toBeHidden();
     await page.getByRole("link", { name: "Browse the demo" }).click();
     await expect(page).toHaveURL(/\/demo$/);
     await expect(
