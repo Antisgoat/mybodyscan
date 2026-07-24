@@ -46,6 +46,37 @@ describe("MBS Product Insight", () => {
     expect(result.confidence).toBe("low");
   });
 
+  it("surfaces seed-derived oils as neutral ingredient notes without changing the score", () => {
+    const withOil = deriveProductInsight(
+      product(
+        {
+          "energy-kcal_100g": 200,
+          proteins_100g: 8,
+          fiber_100g: 4,
+          "saturated-fat_100g": 2,
+          sodium_100g: 0.2,
+          sugars_100g: 3,
+        },
+        { ingredients_text: "Chicken, sunflower oil, spices" }
+      )
+    );
+    const withoutOil = deriveProductInsight(
+      product(
+        {
+          "energy-kcal_100g": 200,
+          proteins_100g: 8,
+          fiber_100g: 4,
+          "saturated-fat_100g": 2,
+          sodium_100g: 0.2,
+          sugars_100g: 3,
+        },
+        { ingredients_text: "Chicken, spices" }
+      )
+    );
+    expect(withOil.ingredientHighlights).toContain("Seed-derived oil listed");
+    expect(withOil.score).toBe(withoutOil.score);
+  });
+
   it("clamps scores to the documented 0-100 range", () => {
     const result = deriveProductInsight(
       product({

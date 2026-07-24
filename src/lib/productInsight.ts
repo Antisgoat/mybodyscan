@@ -13,6 +13,7 @@ export type ProductInsight = {
   basis: "per 100 g";
   factors: ProductInsightFactor[];
   ingredients: string | null;
+  ingredientHighlights: string[];
   additives: string[];
   allergens: string[];
   missing: string[];
@@ -54,6 +55,44 @@ function cleanTags(value: unknown): string[] {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function ingredientHighlights(ingredients: string | null): string[] {
+  if (!ingredients) return [];
+  const lower = ingredients.toLowerCase();
+  const groups: Array<{ label: string; terms: string[] }> = [
+    {
+      label: "Seed-derived oil listed",
+      terms: [
+        "canola oil",
+        "rapeseed oil",
+        "soybean oil",
+        "sunflower oil",
+        "safflower oil",
+        "corn oil",
+        "cottonseed oil",
+        "grapeseed oil",
+        "rice bran oil",
+      ],
+    },
+    {
+      label: "Partially hydrogenated oil listed",
+      terms: ["partially hydrogenated"],
+    },
+    {
+      label: "Non-nutritive sweetener listed",
+      terms: [
+        "aspartame",
+        "sucralose",
+        "saccharin",
+        "acesulfame potassium",
+        "acesulfame k",
+      ],
+    },
+  ];
+  return groups
+    .filter((group) => group.terms.some((term) => lower.includes(term)))
+    .map((group) => group.label);
 }
 
 function penalty(value: number | null, reference: number, max: number): number {
@@ -122,6 +161,7 @@ export function deriveProductInsight(input: unknown): ProductInsight {
       basis: "per 100 g",
       factors: [],
       ingredients,
+      ingredientHighlights: ingredientHighlights(ingredients),
       additives,
       allergens,
       missing,
@@ -185,6 +225,7 @@ export function deriveProductInsight(input: unknown): ProductInsight {
     basis: "per 100 g",
     factors: factors.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)),
     ingredients,
+    ingredientHighlights: ingredientHighlights(ingredients),
     additives,
     allergens,
     missing,

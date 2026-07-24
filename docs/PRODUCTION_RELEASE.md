@@ -120,6 +120,24 @@ subscription signal, and native builds do not bypass this check.
   Firestore rules all enforce the same boundary. A one-time scan credit must
   never unlock a subscriber endpoint.
 
+### Adaptive coaching and nutrition behavior
+
+- A Pro user’s soreness, fatigue, or extra-activity message can create a
+  date-scoped workout adjustment. The base program remains intact; the affected
+  day is overlaid with conservative set and intensity/RPE guidance and is
+  returned by the normal workout APIs. If today is a rest day, the adjustment
+  is scheduled for the next programmed day.
+- Serious symptom language (for example chest pain, sharp pain, numbness,
+  dizziness, or shortness of breath) never mutates a plan. The Coach tells the
+  user to stop the affected exercise and seek appropriate medical guidance.
+- Extra activities entered in Coach are recorded as activity events. The app
+  does not automatically add or subtract calories without duration, intensity,
+  or trusted device data; the Coach may provide clearly labeled estimates.
+- Food search combines USDA FoodData Central and Open Food Facts. The client
+  retains branded serving data and only offers grams, ounces, milliliters,
+  cups, slices, or pieces when the upstream record supports that conversion.
+  Volume is never converted to mass without product-specific density data.
+
 Apple HealthKit and Android Health Connect imports are not part of version 1.0.
 The existing Health screens must remain labeled **coming soon** and must not
 request health-data permissions. Do not advertise health sync until native

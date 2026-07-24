@@ -17,6 +17,8 @@ export type CoachChatContext = {
   lastScanDate?: string;
   lastScanBodyFatPercent?: number;
   nextWorkoutDayName?: string;
+  localDate?: string;
+  localDayName?: string;
 };
 
 export interface CoachChatRequest {
@@ -38,6 +40,14 @@ export interface CoachChatMetadata {
   recommendedSplit?: string;
   caloriesPerDay?: number;
   macros?: { protein: number; carbs: number; fat: number };
+  planAdaptation?: {
+    applied: true;
+    date: string;
+    dayId: string;
+    bodyFeel: "tired" | "sore";
+    summary: string;
+    origin: "coach_chat";
+  };
 }
 
 export interface CoachChatResponse {

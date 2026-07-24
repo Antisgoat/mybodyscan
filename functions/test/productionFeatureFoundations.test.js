@@ -10,10 +10,18 @@ const { buildTransformationPrompt } = await import(
 const { buildPlateauMulticastMessage, deriveServerPlateauSignature } = await import(
   "../lib/pushNotifications.js"
 );
-const { nutritionHttpErrorResponse } = await import(
+const {
+  fromOpenFoodFacts,
+  fromUsdaFood,
+  nutritionHttpErrorResponse,
+} = await import(
   "../lib/nutritionSearch.js"
 );
 const { HttpError } = await import("../lib/util/http.js");
+const { inferCoachAdaptation } = await import("../lib/coachChat.js");
+const { applyWorkoutAdjustment, resolveAdjustmentDate } = await import(
+  "../lib/workouts.js"
+);
 
 test("transformation prompt is restrained and prohibits predictive or revealing output", () => {
   const prompt = buildTransformationPrompt({
@@ -23,8 +31,108 @@ test("transformation prompt is restrained and prohibits predictive or revealing 
   assert.match(prompt, /realistic/i);
   assert.match(prompt, /not as a guaranteed outcome/i);
   assert.match(prompt, /fully clothed/i);
+  assert.match(prompt, /same smile or serious expression/i);
+  assert.match(prompt, /Do not beautify.*change the face/i);
   assert.match(prompt, /Do not add.*measurements/i);
   assert.doesNotMatch(prompt, /exact body fat|exact weight/i);
+});
+
+test("USDA labeled serving nutrients are converted before being shown per 100 g", () => {
+  const item = fromUsdaFood({
+    fdcId: 123,
+    description: "Branded chicken",
+    servingSize: 50,
+    servingSizeUnit: "g",
+    householdServingFullText: "1 piece (50 g)",
+    labelNutrients: {
+      calories: { value: 100 },
+      protein: { value: 10 },
+      carbohydrates: { value: 2 },
+      fat: { value: 5 },
+    },
+    foodNutrients: [],
+  });
+  assert.equal(item.basePer100g.kcal, 200);
+  assert.equal(item.basePer100g.protein, 20);
+  assert.equal(item.per_serving.kcal, 100);
+  assert.equal(item.serving.text, "1 piece (50 g)");
+});
+
+test("liquid servings preserve labeled milliliters without assuming density", () => {
+  const item = fromOpenFoodFacts({
+    code: "0123456789012",
+    product_name: "Test drink",
+    serving_size: "0.25 l",
+    nutriments: {
+      "energy-kcal_100g": 40,
+      proteins_100g: 0,
+      carbohydrates_100g: 10,
+      fat_100g: 0,
+      "energy-kcal_serving": 100,
+      proteins_serving: 0,
+      carbohydrates_serving: 25,
+      fat_serving: 0,
+    },
+  });
+  assert.equal(item.serving.qty, 250);
+  assert.equal(item.serving.unit, "ml");
+  assert.equal(item.per_serving.kcal, 100);
+
+  const incomplete = fromOpenFoodFacts({
+    code: "0123456789013",
+    product_name: "Drink without serving nutrients",
+    serving_size: "250 ml",
+    nutriments: {
+      "energy-kcal_100g": 40,
+      carbohydrates_100g: 10,
+    },
+  });
+  assert.equal(incomplete.serving.qty, 250);
+  assert.equal(incomplete.per_serving.kcal, null);
+});
+
+test("coach recovery language adapts workouts but severe symptoms do not auto-mutate plans", () => {
+  assert.deepEqual(inferCoachAdaptation("My shoulder is very sore today"), {
+    bodyFeel: "sore",
+  });
+  assert.deepEqual(
+    inferCoachAdaptation("I played pickleball after work"),
+    {
+      bodyFeel: "tired",
+      mods: { intensity: 0, volume: -1 },
+      extraActivity: true,
+    }
+  );
+  assert.equal(
+    inferCoachAdaptation("I have sharp pain and numbness in my arm"),
+    null
+  );
+});
+
+test("daily workout adjustments change both volume and intensity guidance", () => {
+  const adjusted = applyWorkoutAdjustment(
+    {
+      day: "Mon",
+      exercises: [
+        { id: "bench", name: "Bench press", sets: 3, reps: "8-12 @ RPE 7" },
+      ],
+    },
+    { intensity: -1, volume: -1 }
+  );
+  assert.equal(adjusted.exercises[0].sets, 2);
+  assert.equal(adjusted.exercises[0].reps, "8-12 @ RPE 6");
+  assert.match(adjusted.coachGuidance, /5–10% less load/i);
+});
+
+test("a rest-day coach check-in schedules the adjustment for the next workout day", () => {
+  assert.equal(
+    resolveAdjustmentDate("2026-07-24", "Fri", "Mon"),
+    "2026-07-27"
+  );
+  assert.equal(
+    resolveAdjustmentDate("2026-07-24", "Fri", "Fri"),
+    "2026-07-24"
+  );
 });
 
 test("transformation preview requires the canonical Pro entitlement", () => {

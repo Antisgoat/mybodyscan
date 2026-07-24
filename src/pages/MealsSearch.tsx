@@ -16,8 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
-import type { FoodItem as SearchFoodItem } from "@/lib/nutrition";
-import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
+import type { FoodItem } from "@/lib/nutrition/types";
 import {
   saveFavorite,
   removeFavorite,
@@ -27,7 +26,16 @@ import {
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { addMeal } from "@/lib/nutritionBackend";
 import { useAuthUser } from "@/auth/mbs-auth";
-import { roundGrams, roundKcal, sumNumbers } from "@/lib/nutritionMath";
+import {
+  availableServingUnits,
+  buildMealEntry,
+  calculateSelection,
+  gramsToOunces,
+  roundGrams,
+  roundKcal,
+  type SelectionResult,
+  type ServingUnit,
+} from "@/lib/nutritionMath";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { sanitizeNutritionQuery } from "@/lib/nutrition/sanitizeQuery";
@@ -40,7 +48,14 @@ import { reportError } from "@/lib/telemetry";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
-const OUNCES_IN_GRAM = 0.0352739619;
+
+function currentLocalDate(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 function readRecents(): FoodItem[] {
   if (typeof window === "undefined") return [];
@@ -65,36 +80,29 @@ function storeRecents(items: FoodItem[]) {
   );
 }
 
-function roundTo(value: number, decimals = 1) {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
-}
-
-function calculateMacros(base: FoodItem["basePer100g"], grams: number) {
-  const safeGrams = Number.isFinite(grams) ? Math.max(0, grams) : 0;
-  if (!safeGrams) {
-    return { grams: 0, kcal: 0, protein: 0, carbs: 0, fat: 0 };
-  }
-  const factor = safeGrams / 100;
-  return {
-    grams: safeGrams,
-    kcal: sumNumbers([base?.kcal]) * factor,
-    protein: sumNumbers([base?.protein]) * factor,
-    carbs: sumNumbers([base?.carbs]) * factor,
-    fat: sumNumbers([base?.fat]) * factor,
-  };
-}
-
-function ouncesDisplay(grams: number) {
-  if (!grams || grams <= 0) return null;
-  return roundTo(grams * OUNCES_IN_GRAM, 2);
-}
-
-function findCupServing(servings: ServingOption[]): ServingOption | undefined {
-  return servings.find((option) => option.label.toLowerCase().includes("cup"));
-}
-
 function adaptSearchItem(raw: any): FoodItem {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    typeof raw.id === "string" &&
+    typeof raw.name === "string" &&
+    raw.basePer100g &&
+    Array.isArray(raw.servings) &&
+    raw.serving &&
+    raw.per_serving
+  ) {
+    return {
+      ...raw,
+      id: raw.id.trim(),
+      name: raw.name.trim() || "Food",
+      brand:
+        typeof raw.brand === "string" && raw.brand.trim()
+          ? raw.brand.trim()
+          : null,
+      source:
+        raw.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
+    } as FoodItem;
+  }
   const calories =
     Number(raw?.calories ?? raw?.kcal ?? raw?.energyKcal ?? 0) || 0;
   const protein = Number(raw?.protein ?? raw?.protein_g ?? 0) || 0;
@@ -163,7 +171,12 @@ interface ServingModalProps {
   open: boolean;
   busy: boolean;
   onClose: () => void;
-  onConfirm: (payload: { grams: number; quantity: number; mealType: MealType }) => void;
+  onConfirm: (payload: {
+    quantity: number;
+    unit: ServingUnit;
+    result: SelectionResult;
+    mealType: MealType;
+  }) => void;
 }
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
@@ -182,42 +195,31 @@ function ServingModal({
   onClose,
   onConfirm,
 }: ServingModalProps) {
-  const defaultServing = useMemo(() => {
-    if (!item.servings?.length) return null;
-    return (
-      item.servings.find((serving) => serving.isDefault) ?? item.servings[0]!
-    );
-  }, [item.servings]);
-
-  const [grams, setGrams] = useState<number>(defaultServing?.grams ?? 100);
   const [quantity, setQuantity] = useState<number>(1);
+  const units = useMemo(() => availableServingUnits(item), [item]);
+  const [unit, setUnit] = useState<ServingUnit>(
+    units.includes("serving") ? "serving" : units[0] ?? "g"
+  );
   const [mealType, setMealType] = useState<MealType>("snacks");
 
   useEffect(() => {
-    const initial =
-      item.servings?.find((option) => option.isDefault) ?? item.servings?.[0];
-    setGrams(initial?.grams ?? 100);
     setQuantity(1);
+    const nextUnits = availableServingUnits(item);
+    setUnit(nextUnits.includes("serving") ? "serving" : nextUnits[0] ?? "g");
     setMealType("snacks");
   }, [item]);
 
-  const totalGrams = Math.max(0, grams * quantity);
-  const macros = calculateMacros(item.basePer100g, totalGrams);
-  const ounces = ouncesDisplay(totalGrams);
-  const cupServing = useMemo(
-    () => findCupServing(item.servings ?? []),
-    [item.servings]
+  const result = useMemo(
+    () => calculateSelection(item, quantity, unit),
+    [item, quantity, unit]
   );
-
-  const presets: { label: string; grams: number }[] = [
-    { label: "100 g", grams: 100 },
-    { label: "1 oz", grams: 28.35 },
-  ];
-  if (cupServing) {
-    presets.push({ label: "1 cup", grams: cupServing.grams });
-  }
-
-  const disableAdd = !grams || grams <= 0 || !quantity || quantity <= 0;
+  const disableAdd =
+    !quantity ||
+    quantity <= 0 ||
+    (result.calories == null &&
+      result.protein == null &&
+      result.carbs == null &&
+      result.fat == null);
 
   return (
     <Dialog
@@ -239,21 +241,7 @@ function ServingModal({
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="serving-grams">Grams per quantity</Label>
-              <Input
-                id="serving-grams"
-                type="number"
-                min="0"
-                step="0.1"
-                value={grams}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setGrams(Number.isFinite(value) ? Math.max(0, value) : 0);
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="serving-quantity">Quantity</Label>
+              <Label htmlFor="serving-quantity">Amount</Label>
               <Input
                 id="serving-quantity"
                 type="number"
@@ -265,6 +253,26 @@ function ServingModal({
                   setQuantity(Number.isFinite(value) ? Math.max(0, value) : 0);
                 }}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="serving-unit">Unit</Label>
+              <select
+                id="serving-unit"
+                className="min-h-10 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={unit}
+                onChange={(event) =>
+                  setUnit(event.target.value as ServingUnit)
+                }
+                disabled={busy}
+              >
+                {units.map((option) => (
+                  <option key={option} value={option}>
+                    {option === "serving" && item.serving.text
+                      ? `serving (${item.serving.text})`
+                      : option}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="space-y-2">
@@ -284,32 +292,36 @@ function ServingModal({
             </select>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {presets.map((preset) => (
-              <Button
-                key={preset.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setGrams(preset.grams)}
-              >
-                {preset.label}
-              </Button>
-            ))}
-          </div>
-
           <div className="rounded-md bg-muted/60 p-4 text-sm">
             <div className="font-medium text-foreground">Total</div>
             <div className="mt-1 text-muted-foreground">
-              {macros.grams ? `${roundGrams(macros.grams)} g` : "0 g"}
-              {ounces ? ` · ${ounces} oz` : ""}
+              {result.grams
+                ? `${roundGrams(result.grams)} g · ${gramsToOunces(result.grams) ?? "—"} oz`
+                : `${quantity} ${unit}`}
             </div>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span>{roundKcal(macros.kcal)} kcal</span>
-              <span>{roundGrams(macros.protein)}g P</span>
-              <span>{roundGrams(macros.carbs)}g C</span>
-              <span>{roundGrams(macros.fat)}g F</span>
+              <span>
+                {result.calories == null
+                  ? "—"
+                  : roundKcal(result.calories)}{" "}
+                kcal
+              </span>
+              <span>
+                {result.protein == null ? "—" : roundGrams(result.protein)}g P
+              </span>
+              <span>
+                {result.carbs == null ? "—" : roundGrams(result.carbs)}g C
+              </span>
+              <span>
+                {result.fat == null ? "—" : roundGrams(result.fat)}g F
+              </span>
             </div>
+            {unit === "ml" ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                mL calculations use the product’s labeled volume serving; no
+                density is guessed.
+              </p>
+            ) : null}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -323,7 +335,7 @@ function ServingModal({
             </Button>
             <DemoWriteButton
               type="button"
-              onClick={() => onConfirm({ grams: grams, quantity, mealType })}
+              onClick={() => onConfirm({ quantity, unit, result, mealType })}
               disabled={busy || disableAdd}
             >
               {busy ? "Adding…" : "Add"}
@@ -420,7 +432,9 @@ export default function MealsSearch() {
 
     (async () => {
       try {
-        const response = await nutritionSearchClient(term);
+        const response = await nutritionSearchClient(term, {
+          sourcePreference: "combined",
+        });
         if (cancelled) return;
         if (!response || response.status === "upstream_error") {
           const message =
@@ -596,8 +610,9 @@ export default function MealsSearch() {
 
   const handleLogFood = async (
     item: FoodItem,
-    grams: number,
     quantity: number,
+    unit: ServingUnit,
+    result: SelectionResult,
     mealType: MealType
   ) => {
     if (demo) {
@@ -614,36 +629,14 @@ export default function MealsSearch() {
       return;
     }
 
-    const totalGrams = grams * quantity;
-    const macros = calculateMacros(item.basePer100g, totalGrams);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = currentLocalDate();
+    const meal = buildMealEntry(item, quantity, unit, result, "search");
 
     setLogging(true);
     try {
       await addMeal(today, {
-        name: item.name,
+        ...meal,
         mealType,
-        protein: roundGrams(macros.protein),
-        carbs: roundGrams(macros.carbs),
-        fat: roundGrams(macros.fat),
-        calories: roundKcal(macros.kcal),
-        entrySource: "search",
-        serving: {
-          qty: quantity,
-          unit: "custom",
-          grams: Math.round(totalGrams),
-          originalQty: quantity,
-          originalUnit: item.servings?.[0]?.label ?? undefined,
-        },
-        item: {
-          id: item.id,
-          name: item.name,
-          brand: item.brand ?? null,
-          source: item.source,
-          serving: item.serving ?? undefined,
-          per_serving: item.per_serving ?? undefined,
-          per_100g: item.per_100g ?? undefined,
-        },
       });
       toast({ title: "Food logged", description: item.name });
       updateRecents(item);
@@ -663,12 +656,9 @@ export default function MealsSearch() {
     }
   };
 
-  const primaryCaption =
-    primarySource === "Open Food Facts"
-      ? "OFF primary · USDA fallback"
-      : primarySource === "USDA"
-        ? "USDA primary · OFF fallback"
-        : "USDA + OFF search";
+  const primaryCaption = primarySource
+    ? `USDA + Open Food Facts · first match: ${primarySource}`
+    : "USDA + Open Food Facts";
 
   const favoritesMap = useMemo(
     () => new Map(favorites.map((fav) => [fav.id, fav])),
@@ -908,8 +898,8 @@ export default function MealsSearch() {
           open={Boolean(selectedItem)}
           busy={logging}
           onClose={() => (!logging ? setSelectedItem(null) : undefined)}
-          onConfirm={({ grams, quantity, mealType }) =>
-            handleLogFood(selectedItem, grams, quantity, mealType)
+          onConfirm={({ quantity, unit, result, mealType }) =>
+            handleLogFood(selectedItem, quantity, unit, result, mealType)
           }
         />
       )}

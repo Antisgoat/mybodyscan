@@ -118,6 +118,13 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function localDateKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function isRetryableActivationError(error: unknown): boolean {
   const anyErr = error as any;
   const message =
@@ -219,7 +226,7 @@ export async function getPlan() {
     return DEMO_WORKOUT_PLAN;
   }
   try {
-    return await callFn("/getPlan", {});
+    return await callFn("/getPlan", { localDate: localDateKey() });
   } catch (error) {
     console.warn("workouts.getPlan", error);
     if (error instanceof Error && error.message.startsWith("fn_not_found")) {
@@ -382,7 +389,7 @@ export async function getWorkouts(): Promise<WorkoutSummary | null> {
     };
   }
   try {
-    const res = await callFn("/getWorkouts", {});
+    const res = await callFn("/getWorkouts", { localDate: localDateKey() });
     const planId = (res?.planId as string | null | undefined) ?? null;
     const days = Array.isArray(res?.days) ? (res.days as WorkoutDay[]) : [];
     const progress = (res?.progress as Record<string, string[]>) ?? {};

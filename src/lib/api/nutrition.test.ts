@@ -10,8 +10,10 @@ describe("normalizeFoodItem", () => {
     };
     const n = normalizeFoodItem(raw);
     expect(n.name).toContain("Chicken");
-    expect(n.calories).toBe(165);
-    expect(n.protein).toBe(31);
+    expect(n.basePer100g.kcal).toBe(165);
+    expect(n.basePer100g.protein).toBe(31);
+    expect(n.per_serving.kcal).toBe(165);
+    expect(n.per_serving.protein_g).toBe(31);
   });
   it("maps OFF-like shape", () => {
     const raw = {
