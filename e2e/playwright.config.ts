@@ -2,7 +2,10 @@ import fs from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
 
 const isCI = !!process.env.CI;
-const baseURL = process.env.BASE_URL || "https://mybodyscanapp.com";
+const baseURL =
+  process.env.E2E_BASE_URL ||
+  process.env.BASE_URL ||
+  "https://mybodyscanapp.com";
 const storageState = process.env.PLAYWRIGHT_STORAGE_STATE;
 const resolvedStorageState =
   storageState && fs.existsSync(storageState) ? storageState : undefined;

@@ -1,6 +1,5 @@
 import { getIdToken } from "@/auth/mbs-auth";
-import { appCheck } from "@/lib/appCheck";
-import { getToken as getAppCheckToken } from "firebase/app-check";
+import { getAppCheckTokenHeader } from "@/lib/appCheck";
 import {
   fallbackDirectUrl,
   noteWorkingUrl,
@@ -39,15 +38,12 @@ export class ApiError extends Error {
 }
 
 async function getAuthHeaders() {
-  const [idToken, ac] = await Promise.all([
+  const [idToken, appCheckHeaders] = await Promise.all([
     getIdToken({ forceRefresh: false }).then((t) => t || "").catch(() => ""),
-    appCheck
-      ? getAppCheckToken(appCheck, false).catch(() => null)
-      : Promise.resolve(null),
+    getAppCheckTokenHeader().catch(() => ({})),
   ]);
-  const h: Record<string, string> = {};
+  const h: Record<string, string> = { ...appCheckHeaders };
   if (idToken) h.Authorization = `Bearer ${idToken}`;
-  if (ac?.token) h["X-Firebase-AppCheck"] = ac.token;
   return h;
 }
 

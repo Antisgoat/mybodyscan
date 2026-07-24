@@ -13,6 +13,8 @@ export default tseslint.config(
       "ios/App/App/public/**",
       // Xcode/Pods are not JS lint targets
       "ios/**",
+      // Gradle/Capacitor Android output is generated and minified
+      "android/**",
       "functions-disabled/**",
       "tests/**",
       "e2e/**",
