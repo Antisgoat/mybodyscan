@@ -49,24 +49,36 @@ function installIOSDomGuards(): void {
     insertBefore?: (node: Node, child: Node | null) => Node;
   };
 
-  const wrapNodeMethod = (method: "removeChild" | "insertBefore") => {
-    const original = nodeProto[method];
-    if (typeof original !== "function") return;
-    const wrapped = function (this: Node, ...args: [Node, Node | null]) {
+  const originalRemoveChild = nodeProto.removeChild;
+  if (typeof originalRemoveChild === "function") {
+    nodeProto.removeChild = function (child: Node): Node {
       try {
-        return (original as any).apply(this, args);
+        return originalRemoveChild.call(this, child);
       } catch (error) {
         if (shouldSwallowDomError(error)) {
-          return args[0];
+          return child;
         }
         throw error;
       }
     };
-    (nodeProto as Record<string, unknown>)[method] = wrapped;
-  };
+  }
 
-  wrapNodeMethod("removeChild");
-  wrapNodeMethod("insertBefore");
+  const originalInsertBefore = nodeProto.insertBefore;
+  if (typeof originalInsertBefore === "function") {
+    nodeProto.insertBefore = function (
+      node: Node,
+      child: Node | null
+    ): Node {
+      try {
+        return originalInsertBefore.call(this, node, child);
+      } catch (error) {
+        if (shouldSwallowDomError(error)) {
+          return node;
+        }
+        throw error;
+      }
+    };
+  }
 }
 
 installIOSDomGuards();

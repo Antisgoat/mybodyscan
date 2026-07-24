@@ -127,6 +127,58 @@ export type UpdateWorkoutPlanOp =
       day: "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
     };
 
+function normalizeWorkoutExercise(value: unknown): WorkoutExercise | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!id || !name) return null;
+
+  const sets =
+    raw.sets == null
+      ? undefined
+      : typeof raw.sets === "number" &&
+          Number.isFinite(raw.sets) &&
+          raw.sets > 0
+        ? raw.sets
+        : null;
+  if (sets === null) return null;
+
+  const reps =
+    raw.reps == null
+      ? undefined
+      : typeof raw.reps === "number" &&
+          Number.isFinite(raw.reps) &&
+          raw.reps > 0
+        ? raw.reps
+        : typeof raw.reps === "string" && raw.reps.trim()
+          ? raw.reps.trim()
+          : null;
+  if (reps === null) return null;
+
+  return {
+    id,
+    name,
+    ...(sets === undefined ? {} : { sets }),
+    ...(reps === undefined ? {} : { reps }),
+  };
+}
+
+function normalizeWorkoutDays(value: unknown): WorkoutDay[] | null {
+  if (!Array.isArray(value)) return null;
+  const days: WorkoutDay[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    const raw = entry as Record<string, unknown>;
+    const day = typeof raw.day === "string" ? raw.day.trim() : "";
+    if (!day || !Array.isArray(raw.exercises)) return null;
+    const exercises = raw.exercises.map(normalizeWorkoutExercise);
+    if (exercises.some((exercise) => exercise === null)) return null;
+    days.push({ day, exercises: exercises as WorkoutExercise[] });
+  }
+  return days;
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -188,11 +240,15 @@ async function fetchPlanFromFirestore(): Promise<ActiveWorkoutPlan | null> {
     );
     if (!planSnap.exists()) return null;
     const data = planSnap.data() as Record<string, any>;
+    const days = normalizeWorkoutDays(data.days);
+    if (!days) {
+      throw new Error("workouts_firestore_invalid_days");
+    }
     return {
       ...data,
       id: planId,
       title: typeof data.title === "string" ? data.title : undefined,
-      days: Array.isArray(data.days) ? (data.days as WorkoutDay[]) : [],
+      days,
     };
   } catch (error) {
     console.warn("workouts.plan_fallback_failed", error);
@@ -237,10 +293,11 @@ export async function generateWorkoutPlan(
       { prefs }
     );
     const planId = typeof response.planId === "string" ? response.planId : "";
-    if (!planId || !Array.isArray(response.days)) {
+    const days = normalizeWorkoutDays(response.days);
+    if (!planId || !days?.length) {
       throw new Error("workouts_generate_invalid_response");
     }
-    return { planId, days: response.days };
+    return { planId, days };
   } catch (error: any) {
     if (
       typeof error?.message === "string" &&
@@ -274,13 +331,14 @@ export async function getPlan(): Promise<ActiveWorkoutPlan> {
         : typeof response.planId === "string"
           ? response.planId
           : "";
-    if (!id || !Array.isArray(response.days)) {
+    const days = normalizeWorkoutDays(response.days);
+    if (!id || !days?.length) {
       throw new Error("workouts_plan_invalid_response");
     }
     return {
       id,
       title: typeof response.title === "string" ? response.title : undefined,
-      days: response.days,
+      days,
     };
   } catch (error) {
     console.warn("workouts.getPlan", error);
@@ -457,7 +515,10 @@ export async function getWorkouts(): Promise<WorkoutSummary | null> {
       progress?: Record<string, string[]>;
     }>("/getWorkouts", { localDate: localDateKey() });
     const planId = (res?.planId as string | null | undefined) ?? null;
-    const days = Array.isArray(res?.days) ? (res.days as WorkoutDay[]) : [];
+    const days = normalizeWorkoutDays(res?.days);
+    if (!days) {
+      throw new Error("workouts_summary_invalid_response");
+    }
     const progress = (res?.progress as Record<string, string[]>) ?? {};
     return { planId, days, progress };
   } catch (error: any) {
@@ -468,9 +529,7 @@ export async function getWorkouts(): Promise<WorkoutSummary | null> {
       const progress = await fetchProgressFromFirestore(fallback.id as string);
       return {
         planId: fallback.id ?? null,
-        days: Array.isArray(fallback.days)
-          ? (fallback.days as WorkoutDay[])
-          : [],
+        days: fallback.days,
         progress,
       };
     }

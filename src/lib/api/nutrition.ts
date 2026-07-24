@@ -135,7 +135,7 @@ function normalizeNutritionError(error: unknown): Error {
   return new Error("Unable to load nutrition results right now.");
 }
 
-function normalizeResponse(
+export function normalizeResponse(
   payload: NutritionSearchResponse
 ): NutritionSearchResponse {
   const normalized = Array.isArray(payload?.results)
@@ -150,6 +150,7 @@ function normalizeResponse(
         payload?.message ??
         "Food database temporarily unavailable; please try again later.",
       debugId: payload?.debugId ?? null,
+      source: payload?.source ?? null,
     };
   }
 

@@ -47,9 +47,12 @@ export function getEntitlementId(): string {
   return (import.meta.env.VITE_RC_ENTITLEMENT_ID ?? "pro").trim() || "pro";
 }
 
+async function getPurchasesModule() {
+  return import("@revenuecat/purchases-capacitor");
+}
+
 async function getPurchases() {
-  const mod = await import("@revenuecat/purchases-capacitor");
-  return mod.Purchases;
+  return (await getPurchasesModule()).Purchases;
 }
 
 // Auth bootstrap and the paywall may initialize at nearly the same time.
@@ -91,13 +94,10 @@ export async function initPurchases(
 
   return serializeInitialization(async () => {
     try {
-      const Purchases = await getPurchases();
+      const { LOG_LEVEL, Purchases } = await getPurchasesModule();
       if (import.meta.env.DEV) {
         try {
-          const debugLevel = 2 as unknown as Parameters<
-            typeof Purchases.setLogLevel
-          >[0]["level"];
-          await Purchases.setLogLevel({ level: debugLevel });
+          await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
         } catch {
           // ignore
         }
