@@ -711,7 +711,13 @@ export default function ScanFlowResult() {
 
   const retryFailed = useCallback(async () => {
     if (!session?.scanId || !canRetryFailed) return;
-    if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null)
+    if (
+      !poseUploadsReady ||
+      currentWeightKg == null ||
+      goalWeightKg == null ||
+      !Number.isFinite(currentWeightKg) ||
+      !Number.isFinite(goalWeightKg)
+    )
       return;
     if (!user) return;
     setFlowStatus("uploading");
@@ -858,7 +864,13 @@ export default function ScanFlowResult() {
   const retryPose = useCallback(
     async (pose: Pose) => {
       if (!session?.scanId) return;
-      if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null)
+      if (
+        !poseUploadsReady ||
+        currentWeightKg == null ||
+        goalWeightKg == null ||
+        !Number.isFinite(currentWeightKg) ||
+        !Number.isFinite(goalWeightKg)
+      )
         return;
       if (!user) return;
       setFlowStatus("uploading");
@@ -1040,7 +1052,7 @@ export default function ScanFlowResult() {
       : undefined;
   const age =
     profile?.age && Number.isFinite(profile.age) ? profile.age : undefined;
-  const heightIn = profile?.height_cm ? cmToIn(profile.height_cm) : undefined;
+  const heightIn = profileHeightCm ? cmToIn(profileHeightCm) : undefined;
   const profileWeightLb = profile?.weight_kg
     ? kgToLb(profile.weight_kg)
     : undefined;

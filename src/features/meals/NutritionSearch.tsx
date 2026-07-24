@@ -321,7 +321,7 @@ export default function NutritionSearch({
                   ) : null}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {fmtCal(it.per_serving.kcal ?? it.per_100g?.kcal)}
+                  {fmtCalories(it)}
                   {sep(it)}
                   {fmtMacros(it)}
                   {sep(it)}
@@ -378,7 +378,27 @@ export default function NutritionSearch({
 }
 
 function fmtCal(kcal?: number | null) {
-  return kcal ? `${round(kcal)} kcal` : "kcal ?";
+  return typeof kcal === "number" && Number.isFinite(kcal)
+    ? `${round(kcal)} kcal`
+    : "kcal ?";
+}
+function fmtCalories(it: {
+  per_serving: { kcal: number | null };
+  per_100g?: { kcal: number | null };
+}) {
+  if (
+    typeof it.per_serving.kcal === "number" &&
+    Number.isFinite(it.per_serving.kcal)
+  ) {
+    return fmtCal(it.per_serving.kcal);
+  }
+  if (
+    typeof it.per_100g?.kcal === "number" &&
+    Number.isFinite(it.per_100g.kcal)
+  ) {
+    return `${fmtCal(it.per_100g.kcal)} per 100 g`;
+  }
+  return fmtCal(null);
 }
 function fmtMacros(it: {
   per_serving: {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.useFakeTimers();
 
@@ -42,6 +42,11 @@ vi.mock("@/auth/mbs-auth", () => ({
   requireIdToken: async () => "token",
 }));
 
+beforeEach(() => {
+  fnJsonMock.mockReset();
+  getDocMock.mockReset();
+});
+
 describe("activateCatalogPlan", () => {
   it("polls Firestore briefly until activation propagates", async () => {
     fnJsonMock.mockResolvedValue({ planId: "plan123" });
@@ -80,3 +85,67 @@ describe("activateCatalogPlan", () => {
   });
 });
 
+describe("workout response validation", () => {
+  it("rejects malformed generated workout days", async () => {
+    fnJsonMock.mockResolvedValueOnce({
+      planId: "plan123",
+      days: [{ day: "Mon", exercises: null }],
+    });
+    const { generateWorkoutPlan } = await import("./workouts");
+
+    await expect(generateWorkoutPlan()).rejects.toThrow(
+      "workouts_generate_invalid_response"
+    );
+  });
+
+  it("normalizes valid generated workout days", async () => {
+    fnJsonMock.mockResolvedValueOnce({
+      planId: "plan123",
+      days: [
+        {
+          day: " Mon ",
+          exercises: [
+            { id: " squat ", name: " Back squat ", sets: 3, reps: " 8-10 " },
+          ],
+        },
+      ],
+    });
+    const { generateWorkoutPlan } = await import("./workouts");
+
+    await expect(generateWorkoutPlan()).resolves.toEqual({
+      planId: "plan123",
+      days: [
+        {
+          day: "Mon",
+          exercises: [
+            { id: "squat", name: "Back squat", sets: 3, reps: "8-10" },
+          ],
+        },
+      ],
+    });
+  });
+
+  it("uses the safe plan fallback for malformed current-plan payloads", async () => {
+    fnJsonMock.mockResolvedValueOnce({
+      id: "plan123",
+      days: [null],
+    });
+    const { getPlan } = await import("./workouts");
+
+    const result = await getPlan();
+    expect(result.id).toBe("fallback-evidence-plan-v1");
+    expect(result.days.length).toBeGreaterThan(0);
+    expect(result.days.every((day) => Array.isArray(day.exercises))).toBe(true);
+  });
+
+  it("rejects malformed workout summaries without exposing them to the UI", async () => {
+    fnJsonMock.mockResolvedValueOnce({
+      planId: "plan123",
+      days: [{ day: "Mon", exercises: [null] }],
+      progress: {},
+    });
+    const { getWorkouts } = await import("./workouts");
+
+    await expect(getWorkouts()).resolves.toBeNull();
+  });
+});

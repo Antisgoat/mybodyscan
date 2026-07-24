@@ -148,7 +148,13 @@ const DEMO_NUTRITION_RESULTS = [
 ] satisfies Array<Record<string, unknown>>;
 
 export async function nutritionSearch(
-  query: string
+  query: string,
+  init?: {
+    page?: number;
+    pageSize?: number;
+    sourcePreference?: "usda-first" | "off-first" | "combined";
+    signal?: AbortSignal;
+  }
 ): Promise<NutritionSearchResponse> {
   const trimmed = query.trim();
   if (!trimmed) {
@@ -162,7 +168,7 @@ export async function nutritionSearch(
       message: "demo_results",
     } satisfies NutritionSearchResponse;
   }
-  return nutritionSearchCallable(trimmed);
+  return nutritionSearchCallable(trimmed, init);
 }
 
 export async function nutritionBarcodeLookup(
@@ -393,7 +399,7 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
     let payload: NutritionSearchResponse | undefined;
 
     try {
-      payload = await nutritionSearchCallable(query, {
+      payload = await nutritionSearch(query, {
         signal: controller.signal,
       });
     } catch (error) {

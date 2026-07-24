@@ -5,6 +5,7 @@ const revenueCatState = vi.hoisted(() => ({
   appUserID: "",
   configure: vi.fn(),
   logIn: vi.fn(),
+  setLogLevel: vi.fn(),
 }));
 
 vi.mock("@/lib/platform", () => ({
@@ -12,8 +13,11 @@ vi.mock("@/lib/platform", () => ({
 }));
 
 vi.mock("@revenuecat/purchases-capacitor", () => ({
+  LOG_LEVEL: {
+    DEBUG: "DEBUG",
+  },
   Purchases: {
-    setLogLevel: vi.fn(async () => undefined),
+    setLogLevel: revenueCatState.setLogLevel,
     isConfigured: vi.fn(async () => ({
       isConfigured: revenueCatState.configured,
     })),
@@ -45,6 +49,8 @@ describe("RevenueCat initialization", () => {
         return { created: false, customerInfo: {} };
       }
     );
+    revenueCatState.setLogLevel.mockReset();
+    revenueCatState.setLogLevel.mockResolvedValue(undefined);
     Object.assign(globalThis, {
       Capacitor: {
         getPlatform: () => "ios",
@@ -74,6 +80,9 @@ describe("RevenueCat initialization", () => {
       appUserID: "firebase-user-1",
     });
     expect(revenueCatState.logIn).not.toHaveBeenCalled();
+    expect(revenueCatState.setLogLevel).toHaveBeenCalledWith({
+      level: "DEBUG",
+    });
   });
 
   it("uses RevenueCat logIn when the Firebase account changes", async () => {

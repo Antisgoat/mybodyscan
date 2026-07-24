@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeFoodItem } from "./nutrition";
+import { normalizeFoodItem, normalizeResponse } from "./nutrition";
 
 describe("normalizeFoodItem", () => {
   it("maps USDA-like shape", () => {
@@ -25,5 +25,23 @@ describe("normalizeFoodItem", () => {
     expect(n.name).toBeTruthy();
     // calories may be null if field names differ; tolerant assertions
     expect(typeof n.name).toBe("string");
+  });
+
+  it("preserves the upstream source when search providers fail", () => {
+    expect(
+      normalizeResponse({
+        status: "upstream_error",
+        results: [],
+        source: "USDA",
+        message: "temporarily unavailable",
+        debugId: "debug-1",
+      })
+    ).toEqual({
+      status: "upstream_error",
+      results: [],
+      source: "USDA",
+      message: "temporarily unavailable",
+      debugId: "debug-1",
+    });
   });
 });
