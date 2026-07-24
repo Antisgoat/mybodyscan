@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
+import { useCredits } from "@/hooks/useCredits";
 import { isNative } from "@/lib/platform";
 import {
   getOfferings,
@@ -20,19 +21,35 @@ import {
   getIapProductKind,
   isIapSubscription,
 } from "@/lib/billing/iapProducts";
+import { sanitizeReturnTo } from "@/lib/returnTo";
 
 export default function PaywallPage() {
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuthUser();
   const { entitlements, loading: entitlementsLoading } = useEntitlements();
+  const { credits } = useCredits();
 
   const [loading, setLoading] = useState(true);
   const [offeringsError, setOfferingsError] = useState<string | null>(null);
   const [packages, setPackages] = useState<IapPackage[]>([]);
   const [busy, setBusy] = useState<"buy" | "restore" | null>(null);
+  const [purchaseProgress, setPurchaseProgress] = useState<{
+    kind: "monthly" | "yearly" | "one";
+    startingCredits: number;
+  } | null>(null);
+  const [restoreSubmitted, setRestoreSubmitted] = useState(false);
 
   const entitled = hasPro(entitlements);
+  const nextDestination = useMemo(
+    () => sanitizeReturnTo(searchParams.get("next")) ?? "/home",
+    [searchParams]
+  );
+  const scanCreditReady =
+    purchaseProgress?.kind === "one" &&
+    Number.isFinite(credits) &&
+    credits > purchaseProgress.startingCredits;
 
   const native = isNative();
   useEffect(() => {
@@ -100,7 +117,9 @@ export default function PaywallPage() {
       const ap = Number(a?.product?.price ?? 0);
       const bp = Number(b?.product?.price ?? 0);
       if (ap !== bp) return ap - bp;
-      return String(a?.identifier || "").localeCompare(String(b?.identifier || ""));
+      return String(a?.identifier || "").localeCompare(
+        String(b?.identifier || "")
+      );
     });
     return copy;
   }, [packages]);
@@ -109,12 +128,24 @@ export default function PaywallPage() {
     async (pkg: IapPackage) => {
       if (busy) return;
       if (!user?.uid) {
-        toast({ title: "Sign in required", description: "Please sign in to continue." });
+        toast({
+          title: "Sign in required",
+          description: "Please sign in to continue.",
+        });
         nav("/auth?next=/paywall");
         return;
       }
       setBusy("buy");
       try {
+        const kind = getIapProductKind(String(pkg.product?.identifier || ""));
+        if (!kind) {
+          toast({
+            title: "Purchase unavailable",
+            description: "This product is not configured for MyBodyScan.",
+            variant: "destructive",
+          });
+          return;
+        }
         const result = await purchasePackage(pkg);
         if (!result.ok) {
           if (result.code !== "cancelled") {
@@ -126,6 +157,10 @@ export default function PaywallPage() {
           }
           return;
         }
+        setPurchaseProgress({
+          kind,
+          startingCredits: Number.isFinite(credits) ? credits : 0,
+        });
         toast({
           title: "Purchase submitted",
           description: "Verifying your purchase… this may take a few seconds.",
@@ -135,13 +170,16 @@ export default function PaywallPage() {
         setBusy(null);
       }
     },
-    [busy, nav, toast, user?.uid]
+    [busy, credits, nav, toast, user?.uid]
   );
 
   const onRestore = useCallback(async () => {
     if (busy) return;
     if (!user?.uid) {
-      toast({ title: "Sign in required", description: "Please sign in to continue." });
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to continue.",
+      });
       nav("/auth?next=/paywall");
       return;
     }
@@ -149,9 +187,14 @@ export default function PaywallPage() {
     try {
       const result = await restorePurchases();
       if (!result.ok) {
-        toast({ title: "Restore failed", description: result.message, variant: "destructive" });
+        toast({
+          title: "Restore failed",
+          description: result.message,
+          variant: "destructive",
+        });
         return;
       }
+      setRestoreSubmitted(true);
       toast({
         title: "Restore complete",
         description: "Verifying… if you’re entitled, Pro will unlock shortly.",
@@ -191,12 +234,60 @@ export default function PaywallPage() {
             ))}
           </ul>
           {entitlementsLoading ? (
-            <div className="text-sm text-muted-foreground">Checking your access…</div>
+            <div className="text-sm text-muted-foreground">
+              Checking your access…
+            </div>
           ) : entitled ? (
             <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900">
               <AlertTitle>Pro active</AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  You’re all set. Your account has Pro access on this device.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => nav(nextDestination, { replace: true })}
+                >
+                  Continue
+                </Button>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {purchaseProgress &&
+          (!entitled || purchaseProgress.kind === "one") ? (
+            <Alert className="border-sky-300 bg-sky-50 text-sky-950">
+              <AlertTitle>
+                {scanCreditReady
+                  ? "Scan credit ready"
+                  : "Verifying your purchase"}
+              </AlertTitle>
+              <AlertDescription className="space-y-3">
+                <p>
+                  {purchaseProgress.kind === "one"
+                    ? scanCreditReady
+                      ? "Your App Store purchase is verified and your scan credit is available."
+                      : "Your scan credit will appear here as soon as App Store verification finishes."
+                    : "Pro unlocks automatically after RevenueCat and the server verify your subscription."}
+                </p>
+                {scanCreditReady ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => nav("/scan", { replace: true })}
+                  >
+                    Start your scan
+                  </Button>
+                ) : null}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {restoreSubmitted && !entitled ? (
+            <Alert>
+              <AlertTitle>Restore submitted</AlertTitle>
               <AlertDescription>
-                You’re all set. Your account has Pro access on this device.
+                We’re checking the App Store receipt. Pro unlocks automatically
+                when the verified entitlement reaches your account.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -204,7 +295,10 @@ export default function PaywallPage() {
       </Card>
 
       {offeringsError && (
-        <Alert variant="destructive" className="border-destructive/40 bg-destructive/5">
+        <Alert
+          variant="destructive"
+          className="border-destructive/40 bg-destructive/5"
+        >
           <AlertTitle>Purchases unavailable</AlertTitle>
           <AlertDescription>{offeringsError}</AlertDescription>
         </Alert>
@@ -233,11 +327,15 @@ export default function PaywallPage() {
               (typeof product?.identifier === "string" && product.identifier) ||
               "Pro";
             const price =
-              (typeof product?.priceString === "string" && product.priceString) ||
-              (typeof product?.formattedPrice === "string" && product.formattedPrice) ||
+              (typeof product?.priceString === "string" &&
+                product.priceString) ||
+              (typeof product?.formattedPrice === "string" &&
+                product.formattedPrice) ||
               "";
             const description =
-              (typeof product?.description === "string" && product.description.trim()) || "";
+              (typeof product?.description === "string" &&
+                product.description.trim()) ||
+              "";
             return (
               <Card key={pkg.identifier}>
                 <CardHeader className="pb-2">
@@ -248,7 +346,9 @@ export default function PaywallPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {description ? (
-                    <p className="text-sm text-muted-foreground">{description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {description}
+                    </p>
                   ) : null}
                   <Button
                     className="w-full"
@@ -279,7 +379,12 @@ export default function PaywallPage() {
           {busy === "restore" ? "Restoring…" : "Restore Purchases"}
         </Button>
 
-        <Button type="button" variant="ghost" className="w-full" onClick={() => nav(-1)}>
+        <Button
+          type="button"
+          variant="ghost"
+          className="w-full"
+          onClick={() => nav(-1)}
+        >
           Not now
         </Button>
       </div>

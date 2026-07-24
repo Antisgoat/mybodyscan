@@ -1,9 +1,13 @@
+import { sanitizeReturnTo } from "@/lib/returnTo";
+
 const RETURN_PATH_STORAGE_KEY = "mybodyscan:auth:return";
 
 export function rememberAuthRedirect(path: string) {
   if (typeof window === "undefined") return;
+  const safePath = sanitizeReturnTo(path);
+  if (!safePath) return;
   try {
-    sessionStorage.setItem(RETURN_PATH_STORAGE_KEY, path);
+    sessionStorage.setItem(RETURN_PATH_STORAGE_KEY, safePath);
   } catch (err) {
     if (import.meta.env.DEV) {
       console.warn("[auth] Unable to persist redirect target:", err);
@@ -17,7 +21,7 @@ export function consumeAuthRedirect(): string | null {
     const stored = sessionStorage.getItem(RETURN_PATH_STORAGE_KEY);
     if (stored) {
       sessionStorage.removeItem(RETURN_PATH_STORAGE_KEY);
-      return stored;
+      return sanitizeReturnTo(stored);
     }
   } catch (err) {
     if (import.meta.env.DEV) {
@@ -26,4 +30,3 @@ export function consumeAuthRedirect(): string | null {
   }
   return null;
 }
-

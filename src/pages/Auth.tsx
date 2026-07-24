@@ -55,6 +55,7 @@ import { checkOnline } from "@/lib/network";
 import { getInitAuthState } from "@/lib/auth/initAuth";
 import { getLastNativeSecurityReason } from "@/lib/nativeSecurityDiagnostics";
 import { isPolicyBlockedError } from "@/native/securityPolicy";
+import { sanitizeReturnTo } from "@/lib/returnTo";
 
 const ENABLE_GOOGLE = (import.meta as any).env?.VITE_ENABLE_GOOGLE !== "false";
 const ENABLE_APPLE = (import.meta as any).env?.VITE_ENABLE_APPLE !== "false";
@@ -87,22 +88,23 @@ const Auth = () => {
     [location.search]
   );
   const nextParam = searchParams.get("next");
-  const explicitDebug =
-    (import.meta as any)?.env?.VITE_SHOW_DEBUG === "true";
+  const explicitDebug = (import.meta as any)?.env?.VITE_SHOW_DEBUG === "true";
   const isProdBuild = import.meta.env.PROD;
   const allowDebugUi =
     (import.meta.env.DEV || explicitDebug) &&
     !isProdBuild &&
     !__MBS_NATIVE_RELEASE__ &&
     (!native || explicitDebug);
-  const defaultTarget = nextParam || from || "/home";
+  const defaultTarget =
+    sanitizeReturnTo(nextParam) ?? sanitizeReturnTo(from) ?? "/home";
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [lastOAuthProvider, setLastOAuthProvider] =
-    useState<("google.com" | "apple.com") | null>(null);
+  const [lastOAuthProvider, setLastOAuthProvider] = useState<
+    ("google.com" | "apple.com") | null
+  >(null);
   const [configDetailsOpen, setConfigDetailsOpen] = useState(false);
   const [debugEnabled, setDebugEnabled] = useState(false);
   const [selfTestStatus, setSelfTestStatus] = useState<{
@@ -188,30 +190,34 @@ const Auth = () => {
     }
     if (native) return;
     let cancelled = false;
-    void import("@/lib/auth/oauth").then(({ peekPendingOAuth, clearPendingOAuth }) => {
-      if (cancelled) return;
-      const pending = peekPendingOAuth();
-      if (!pending) return;
-      setLastOAuthProviderSafe(pending.providerId);
-      const elapsed = Date.now() - pending.startedAt;
-      const remaining = Math.max(0, 15_000 - elapsed);
-      if (remaining === 0) {
-        clearPendingOAuth();
-        const message = "Sign-in timed out. Check your connection and try again.";
-        setAuthErrorSafe(message);
-        toast(message, "error");
-        return;
+    void import("@/lib/auth/oauth").then(
+      ({ peekPendingOAuth, clearPendingOAuth }) => {
+        if (cancelled) return;
+        const pending = peekPendingOAuth();
+        if (!pending) return;
+        setLastOAuthProviderSafe(pending.providerId);
+        const elapsed = Date.now() - pending.startedAt;
+        const remaining = Math.max(0, 15_000 - elapsed);
+        if (remaining === 0) {
+          clearPendingOAuth();
+          const message =
+            "Sign-in timed out. Check your connection and try again.";
+          setAuthErrorSafe(message);
+          toast(message, "error");
+          return;
+        }
+        setLoadingSafe(true);
+        const timer = window.setTimeout(() => {
+          clearPendingOAuth();
+          setLoadingSafe(false);
+          const message =
+            "Sign-in timed out. Check your connection and try again.";
+          setAuthErrorSafe(message);
+          toast(message, "error");
+        }, remaining);
+        return () => window.clearTimeout(timer);
       }
-      setLoadingSafe(true);
-      const timer = window.setTimeout(() => {
-        clearPendingOAuth();
-        setLoadingSafe(false);
-        const message = "Sign-in timed out. Check your connection and try again.";
-        setAuthErrorSafe(message);
-        toast(message, "error");
-      }, remaining);
-      return () => window.clearTimeout(timer);
-    });
+    );
     return () => {
       cancelled = true;
     };
@@ -352,7 +358,10 @@ const Auth = () => {
         if (native) {
           await startAuthListener().catch(() => undefined);
         }
-        await withTimeout(createAccountEmail(email, password), LOGIN_TIMEOUT_MS);
+        await withTimeout(
+          createAccountEmail(email, password),
+          LOGIN_TIMEOUT_MS
+        );
         logAuthDebug("email_auth_success", {
           mode,
           elapsedMs: Date.now() - startedAt,
@@ -366,8 +375,12 @@ const Auth = () => {
           : "Account creation failed.";
       const timeoutMessage =
         mode === "signin"
-          ? buildTimeoutMessage("Sign-in timed out. Check your connection and try again.")
-          : buildTimeoutMessage("Sign-up timed out. Check your connection and try again.");
+          ? buildTimeoutMessage(
+              "Sign-in timed out. Check your connection and try again."
+            )
+          : buildTimeoutMessage(
+              "Sign-up timed out. Check your connection and try again."
+            );
       const message =
         normalized.code === "auth/timeout"
           ? timeoutMessage
@@ -435,7 +448,8 @@ const Auth = () => {
         code: mapped.code,
         extra: {
           provider: "google.com",
-          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+          origin:
+            typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
       setAuthErrorSafe(message);
@@ -477,7 +491,8 @@ const Auth = () => {
         code: mapped.code,
         extra: {
           provider: "apple.com",
-          origin: typeof window !== "undefined" ? window.location.origin : undefined,
+          origin:
+            typeof window !== "undefined" ? window.location.origin : undefined,
         },
       });
       setAuthErrorSafe(message);
@@ -497,7 +512,8 @@ const Auth = () => {
     typeof window !== "undefined" ? window.location.origin : "(unknown)";
   const config = getFirebaseConfig() as Record<string, unknown>;
   const isDev = import.meta.env.DEV;
-  const showDebugPanel = allowDebugUi && (isDev || explicitDebug || debugEnabled);
+  const showDebugPanel =
+    allowDebugUi && (isDev || explicitDebug || debugEnabled);
   const tapStateRef = useRef({ count: 0, lastTap: 0 });
   const handleDebugTap = useCallback(() => {
     if (!allowDebugUi) return;
@@ -785,7 +801,8 @@ const Auth = () => {
                 Try again
               </Button>
               <p className="mt-2 text-xs text-muted-foreground text-center">
-                If this keeps failing, check your connection or use a different sign-in method.
+                If this keeps failing, check your connection or use a different
+                sign-in method.
               </p>
             </div>
           ) : null}
@@ -897,7 +914,9 @@ function mapAuthErrorToMessage(input: {
     case "auth/too-many-requests":
       return "Too many attempts. Please wait a bit and try again.";
     case "auth/timeout":
-      return buildTimeoutMessage("Sign-in timed out. Check your connection and try again.");
+      return buildTimeoutMessage(
+        "Sign-in timed out. Check your connection and try again."
+      );
     case "auth/operation-not-allowed":
       return "Sign-in is not enabled for this project. Contact support.";
     case "auth/invalid-api-key":
@@ -913,7 +932,9 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   const timeoutPromise = new Promise<T>((_, reject) => {
     timer = setTimeout(() => {
       const diagnostic = getLastNativeSecurityReason();
-      const suffix = diagnostic ? ` Last observed reason: ${diagnostic.message}.` : "";
+      const suffix = diagnostic
+        ? ` Last observed reason: ${diagnostic.message}.`
+        : "";
       const err: any = new Error(`Login timed out. Please try again.${suffix}`);
       err.code = "auth/timeout";
       reject(err);

@@ -874,7 +874,7 @@ const App = () => (
                 <AuthedLayout>
                   <RouteBoundary>
                     {nativeBuild ? (
-                      <Navigate to="/workouts" replace />
+                      <Navigate to="/paywall" replace />
                     ) : (
                       <PageSuspense>
                         <Plans />
@@ -897,11 +897,11 @@ const App = () => (
                 <AuthedLayout>
                   <RouteBoundary>
                     {nativeBuild ? (
-                      <Navigate to="/workouts" replace />
-                    ) : (
                       <PageSuspense>
                         <Paywall />
                       </PageSuspense>
+                    ) : (
+                      <Navigate to="/plans" replace />
                     )}
                   </RouteBoundary>
                 </AuthedLayout>

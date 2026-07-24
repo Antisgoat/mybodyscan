@@ -114,11 +114,17 @@ subscription signal, and native builds do not bypass this check.
 - Monthly (`$9.99`) and Yearly (`$79.99`) are the only customer purchases that
   grant `pro`. They unlock Coach, recurring workout programs and tracking,
   interactive seven-day meal planning, nutrition logging/search/barcodes and
-  MBS Product Insight, Momentum, plateau coaching and opt-in alerts, health
-  sync, and adult Transformation Preview.
+  MBS Product Insight, Momentum, plateau coaching and opt-in alerts, and adult
+  Transformation Preview.
 - Client route guards, callable/HTTP Functions, scheduled plateau delivery, and
   Firestore rules all enforce the same boundary. A one-time scan credit must
   never unlock a subscriber endpoint.
+
+Apple HealthKit and Android Health Connect imports are not part of version 1.0.
+The existing Health screens must remain labeled **coming soon** and must not
+request health-data permissions. Do not advertise health sync until native
+connectors, privacy disclosures, least-privilege permissions, and physical
+device tests have passed a separate release review.
 
 The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
 override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
@@ -286,15 +292,23 @@ the current-state notes below say it was configured:
 
 Current iOS external state on 2026-07-23: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode; App Store build 4 was archived, distribution-signed, accepted
-by Apple's upload service, and is processing for TestFlight. The same build was
-installed and launched on the paired iPhone, but the real photo, purchase,
-restore, notification, and offline device checklist remains mandatory. The
-three exact App Store products exist at the approved prices. RevenueCat accepts in-app-purchase key
+Developer Mode. Build 6 is the final replacement candidate with the RevenueCat
+paywall and redirect-hardening fixes. It was archived, validated,
+distribution-signed, and accepted by Apple's upload service for TestFlight
+processing. The paired iPhone was unavailable after upload, so build 6 has not
+yet been installed or launched on that device. Build 5 was accepted by Apple's
+upload service but was superseded before device testing by the
+redirect-hardening fix. Build 4 was installed and launched previously, but it
+must not be submitted because its native plan route bypassed the RevenueCat
+paywall. The real photo, purchase, restore,
+notification, and offline device checklist remains mandatory. The three exact
+App Store products exist at the approved prices. RevenueCat accepts in-app-purchase key
 `9Z23GBB5M7`; monthly and yearly are attached to `pro`; all three products are
-in the current/default offering. App Store production and sandbox server
-notification URLs are set, and APNs key `9R5X23CQQ9` is uploaded to Firebase
-for development and production.
+in the current/default offering. Native plan links open the RevenueCat
+purchase/restore paywall, while Settings opens Apple's subscription-management
+screen; native builds never open Stripe checkout. App Store production and
+sandbox server notification URLs are set, and APNs key `9R5X23CQQ9` is uploaded
+to Firebase for development and production.
 
 App Store metadata, age rating, categories, and the App Privacy answers are
 configured. The privacy declaration is not published because the Account
@@ -484,8 +498,8 @@ providers and does not replace the subscribed real-account checks below.
   matching `credits_ledger` entry; Customer Portal opens for that customer.
 - With only a One Scan purchase, the scan can be completed and the generated
   report/plan remains readable, but Coach, workout tracking, meal
-  planning/logging/search/barcodes, Momentum, plateau coaching, health sync,
-  and Transformation Preview all redirect or return permission denied.
+  planning/logging/search/barcodes, Momentum, plateau coaching, and
+  Transformation Preview all redirect or return permission denied.
 - With Monthly and then Yearly active, every subscriber feature above opens and
   its backend request succeeds. Expiry/cancellation removes access after the
   paid period without deleting prior scan reports.

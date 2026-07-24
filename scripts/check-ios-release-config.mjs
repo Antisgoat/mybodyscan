@@ -26,6 +26,9 @@ const podLock = read("ios/App/Podfile.lock");
 const packageJson = JSON.parse(read("package.json"));
 const entitlements = read("ios/App/App/App.entitlements");
 const iapClient = read("src/lib/billing/iapProducts.ts");
+const iapProvider = read("src/lib/billing/iapProvider.ts");
+const appRoutes = read("src/App.tsx");
+const settings = read("src/pages/Settings.tsx");
 const iapServer = read("functions/src/revenuecat/plans.ts");
 const functionEnv = parseEnv(read("functions/.env.mybodyscan-f3daf"));
 
@@ -155,7 +158,9 @@ requireText(
   "The archive command must remove its temporary log file on exit."
 );
 if (archive.includes("/tmp/mbs-archive.log")) {
-  failures.push("The archive command must not use a predictable /tmp log path.");
+  failures.push(
+    "The archive command must not use a predictable /tmp log path."
+  );
 }
 requireText(
   envExample,
@@ -166,6 +171,31 @@ requireText(
   envExample,
   "VITE_RC_ENTITLEMENT_ID=pro",
   "The production env template must pin the RevenueCat entitlement to pro."
+);
+requireText(
+  appRoutes,
+  '<Navigate to="/paywall" replace />',
+  "Native /plans routing must send users to the RevenueCat paywall."
+);
+requireText(
+  appRoutes,
+  "<Paywall />",
+  "The native account route must render the RevenueCat paywall."
+);
+requireText(
+  iapProvider,
+  "await Purchases.isConfigured()",
+  "RevenueCat initialization must be idempotent."
+);
+requireText(
+  iapProvider,
+  "await Purchases.logIn({ appUserID: uid })",
+  "RevenueCat must re-identify when the Firebase user changes."
+);
+requireText(
+  settings,
+  "https://apps.apple.com/account/subscriptions",
+  "iOS settings must link to Apple's subscription management."
 );
 
 const revenueCatProductIds = {

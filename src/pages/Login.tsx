@@ -7,6 +7,7 @@ import { signInApple, signInGoogle, useAuthUser } from "@/auth/mbs-auth";
 import { signInWithEmailPassword } from "@/lib/auth/authService";
 import { reportError } from "@/lib/telemetry";
 import { isNativeCapacitor } from "@/lib/platform";
+import { sanitizeReturnTo } from "@/lib/returnTo";
 
 export default function Login() {
   const location = useLocation();
@@ -18,7 +19,8 @@ export default function Login() {
     [location.search]
   );
   const nextParam = searchParams.get("next");
-  const defaultTarget = nextParam || from || "/";
+  const defaultTarget =
+    sanitizeReturnTo(nextParam) ?? sanitizeReturnTo(from) ?? "/";
 
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
@@ -28,7 +30,7 @@ export default function Login() {
 
   const finish = useCallback(() => {
     const stored = consumeAuthRedirect();
-    const target = stored ?? defaultTarget;
+    const target = sanitizeReturnTo(stored) ?? defaultTarget;
     disableDemoEverywhere();
     let sanitized = target;
     try {
