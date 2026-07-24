@@ -423,16 +423,13 @@ const Auth = () => {
   };
 
   const handleGoogleSignIn = useCallback(async () => {
-    if (native) {
-      setAuthErrorSafe(
-        "Google sign-in is available on web. On iOS, please use email/password for now."
-      );
-      return;
-    }
     setAuthErrorSafe(null);
     setLoadingSafe(true);
     setLastOAuthProviderSafe("google.com");
     try {
+      if (native) {
+        await startAuthListener().catch(() => undefined);
+      }
       await withTimeout(startGoogleSignIn(defaultTarget), LOGIN_TIMEOUT_MS);
     } catch (error: unknown) {
       const { describeOAuthError } = await import("@/lib/auth/oauth");
@@ -466,16 +463,13 @@ const Auth = () => {
   ]);
 
   const handleAppleSignIn = useCallback(async () => {
-    if (native) {
-      setAuthErrorSafe(
-        "Apple sign-in is available on web. On iOS, please use email/password for now."
-      );
-      return;
-    }
     setAuthErrorSafe(null);
     setLoadingSafe(true);
     setLastOAuthProviderSafe("apple.com");
     try {
+      if (native) {
+        await startAuthListener().catch(() => undefined);
+      }
       await withTimeout(startAppleSignIn(defaultTarget), LOGIN_TIMEOUT_MS);
     } catch (error: unknown) {
       const { describeOAuthError } = await import("@/lib/auth/oauth");
@@ -750,13 +744,7 @@ const Auth = () => {
             </div>
           </form>
           <div className="space-y-3">
-            {native ? (
-              <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
-                Google/Apple sign-in is available on web. On iOS, please use
-                email/password for now.
-              </div>
-            ) : null}
-            {!native && ENABLE_GOOGLE && (
+            {ENABLE_GOOGLE && (
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
@@ -767,7 +755,7 @@ const Auth = () => {
                 Continue with Google
               </button>
             )}
-            {!native && ENABLE_APPLE && (
+            {ENABLE_APPLE && (
               <button
                 type="button"
                 onClick={handleAppleSignIn}

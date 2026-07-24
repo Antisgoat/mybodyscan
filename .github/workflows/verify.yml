@@ -40,8 +40,12 @@ jobs:
         run: npm test
       - name: Production build and safeguards
         run: npm run build:prod
-      - name: Verify iOS release configuration
-        run: npm run check:ios-release-config && npm run check:ios-release-guard
+      - name: Verify native release configuration
+        run: |
+          npm run check:ios-release-config
+          npm run check:ios-release-guard
+          npm run check:android-release-config
+          node scripts/assert-no-native-firebase-auth.mjs
       - name: Verify Firestore rules parity
         run: npm run rules:check
       - name: Verify dist assets exist

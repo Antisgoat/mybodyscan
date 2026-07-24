@@ -1,0 +1,86 @@
+import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  getToken,
+  type AppCheck,
+} from "firebase/app-check";
+import { firebaseApp } from "@/lib/firebase";
+
+const env = (import.meta as any).env ?? {};
+const isTestRuntime =
+  env.VITEST === true || env.VITEST === "true" || env.MODE === "test";
+const siteKeyRaw =
+  env.VITE_APPCHECK_SITE_KEY || env.VITE_RECAPTCHA_SITE_KEY || "";
+const siteKey = isTestRuntime || siteKeyRaw === "__DISABLE__" ? "" : siteKeyRaw;
+const debug = isTestRuntime ? "" : env.VITE_APPCHECK_DEBUG_TOKEN || "";
+let initAttempted = false;
+let recaptchaWarned = false;
+
+if (debug && typeof self !== "undefined") {
+  // @ts-expect-error -- Firebase debug token is a global escape hatch for App Check
+  self.FIREBASE_APPCHECK_DEBUG_TOKEN = debug;
+}
+
+let instance: AppCheck | null = null;
+
+function isAppCheckEnabled(): boolean {
+  return Boolean(siteKey);
+}
+
+function init(): AppCheck | null {
+  if (typeof window === "undefined") return null;
+  if (!isAppCheckEnabled()) return null;
+  if (instance) return instance;
+  if (initAttempted) return instance;
+  initAttempted = true;
+  try {
+    instance = initializeAppCheck(firebaseApp, {
+      provider: new ReCaptchaEnterpriseProvider(siteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    console.warn("[AppCheck] init_failed_soft", error);
+    instance = null;
+  }
+  return instance;
+}
+
+export const appCheck = init();
+
+export function hasAppCheck(): boolean {
+  return isAppCheckEnabled();
+}
+
+export async function ensureAppCheck(): Promise<void> {
+  init();
+}
+
+export async function getAppCheckTokenHeader(
+  forceRefresh = false
+): Promise<Record<string, string>> {
+  try {
+    const inst = init();
+    if (!inst) return {};
+    const { token } = await getToken(inst, forceRefresh);
+    return token ? { "X-Firebase-AppCheck": token } : {};
+  } catch (error: any) {
+    const code = (error as any)?.code || (error as any)?.message;
+    if (
+      code === "appCheck/recaptcha-error" ||
+      code === "appcheck/recaptcha-error"
+    ) {
+      if (!recaptchaWarned) {
+        console.warn("appcheck_recaptcha_error_soft", error);
+        recaptchaWarned = true;
+      }
+      return {};
+    }
+    return {};
+  }
+}
+
+export async function getAppCheckHeader(
+  forceRefresh = false
+): Promise<Record<string, string>> {
+  return getAppCheckTokenHeader(forceRefresh);
+}

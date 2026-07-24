@@ -6,14 +6,24 @@ test.describe("Home routing", () => {
     attachConsoleGuard(page);
   });
 
-  test("redirects root to auth or home experience", async ({ page }) => {
+  test("opens the configured root experience", async ({ page }) => {
     const response = await page.goto("/");
     expect(response?.ok() || response?.status() === 304).toBeTruthy();
 
-    await expect(page).toHaveURL(/\/(auth|home)/);
+    const pathname = new URL(page.url()).pathname;
 
     const authView = page.getByTestId("auth-view");
     const homeDashboard = page.getByTestId("home-dashboard");
+
+    if (pathname === "/") {
+      await expect(
+        page.getByRole("heading", {
+          level: 1,
+          name: "See your progress. Know what to do next.",
+        }),
+      ).toBeVisible();
+      return;
+    }
 
     if (await authView.count()) {
       await expect(authView).toBeVisible();
@@ -25,6 +35,6 @@ test.describe("Home routing", () => {
       return;
     }
 
-    await expect(page.locator("main")).toBeVisible();
+    throw new Error(`Unexpected root route destination: ${page.url()}`);
   });
 });

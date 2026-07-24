@@ -3,16 +3,18 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { providerFlags } from "@/lib/firebase";
 import { consumeAuthRedirect } from "@/lib/auth/redirectState";
 import { disableDemoEverywhere, enableDemo } from "@/state/demo";
-import { signInApple, signInGoogle, useAuthUser } from "@/auth/mbs-auth";
-import { signInWithEmailPassword } from "@/lib/auth/authService";
+import {
+  signInApple,
+  signInEmailPassword,
+  signInGoogle,
+  useAuthUser,
+} from "@/auth/mbs-auth";
 import { reportError } from "@/lib/telemetry";
-import { isNativeCapacitor } from "@/lib/platform";
 import { sanitizeReturnTo } from "@/lib/returnTo";
 
 export default function Login() {
   const location = useLocation();
   const navigate = useNavigate();
-  const native = isNativeCapacitor();
   const from = (location.state as { from?: string } | null)?.from;
   const searchParams = useMemo(
     () => new URLSearchParams(location.search),
@@ -100,14 +102,7 @@ export default function Login() {
     <div className="mx-auto max-w-sm p-6">
       <h1 className="mb-4 text-2xl font-bold">Sign in</h1>
 
-      {native && (
-        <p className="mb-3 text-sm text-gray-600">
-          Google/Apple sign-in is available on web. On iOS, please use
-          email/password for now.
-        </p>
-      )}
-
-      {!native && providerFlags.google && (
+      {providerFlags.google && (
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}
@@ -119,7 +114,7 @@ export default function Login() {
         </button>
       )}
 
-      {!native && providerFlags.apple && (
+      {providerFlags.apple && (
         <button
           className="mb-3 w-full rounded border p-2"
           disabled={busy}

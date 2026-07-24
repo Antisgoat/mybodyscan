@@ -1,8 +1,8 @@
 import {
   getCurrentUser,
-  getIdTokenSafe as authGetIdTokenSafe,
-  onAuthStateChangedSafe as authOnAuthStateChangedSafe,
-} from "@/lib/auth/authService";
+  getIdToken as authGetIdTokenSafe,
+  onAuthStateChanged as authOnAuthStateChangedSafe,
+} from "@/auth/mbs-auth";
 
 import type { Unsubscribe } from "@/lib/auth/types";
 

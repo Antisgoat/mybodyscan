@@ -13,9 +13,14 @@ export function extractLocalAssetPaths(html) {
   return uniq(
     references
       .filter(
-        (reference) => reference.startsWith("/") && !reference.startsWith("//")
+        (reference) =>
+          (reference.startsWith("/") && !reference.startsWith("//")) ||
+          reference.startsWith("./")
       )
       .map((reference) => reference.split(/[?#]/, 1)[0])
+      .map((reference) =>
+        reference.startsWith("./") ? `/${reference.slice(2)}` : reference
+      )
       .filter((reference) => reference && reference !== "/")
   );
 }
