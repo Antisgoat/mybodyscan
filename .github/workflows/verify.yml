@@ -80,6 +80,8 @@ jobs:
       - name: Install dependencies (functions)
         working-directory: functions
         run: npm ci --no-audit --no-fund
+      - name: Typecheck functions
+        run: npm run typecheck:functions
       - name: Audit production Functions dependencies
         working-directory: functions
         run: npx --yes npm@11 audit --omit=dev --audit-level=high
