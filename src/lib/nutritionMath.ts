@@ -5,6 +5,7 @@ export const SERVING_UNITS = [
   "serving",
   "g",
   "oz",
+  "ml",
   "cups",
   "slices",
   "pieces",
@@ -43,6 +44,7 @@ function normalizeUnit(unit: string | null | undefined) {
   if (clean.includes("gram")) return "g";
   if (clean === "g") return "g";
   if (clean.includes("ounce") || clean === "oz") return "oz";
+  if (clean.includes("milliliter") || clean === "ml") return "ml";
   if (clean.includes("cup")) return "cups";
   if (clean.includes("slice")) return "slices";
   if (clean.includes("piece")) return "pieces";
@@ -55,6 +57,71 @@ function defaultServingOption(item: FoodItem) {
     return item.servings.find((option) => option.isDefault) ?? item.servings[0];
   }
   return null;
+}
+
+function labelAmount(label: string): number {
+  const decimal = label.match(/(\d+(?:\.\d+)?)/);
+  if (decimal) {
+    const value = Number(decimal[1]);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  if (/\bhalf\b/i.test(label) || /(?:^|\s)½(?:\s|$)/.test(label)) return 0.5;
+  if (/(?:^|\s)¼(?:\s|$)/.test(label)) return 0.25;
+  if (/(?:^|\s)¾(?:\s|$)/.test(label)) return 0.75;
+  return 1;
+}
+
+function servingOptionForUnit(item: FoodItem, unit: ServingUnit) {
+  const matcher =
+    unit === "cups"
+      ? /\bcups?\b/i
+      : unit === "slices"
+        ? /\bslices?\b/i
+        : unit === "pieces"
+          ? /\b(pieces?|items?)\b/i
+          : null;
+  if (!matcher) return null;
+  const option = item.servings?.find((candidate) =>
+    matcher.test(candidate.label)
+  );
+  if (!option?.grams) return null;
+  return {
+    ...option,
+    gramsPerUnit: option.grams / labelAmount(option.label),
+  };
+}
+
+function hasAnyPerServingMacro(item: FoodItem): boolean {
+  const values = [
+    item.per_serving?.kcal,
+    item.per_serving?.protein_g,
+    item.per_serving?.carbs_g,
+    item.per_serving?.fat_g,
+  ];
+  return values.some((value) => value != null && Number.isFinite(Number(value)));
+}
+
+export function availableServingUnits(item: FoodItem): ServingUnit[] {
+  const units: ServingUnit[] = [];
+  const hasPer100Field = Object.prototype.hasOwnProperty.call(item, "per_100g");
+  const hasPer100 = hasPer100Field
+    ? Boolean(item.per_100g)
+    : Boolean(item.basePer100g && typeof item.basePer100g === "object");
+  if (hasAnyPerServingMacro(item) || estimateServingWeight(item)) {
+    units.push("serving");
+  }
+  if (hasPer100) units.push("g", "oz");
+  if (
+    normalizeUnit(item.serving?.unit) === "ml" &&
+    Number(item.serving?.qty) > 0 &&
+    hasAnyPerServingMacro(item)
+  ) {
+    units.push("ml");
+  }
+  (["cups", "slices", "pieces"] as const).forEach((unit) => {
+    if (servingOptionForUnit(item, unit)) units.push(unit);
+  });
+  return units.length ? units : ["serving"];
 }
 
 export function estimateServingWeight(item: FoodItem): number | null {
@@ -106,12 +173,26 @@ function gramsForSelection(
       return qty;
     case "oz":
       return qty * GRAMS_PER_OUNCE;
+    case "ml":
+      return null;
     case "serving":
+    {
+      // A labeled liquid serving has valid per-serving nutrients but no known
+      // mass. Do not silently substitute the generic 100 g option.
+      if (
+        normalizeUnit(item.serving?.unit) === "ml" &&
+        hasAnyPerServingMacro(item)
+      ) {
+        return null;
+      }
+      const est = estimateServingWeight(item);
+      return est ? est * qty : null;
+    }
     case "cups":
     case "slices":
     case "pieces": {
-      const est = estimateServingWeight(item);
-      return est ? est * qty : null;
+      const option = servingOptionForUnit(item, unit);
+      return option ? option.gramsPerUnit * qty : null;
     }
     default:
       return null;
@@ -135,8 +216,20 @@ export function calculateSelection(
   // Guardrail: if upstream items are missing per-serving macros, treat as unknown (nulls),
   // never throw during render.
   const perServing = (item as any)?.per_serving ?? null;
-  const per100 = (item as any)?.per_100g ?? null;
-  const servingsFactor = unit === "g" || unit === "oz" ? qty : qty;
+  const hasPer100Field = Object.prototype.hasOwnProperty.call(
+    item,
+    "per_100g"
+  );
+  const per100 = hasPer100Field
+    ? ((item as any)?.per_100g ?? null)
+    : item.basePer100g
+      ? {
+          kcal: item.basePer100g.kcal,
+          protein_g: item.basePer100g.protein,
+          carbs_g: item.basePer100g.carbs,
+          fat_g: item.basePer100g.fat,
+        }
+      : null;
 
   if (grams != null && per100) {
     const factor = grams / 100;
@@ -149,6 +242,16 @@ export function calculateSelection(
       fat: per100.fat_g != null ? round(per100.fat_g * factor, 2) : null,
     };
   }
+
+  const normalizedServingUnit = normalizeUnit(item.serving?.unit);
+  const servingQty = Number(item.serving?.qty);
+  const servingsFactor =
+    unit === "ml" &&
+    normalizedServingUnit === "ml" &&
+    Number.isFinite(servingQty) &&
+    servingQty > 0
+      ? qty / servingQty
+      : qty;
 
   return {
     grams: grams != null ? round(grams, 2) : null,

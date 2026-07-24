@@ -50,6 +50,19 @@ type AdjustmentMods = {
   summary?: string | null;
 };
 
+export type DailyWorkoutAdjustment = {
+  planId: string;
+  date: string;
+  dayId: string;
+  bodyFeel: BodyFeel;
+  notes: string | null;
+  mods: { intensity: number; volume: number };
+  summary: string | null;
+  source: "fallback" | "openai";
+  origin: "workout_check_in" | "coach_chat";
+  adjustedDay: WorkoutDay;
+};
+
 interface PlanPrefs {
   focus?: "back" | "legs" | "core" | "full";
   equipment?: "none" | "dumbbells" | "bands" | "gym";
@@ -1045,6 +1058,229 @@ async function fetchCurrentPlan(uid: string) {
   return { id: planId, ...(snap.data() as WorkoutPlan) };
 }
 
+function normalizeLocalDate(value: unknown): string {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    const trimmed = value.trim();
+    const parsed = new Date(`${trimmed}T12:00:00.000Z`);
+    if (!Number.isNaN(parsed.getTime())) return trimmed;
+  }
+  return new Date().toISOString().slice(0, 10);
+}
+
+function adjustRpeTarget(
+  reps: WorkoutDay["exercises"][number]["reps"],
+  intensity: number
+): WorkoutDay["exercises"][number]["reps"] {
+  if (!intensity || typeof reps !== "string") return reps;
+  return reps.replace(
+    /(@\s*RPE\s*)(\d+(?:\.\d+)?)/i,
+    (_match, prefix: string, rawRpe: string) => {
+      const current = Number(rawRpe);
+      if (!Number.isFinite(current)) return `${prefix}${rawRpe}`;
+      const adjusted = Math.max(5, Math.min(9, current + intensity));
+      return `${prefix}${Number.isInteger(adjusted) ? adjusted : adjusted.toFixed(1)}`;
+    }
+  );
+}
+
+function intensityGuidance(intensity: number): string | null {
+  if (intensity <= -2) {
+    return "Recovery day: use about 10–15% less load, prioritize technique, and keep roughly 4 reps in reserve.";
+  }
+  if (intensity === -1) {
+    return "Use about 5–10% less load and finish each working set with roughly 3 reps in reserve.";
+  }
+  if (intensity === 1) {
+    return "If every rep is controlled, add only a small load increase while keeping 1–2 reps in reserve.";
+  }
+  if (intensity >= 2) {
+    return "Progress conservatively: increase load only if technique is stable and keep at least 1 rep in reserve.";
+  }
+  return null;
+}
+
+export function applyWorkoutAdjustment(
+  day: WorkoutDay,
+  mods: AdjustmentMods
+): WorkoutDay {
+  const volume = clampDelta(mods.volume);
+  const intensity = clampDelta(mods.intensity);
+  return {
+    ...day,
+    coachGuidance: intensityGuidance(intensity) ?? undefined,
+    exercises: (Array.isArray(day.exercises) ? day.exercises : []).map(
+      (exercise) => {
+        const currentSets = Number(exercise.sets);
+        return {
+          ...exercise,
+          sets: Number.isFinite(currentSets)
+            ? Math.max(1, Math.min(10, Math.round(currentSets + volume)))
+            : exercise.sets,
+          reps: adjustRpeTarget(exercise.reps, intensity),
+        };
+      }
+    ),
+  };
+}
+
+function chooseWorkoutDay(
+  plan: { days?: WorkoutDay[] } | null,
+  requestedDayId?: string | null
+): WorkoutDay | null {
+  const days = Array.isArray(plan?.days) ? plan!.days : [];
+  if (!days.length) return null;
+  const requested =
+    typeof requestedDayId === "string" ? requestedDayId.trim() : "";
+  const exact = days.find((day) => day.day === requested);
+  if (exact) return exact;
+  const requestedIndex = VALID_CATALOG_DAYS.indexOf(
+    requested as (typeof VALID_CATALOG_DAYS)[number]
+  );
+  if (requestedIndex >= 0) {
+    for (let offset = 1; offset <= VALID_CATALOG_DAYS.length; offset += 1) {
+      const candidate =
+        VALID_CATALOG_DAYS[
+          (requestedIndex + offset) % VALID_CATALOG_DAYS.length
+        ];
+      const next = days.find((day) => day.day === candidate);
+      if (next) return next;
+    }
+  }
+  return days[0] ?? null;
+}
+
+export function resolveAdjustmentDate(
+  dateValue: unknown,
+  requestedDayId: string | null | undefined,
+  targetDayId: string
+): string {
+  const date = normalizeLocalDate(dateValue);
+  const requestedIndex = VALID_CATALOG_DAYS.indexOf(
+    requestedDayId as (typeof VALID_CATALOG_DAYS)[number]
+  );
+  const targetIndex = VALID_CATALOG_DAYS.indexOf(
+    targetDayId as (typeof VALID_CATALOG_DAYS)[number]
+  );
+  if (
+    requestedIndex < 0 ||
+    targetIndex < 0 ||
+    requestedIndex === targetIndex
+  ) {
+    return date;
+  }
+  const offset = (targetIndex - requestedIndex + 7) % 7;
+  const parsed = new Date(`${date}T12:00:00.000Z`);
+  parsed.setUTCDate(parsed.getUTCDate() + offset);
+  return parsed.toISOString().slice(0, 10);
+}
+
+export async function persistDailyWorkoutAdjustment(input: {
+  uid: string;
+  requestId: string;
+  bodyFeel: BodyFeel;
+  notes?: string | null;
+  dayId?: string | null;
+  date?: string | null;
+  mods?: AdjustmentMods;
+  summary?: string | null;
+  source?: "fallback" | "openai";
+  origin: "workout_check_in" | "coach_chat";
+}): Promise<DailyWorkoutAdjustment | null> {
+  const plan = await fetchCurrentPlan(input.uid);
+  if (!plan) return null;
+  const targetDay = chooseWorkoutDay(plan, input.dayId);
+  if (!targetDay) return null;
+
+  const date = resolveAdjustmentDate(input.date, input.dayId, targetDay.day);
+  const fallback = fallbackMods(input.bodyFeel);
+  const mods = {
+    intensity: clampDelta(input.mods?.intensity ?? fallback.intensity),
+    volume: clampDelta(input.mods?.volume ?? fallback.volume),
+  };
+  const notes = sanitizeNotes(input.notes);
+  const summary =
+    sanitizeNotes(input.summary) ??
+    (input.bodyFeel === "sore"
+      ? "Reduced today’s training volume to support recovery."
+      : input.bodyFeel === "tired"
+        ? "Reduced today’s training intensity to match your recovery."
+        : input.bodyFeel === "great"
+          ? "Added a small, conservative progression for today."
+          : "Kept today’s plan steady.");
+  const source = input.source ?? "fallback";
+  const adjustedDay = applyWorkoutAdjustment(targetDay, mods);
+  const result: DailyWorkoutAdjustment = {
+    planId: plan.id,
+    date,
+    dayId: targetDay.day,
+    bodyFeel: input.bodyFeel,
+    notes,
+    mods,
+    summary,
+    source,
+    origin: input.origin,
+    adjustedDay,
+  };
+
+  await db
+    .doc(
+      `users/${input.uid}/workoutPlans/${plan.id}/dailyAdjustments/${date}`
+    )
+    .set(
+      scrubUndefined({
+        ...result,
+        originalDay: targetDay,
+        requestId: input.requestId,
+        updatedAt: Timestamp.now(),
+      }),
+      { merge: true }
+    );
+
+  return result;
+}
+
+async function withDailyAdjustment(
+  uid: string,
+  plan: ({ id: string } & WorkoutPlan) | null,
+  dateValue?: unknown
+) {
+  if (!plan) return null;
+  const date = normalizeLocalDate(dateValue);
+  try {
+    const adjustment = await db
+      .doc(`users/${uid}/workoutPlans/${plan.id}/dailyAdjustments/${date}`)
+      .get();
+    if (!adjustment.exists) return plan;
+    const data = adjustment.data() as Partial<DailyWorkoutAdjustment>;
+    if (!data.adjustedDay || !data.dayId) return plan;
+    const days = Array.isArray(plan.days)
+      ? plan.days.map((day) =>
+          day.day === data.dayId ? (data.adjustedDay as WorkoutDay) : day
+        )
+      : [];
+    return {
+      ...plan,
+      days,
+      dailyAdjustment: scrubUndefined({
+        date,
+        dayId: data.dayId,
+        bodyFeel: data.bodyFeel,
+        mods: data.mods,
+        summary: data.summary,
+        origin: data.origin,
+      }),
+    };
+  } catch (error) {
+    console.warn("workouts.daily_adjustment_read_failed", {
+      uid,
+      planId: plan.id,
+      date,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return plan;
+  }
+}
+
 async function handleGenerate(req: Request, res: Response) {
   const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, {
@@ -1415,7 +1651,11 @@ async function handleSetWorkoutPlanStatus(req: Request, res: Response) {
 async function handleGetPlan(req: Request, res: Response) {
   const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, { fn: "getPlan", uid });
-  const plan = await fetchCurrentPlan(uid);
+  const plan = await withDailyAdjustment(
+    uid,
+    await fetchCurrentPlan(uid),
+    req.body?.localDate ?? req.query?.localDate
+  );
   res.json(plan);
 }
 
@@ -1559,7 +1799,11 @@ async function handleLogWorkoutExercise(req: Request, res: Response) {
 async function handleGetWorkouts(req: Request, res: Response) {
   const uid = await requireSubscriberAuth(req);
   await ensureSoftAppCheckFromRequest(req as any, { fn: "getWorkouts", uid });
-  const plan = await fetchCurrentPlan(uid);
+  const plan = await withDailyAdjustment(
+    uid,
+    await fetchCurrentPlan(uid),
+    req.body?.localDate ?? req.query?.localDate
+  );
   if (!plan) {
     res.json({ planId: null, days: [] });
     return;
@@ -1654,6 +1898,13 @@ export const adjustWorkout = onRequest(
       const notes = sanitizeNotes(payload?.notes);
       const plan = await fetchCurrentPlan(uid);
       const targetDay = plan?.days?.find((day) => day.day === dayId) ?? null;
+      if (!targetDay) {
+        res.status(404).json({
+          error: "workout_day_not_found",
+          debugId: requestId,
+        });
+        return;
+      }
       let mods = fallbackMods(normalizedBodyFeel);
       let summary: string | null = null;
       let source: "fallback" | "openai" = "fallback";
@@ -1677,11 +1928,33 @@ export const adjustWorkout = onRequest(
           });
         }
       }
-      res.json({
-        ok: true,
+      const adjustment = await persistDailyWorkoutAdjustment({
+        uid,
+        requestId,
+        bodyFeel: normalizedBodyFeel,
+        notes,
+        dayId,
+        date: payload?.localDate,
         mods,
         summary,
         source,
+        origin: "workout_check_in",
+      });
+      if (!adjustment) {
+        res.status(404).json({
+          error: "active_workout_plan_not_found",
+          debugId: requestId,
+        });
+        return;
+      }
+      res.json({
+        ok: true,
+        mods: adjustment.mods,
+        summary: adjustment.summary,
+        source: adjustment.source,
+        adjustedDay: adjustment.adjustedDay,
+        adjustmentDate: adjustment.date,
+        persisted: true,
         echo: { dayId, notes: notes ?? null, bodyFeel: normalizedBodyFeel },
         debugId: requestId,
       });

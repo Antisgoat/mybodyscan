@@ -41,7 +41,8 @@ export function buildTransformationPrompt(input: {
   };
   return [
     "Edit the supplied reference photo into a photorealistic adult fitness progress portrait.",
-    "Preserve the person's identity, facial features, skin tone, body proportions, pose, camera angle, background, and clothing coverage.",
+    "Preserve the person's identity, facial features, facial expression (including the same smile or serious expression), hairstyle, skin tone, pose, camera angle, background, and clothing coverage.",
+    "Do not beautify, age, de-age, reshape, retouch, or otherwise change the face.",
     direction[input.goal],
     `Treat ${input.timelineWeeks} weeks only as motivational context, not as a guaranteed outcome.`,
     "Keep the result plausible and subtle. Do not exaggerate muscle size, thinness, vascularity, or body definition.",

@@ -849,6 +849,16 @@ export default function CoachChatPage() {
               todayProteinGoalGrams: plan?.proteinFloor,
               lastScanDate: latestScan?.createdAt?.toISOString(),
               lastScanBodyFatPercent: latestScan?.bodyFatPercent,
+              localDate: (() => {
+                const now = new Date();
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, "0");
+                const day = String(now.getDate()).padStart(2, "0");
+                return `${year}-${month}-${day}`;
+              })(),
+              localDayName: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][
+                new Date().getDay()
+              ],
             },
       };
       await coachChatApi(payload);

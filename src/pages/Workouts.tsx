@@ -41,6 +41,13 @@ import {
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default function Workouts() {
   const { user } = useAuthUser();
   const { t } = useI18n();
@@ -65,6 +72,7 @@ export default function Workouts() {
   type WorkoutDay = {
     day: string;
     exercises: WorkoutExercise[];
+    coachGuidance?: string;
   };
   type WorkoutPlan = {
     id: string;
@@ -114,7 +122,7 @@ export default function Workouts() {
   const adjustDisabled = !workoutAdjustConfigured || !workoutsConfigured;
 
   const todayName = dayNames[new Date().getDay()];
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = localDateKey();
   const today = plan?.days.find((d) => d.day === todayName);
   const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
   const completedCount = completed.length;
@@ -600,7 +608,12 @@ export default function Workouts() {
       const res = await authedFetch(`/workouts/adjust`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayId: todayName, bodyFeel, notes }),
+        body: JSON.stringify({
+          dayId: todayName,
+          bodyFeel,
+          notes,
+          localDate: todayISO,
+        }),
       });
       const payloadText = await res.text();
       let data: Record<string, unknown> = {};
@@ -630,21 +643,17 @@ export default function Workouts() {
         (mods as { intensity?: unknown }).intensity ?? 0
       );
       const volumeDelta = Number((mods as { volume?: unknown }).volume ?? 0);
-      if (today) {
-        const deltaSets = Number.isFinite(volumeDelta) ? volumeDelta : 0;
+      const adjustedDay =
+        typeof (data as { adjustedDay?: unknown }).adjustedDay === "object" &&
+        (data as { adjustedDay?: unknown }).adjustedDay !== null
+          ? ((data as { adjustedDay?: WorkoutDay }).adjustedDay ?? null)
+          : null;
+      if (today && adjustedDay) {
         const next = { ...plan };
         const idx = next.days.findIndex((d) => d.day === todayName);
         if (idx >= 0) {
           next.days = next.days.map((d, i) =>
-            i === idx
-              ? {
-                  ...d,
-                  exercises: d.exercises.map((ex) => ({
-                    ...ex,
-                    sets: Math.max(1, (Number(ex.sets) || 0) + deltaSets),
-                  })),
-                }
-              : d
+            i === idx ? adjustedDay : d
           );
           setPlan(next);
         }
@@ -817,6 +826,12 @@ export default function Workouts() {
         </div>
         {todayExercises.length > 0 ? (
           <div className="space-y-4">
+            {today?.coachGuidance ? (
+              <Alert className="border-primary/30 bg-primary/5">
+                <AlertTitle>Today’s coach adjustment</AlertTitle>
+                <AlertDescription>{today.coachGuidance}</AlertDescription>
+              </Alert>
+            ) : null}
             {todayExercises.map((ex) => {
               const serverLog = exerciseLogs?.[ex.id] ?? null;
               const localLog = getLocalLog(ex.id);

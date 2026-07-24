@@ -66,19 +66,6 @@ export interface FoodItem {
   raw?: unknown;
 }
 
-export interface NormalizedFoodItem {
-  id: string;
-  name: string;
-  brand?: string | null;
-  calories?: number | null;
-  protein?: number | null;
-  carbs?: number | null;
-  fat?: number | null;
-  serving?: number | null;
-  unit?: string | null;
-  source?: NutritionSource;
-}
-
 export type NutritionSearchRequest = {
   query: string;
   page?: number;
@@ -89,14 +76,14 @@ export type NutritionSearchRequest = {
 export type NutritionSearchResponse =
   | {
       status: "ok";
-      results: NormalizedFoodItem[];
+      results: FoodItem[];
       source?: NutritionSource | null;
       message?: string | null;
       debugId?: string;
     }
   | {
       status: "upstream_error";
-      results: NormalizedFoodItem[];
+      results: FoodItem[];
       message?: string | null;
       debugId?: string;
     };
@@ -233,6 +220,37 @@ function normalizeBrand(value: unknown): string | null {
   return null;
 }
 
+function massToGrams(
+  quantity: number | null,
+  unitValue: unknown
+): number | null {
+  if (!quantity || quantity <= 0 || typeof unitValue !== "string") return null;
+  const unit = unitValue.trim().toLowerCase();
+  if (unit === "g" || unit === "gram" || unit === "grams") return quantity;
+  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") {
+    return quantity * 1000;
+  }
+  if (unit === "oz" || unit === "ounce" || unit === "ounces") {
+    return quantity * 28.3495231;
+  }
+  return null;
+}
+
+function volumeToMilliliters(
+  quantity: number | null,
+  unitValue: unknown
+): number | null {
+  if (!quantity || quantity <= 0 || typeof unitValue !== "string") return null;
+  const unit = unitValue.trim().toLowerCase();
+  if (unit === "ml" || unit === "milliliter" || unit === "milliliters") {
+    return quantity;
+  }
+  if (unit === "l" || unit === "liter" || unit === "liters") {
+    return quantity * 1000;
+  }
+  return null;
+}
+
 function buildServingSnapshot(serving: ServingOption | undefined) {
   if (!serving) {
     return { qty: null, unit: null, text: null };
@@ -252,7 +270,7 @@ export function fromUsdaFood(food: any): FoodItem | null {
   addServing("usda", servings, seen, {
     label: "100 g",
     grams: 100,
-    isDefault: true,
+    isDefault: false,
   });
 
   const portions = Array.isArray(food?.foodPortions) ? food.foodPortions : [];
@@ -295,6 +313,30 @@ export function fromUsdaFood(food: any): FoodItem | null {
     });
   });
 
+  const servingSize = toNumber(food?.servingSize);
+  const servingSizeUnit =
+    typeof food?.servingSizeUnit === "string"
+      ? food.servingSizeUnit.trim()
+      : null;
+  const servingGrams = massToGrams(servingSize, servingSizeUnit);
+  const servingMilliliters = volumeToMilliliters(
+    servingSize,
+    servingSizeUnit
+  );
+  if (servingGrams) {
+    const household =
+      typeof food?.householdServingFullText === "string"
+        ? food.householdServingFullText.trim()
+        : "";
+    addServing("usda-label", servings, seen, {
+      label:
+        household ||
+        `${round(servingSize ?? servingGrams, 2)} ${servingSizeUnit ?? "g"}`,
+      grams: servingGrams,
+      isDefault: true,
+    });
+  }
+
   const labelCalories = toNumber(food?.labelNutrients?.calories?.value);
   const nutrientCalories = toNumber(
     food?.foodNutrients?.find((n: any) => n?.nutrientId === 1008)?.value
@@ -315,15 +357,41 @@ export function fromUsdaFood(food: any): FoodItem | null {
     food?.foodNutrients?.find((n: any) => n?.nutrientId === 1004)?.value
   );
 
+  const labelToPer100 = (value: number | null) =>
+    value != null && servingGrams
+      ? (value * 100) / servingGrams
+      : undefined;
   const base = ensureMacroBreakdown({
-    kcal: labelCalories ?? nutrientCalories ?? undefined,
-    protein: labelProtein ?? nutrientProtein ?? undefined,
-    carbs: labelCarbs ?? nutrientCarbs ?? undefined,
-    fat: labelFat ?? nutrientFat ?? undefined,
+    // USDA search nutrient amounts are reported on a 100 g basis. Label
+    // nutrients are per serving and must never be presented as per 100 g
+    // without converting by the labeled mass.
+    kcal: nutrientCalories ?? labelToPer100(labelCalories),
+    protein: nutrientProtein ?? labelToPer100(labelProtein),
+    carbs: nutrientCarbs ?? labelToPer100(labelCarbs),
+    fat: nutrientFat ?? labelToPer100(labelFat),
   });
 
   const defaultServing = ensureDefaultServing(servings);
-  const perServing = macrosFromGrams(base, defaultServing?.grams ?? null);
+  const derivedPerServing = servingMilliliters
+    ? { kcal: null, protein_g: null, carbs_g: null, fat_g: null }
+    : macrosFromGrams(base, defaultServing?.grams ?? null);
+  const perServing = {
+    kcal: labelCalories ?? derivedPerServing.kcal,
+    protein_g: labelProtein ?? derivedPerServing.protein_g,
+    carbs_g: labelCarbs ?? derivedPerServing.carbs_g,
+    fat_g: labelFat ?? derivedPerServing.fat_g,
+  };
+  const labeledVolume =
+    servingMilliliters
+      ? {
+          qty: servingMilliliters,
+          unit: "ml",
+          text:
+            (typeof food?.householdServingFullText === "string" &&
+              food.householdServingFullText.trim()) ||
+            `${round(servingMilliliters, 2)} ml`,
+        }
+      : null;
 
   return {
     id: String(
@@ -344,7 +412,7 @@ export function fromUsdaFood(food: any): FoodItem | null {
     source: "USDA",
     basePer100g: base,
     servings,
-    serving: buildServingSnapshot(defaultServing),
+    serving: labeledVolume ?? buildServingSnapshot(defaultServing),
     per_serving: perServing,
     per_100g: {
       kcal: base.kcal,
@@ -361,7 +429,7 @@ export function fromUsdaFood(food: any): FoodItem | null {
 function parseServingSizeText(text: string | null | undefined) {
   if (!text) return null;
   const match = text.match(
-    /([0-9]+(?:\.[0-9]+)?)\s*(g|gram|grams|ml|milliliter|milliliters|oz|ounce|ounces)/i
+    /([0-9]+(?:\.[0-9]+)?)\s*(g|gram|grams|ml|milliliter|milliliters|l|liter|liters|oz|ounce|ounces)/i
   );
   if (!match) return null;
   const qty = toNumber(match[1]);
@@ -371,10 +439,15 @@ function parseServingSizeText(text: string | null | undefined) {
     case "g":
     case "gram":
     case "grams":
+      return { grams: qty };
     case "ml":
     case "milliliter":
     case "milliliters":
-      return { grams: qty };
+      return { milliliters: qty };
+    case "l":
+    case "liter":
+    case "liters":
+      return { milliliters: qty * 1000 };
     case "oz":
     case "ounce":
     case "ounces":
@@ -463,7 +536,7 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
   addServing("off", servings, seen, {
     label: "100 g",
     grams: 100,
-    isDefault: true,
+    isDefault: false,
   });
 
   const servingQty = toNumber(product?.serving_quantity);
@@ -477,9 +550,6 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
       case "g":
       case "gram":
       case "grams":
-      case "ml":
-      case "milliliter":
-      case "milliliters":
         convertedGrams = servingQty;
         break;
       case "oz":
@@ -490,7 +560,12 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
       case "l":
       case "liter":
       case "liters":
-        convertedGrams = servingQty * 1000;
+      case "ml":
+      case "milliliter":
+      case "milliliters":
+        // Volume is not mass without a product-specific density. Keep the
+        // labeled mL serving for per-serving math instead of assuming 1 mL=1 g.
+        convertedGrams = null;
         break;
       default:
         convertedGrams = null;
@@ -503,6 +578,10 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
       : "";
   const parsedText = parseServingSizeText(servingText);
   const gramsFromText = parsedText?.grams ?? null;
+  const milliliters =
+    volumeToMilliliters(servingQty, servingUnit) ??
+    parsedText?.milliliters ??
+    null;
 
   const grams = convertedGrams ?? gramsFromText;
   if (grams && grams > 0) {
@@ -510,7 +589,7 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
     addServing("off", servings, seen, {
       label,
       grams,
-      isDefault: servings.length === 1,
+      isDefault: true,
     });
   }
 
@@ -533,7 +612,29 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
   });
 
   const defaultServing = ensureDefaultServing(servings);
-  const perServing = macrosFromGrams(base, defaultServing?.grams ?? null);
+  const derivedPerServing = milliliters
+    ? { kcal: null, protein_g: null, carbs_g: null, fat_g: null }
+    : macrosFromGrams(base, defaultServing?.grams ?? null);
+  const perServing = {
+    kcal:
+      toNumber(nutriments?.["energy-kcal_serving"]) ??
+      toNumber(nutriments?.energy_kcal_serving) ??
+      derivedPerServing.kcal,
+    protein_g:
+      toNumber(nutriments?.proteins_serving) ?? derivedPerServing.protein_g,
+    carbs_g:
+      toNumber(nutriments?.carbohydrates_serving) ??
+      derivedPerServing.carbs_g,
+    fat_g: toNumber(nutriments?.fat_serving) ?? derivedPerServing.fat_g,
+  };
+  const labeledVolume =
+    milliliters
+      ? {
+          qty: milliliters,
+          unit: "ml",
+          text: servingText || `${round(milliliters, 2)} ml`,
+        }
+      : null;
 
   return {
     id: String(
@@ -558,7 +659,7 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
     source: "Open Food Facts",
     basePer100g: base,
     servings,
-    serving: buildServingSnapshot(defaultServing),
+    serving: labeledVolume ?? buildServingSnapshot(defaultServing),
     per_serving: perServing,
     per_100g: {
       kcal: base.kcal,
@@ -663,30 +764,6 @@ async function verifyAuthorization(
     console.warn("nutrition_search.auth_failed", { message });
     throw new HttpError(401, "unauthorized", "invalid_token");
   }
-}
-
-function simplifyFoodItem(item: FoodItem): NormalizedFoodItem {
-  const serving =
-    typeof item?.serving?.qty === "number" ? item.serving.qty : null;
-  const perServing = (item?.per_serving || {}) as Partial<{
-    kcal: number;
-    protein_g: number;
-    carbs_g: number;
-    fat_g: number;
-  }>;
-  return {
-    id: item.id,
-    name: item.name,
-    brand: item.brand ?? null,
-    calories: typeof perServing.kcal === "number" ? perServing.kcal : null,
-    protein:
-      typeof perServing.protein_g === "number" ? perServing.protein_g : null,
-    carbs: typeof perServing.carbs_g === "number" ? perServing.carbs_g : null,
-    fat: typeof perServing.fat_g === "number" ? perServing.fat_g : null,
-    serving,
-    unit: serving ? "g" : null,
-    source: item.source,
-  };
 }
 
 type SourceResult = { items: FoodItem[]; error?: HttpError | null };
@@ -870,7 +947,16 @@ async function runNutritionSearchCore(
     };
   }
 
-  const normalized = items.map(simplifyFoodItem);
+  const seen = new Set<string>();
+  const normalized = items
+    .filter((item) => {
+      const key = `${item.source}:${item.id}`.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 40)
+    .map(({ raw: _raw, ...item }) => item);
   return {
     status: "ok",
     results: normalized,

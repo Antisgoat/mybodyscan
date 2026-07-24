@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FoodItem } from "@/lib/nutrition/types";
 import {
-  SERVING_UNITS,
+  availableServingUnits,
   type ServingUnit,
   calculateSelection,
   gramsToOunces,
@@ -57,13 +57,24 @@ export function ServingEditor({
 
   useEffect(() => {
     setQuantity(defaultQty);
-    setUnit(defaultUnit);
+    const nextUnits = availableServingUnits(item);
+    setUnit(
+      nextUnits.includes(defaultUnit)
+        ? defaultUnit
+        : nextUnits.includes("serving")
+          ? "serving"
+          : nextUnits[0] ?? "g"
+    );
     setNotes("");
   }, [item, defaultQty, defaultUnit]);
 
   const result = useMemo(
     () => calculateSelection(item, quantity, unit),
     [item, quantity, unit]
+  );
+  const availableUnits = useMemo(
+    () => availableServingUnits(item),
+    [item]
   );
   const servingWeight = useMemo(() => estimateServingWeight(item), [item]);
 
@@ -103,7 +114,7 @@ export function ServingEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {SERVING_UNITS.map((option) => (
+              {availableUnits.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option === "serving" && item.serving.text
                     ? `serving (${item.serving.text})`
@@ -130,7 +141,10 @@ export function ServingEditor({
           </div>
           <div className="text-xs text-muted-foreground">
             {result.grams ? `${result.grams} g` : ""}
-            {result.grams ? ` (${gramsToOunces(result.grams) ?? "?"} oz)` : ""}
+            {result.grams
+              ? ` (${gramsToOunces(result.grams) ?? "?"} oz)`
+              : ""}
+            {!result.grams && unit === "ml" ? `${quantity} ml` : ""}
           </div>
         </div>
       </div>

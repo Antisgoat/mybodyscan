@@ -19,6 +19,10 @@ import { scrubUndefined } from "./lib/scrub.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
 import { getEnvInt } from "./lib/env.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import {
+  persistDailyWorkoutAdjustment,
+  type DailyWorkoutAdjustment,
+} from "./workouts.js";
 
 const coachRequestsPerMinute = () =>
   Math.max(1, Math.min(1_000, Math.trunc(getEnvInt("COACH_RPM", 12))));
@@ -57,6 +61,8 @@ export type CoachChatContext = {
   lastScanDate?: string; // ISO string
   lastScanBodyFatPercent?: number;
   nextWorkoutDayName?: string;
+  localDate?: string;
+  localDayName?: string;
   timelineWeeks?: number;
   trainingDaysPerWeek?: number;
   dietPreference?: string;
@@ -66,6 +72,14 @@ interface CoachChatMetadata {
   recommendedSplit?: string;
   caloriesPerDay?: number;
   macros?: { protein: number; carbs: number; fat: number };
+  planAdaptation?: {
+    applied: true;
+    date: string;
+    dayId: string;
+    bodyFeel: "tired" | "sore";
+    summary: string;
+    origin: "coach_chat";
+  };
 }
 
 export interface CoachChatResponsePayload {
@@ -104,6 +118,14 @@ const COACH_PERSONA_AND_SAFETY_PROMPT =
   "Do not present guidance as medical advice.";
 const COACH_METADATA_INSTRUCTION =
   'After your reply, add a line exactly once: METADATA: {"recommendedSplit":"...", "caloriesPerDay":1234, "macros":{"protein":150,"carbs":200,"fat":60}}. Omit fields instead of guessing wildly.';
+const SEVERE_SYMPTOM_PATTERN =
+  /\b(chest pain|sharp pain|severe pain|numb(?:ness)?|tingl(?:e|ing)|cannot move|can't move|loss of strength|swollen|swelling|dizz(?:y|iness)|faint(?:ed|ing)?|shortness of breath)\b/i;
+const SORENESS_PATTERN =
+  /\b(sore|soreness|stiff|stiffness|aching|aches?|tender|hurts?|painful)\b/i;
+const FATIGUE_PATTERN =
+  /\b(tired|fatigued|exhausted|drained|poor sleep|slept badly|low energy|worn out)\b/i;
+const EXTRA_ACTIVITY_PATTERN =
+  /\b(played|playing|did|went|completed)\b.{0,40}\b(pickleball|tennis|basketball|soccer|football|run|running|jog|jogging|cycling|bike ride|hike|hiking|swim|swimming|sport|cardio)\b/i;
 
 function sanitizeMessage(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -162,6 +184,15 @@ function normalizeContext(data: unknown): CoachChatContext | undefined {
     lastScanDate: sanitizeIsoString(raw.lastScanDate),
     lastScanBodyFatPercent: toNumber(raw.lastScanBodyFatPercent),
     nextWorkoutDayName: nextWorkoutDayName || undefined,
+    localDate:
+      typeof raw.localDate === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(raw.localDate.trim())
+        ? raw.localDate.trim()
+        : undefined,
+    localDayName:
+      typeof raw.localDayName === "string"
+        ? raw.localDayName.trim().slice(0, 3)
+        : undefined,
     timelineWeeks: toNumber(raw.timelineWeeks),
     trainingDaysPerWeek: toNumber(raw.trainingDaysPerWeek),
     dietPreference: dietPreference || undefined,
@@ -211,6 +242,8 @@ function mergeContext(
     "lastScanDate",
     "lastScanBodyFatPercent",
     "nextWorkoutDayName",
+    "localDate",
+    "localDayName",
     "timelineWeeks",
     "trainingDaysPerWeek",
     "dietPreference",
@@ -269,7 +302,8 @@ async function buildServerContext(params: {
 
   // Today’s nutrition summary (single doc read).
   try {
-    const day = new Date().toISOString().slice(0, 10); // UTC fallback
+    const day =
+      clientContext?.localDate ?? new Date().toISOString().slice(0, 10);
     const snap = await db.doc(`users/${uid}/nutritionLogs/${day}`).get();
     const data = snap.exists ? (snap.data() as any) : null;
     const totals = (data?.totals as any) || null;
@@ -390,6 +424,8 @@ function buildCoachContextBlock(context?: CoachChatContext): string | null {
     lastScanDate: context.lastScanDate,
     lastScanBodyFatPercent: context.lastScanBodyFatPercent,
     nextWorkoutDayName: context.nextWorkoutDayName,
+    localDate: context.localDate,
+    localDayName: context.localDayName,
     timelineWeeks: context.timelineWeeks,
     trainingDaysPerWeek: context.trainingDaysPerWeek,
     dietPreference: context.dietPreference,
@@ -507,6 +543,17 @@ function deterministicCoachFallback(
   payload: CoachChatRequest,
   requestId: string
 ): CoachChatResponsePayload {
+  if (SEVERE_SYMPTOM_PATTERN.test(payload.message)) {
+    return {
+      reply:
+        "I can’t safely modify your workout around those symptoms. Stop the affected exercise and get prompt medical guidance; seek urgent help for chest pain, trouble breathing, fainting, sudden weakness, or rapidly worsening symptoms.",
+      suggestions: ["Pause today’s workout"],
+      meta: {
+        debugId: requestId,
+        model: "fallback-safety-v1",
+      },
+    };
+  }
   const goal = (payload.goalType || "general").toLowerCase();
   const experience = (payload.activityLevel || "beginner").toLowerCase();
   const cardioDays = goal.includes("fat") ? 4 : goal.includes("muscle") ? 2 : 3;
@@ -518,6 +565,33 @@ function deterministicCoachFallback(
     meta: {
       debugId: requestId,
       model: "fallback-rules-v1",
+    },
+  };
+}
+
+async function adaptiveCoachFallback(
+  payload: CoachChatRequest,
+  context: RequestContext
+): Promise<CoachChatResponsePayload> {
+  const fallback = deterministicCoachFallback(payload, context.requestId);
+  const adaptation = await maybeApplyCoachAdaptation(payload, context);
+  const attached = attachPlanAdaptation(
+    fallback.reply,
+    fallback.meta?.metadata,
+    adaptation
+  );
+  return {
+    ...fallback,
+    reply: attached.replyText,
+    suggestions: Array.from(
+      new Set([
+        ...(fallback.suggestions ?? []),
+        ...(buildSuggestions(attached.metadata) ?? []),
+      ])
+    ),
+    meta: {
+      ...fallback.meta,
+      metadata: attached.metadata,
     },
   };
 }
@@ -542,7 +616,102 @@ function buildSuggestions(metadata?: CoachChatMetadata): string[] | undefined {
   ) {
     suggestions.add("Log meals to hit your macros");
   }
+  if (metadata.planAdaptation?.applied) {
+    suggestions.add("Open adjusted workout");
+  }
   return suggestions.size ? Array.from(suggestions) : undefined;
+}
+
+export function inferCoachAdaptation(message: string): {
+  bodyFeel: "tired" | "sore";
+  mods?: { intensity: number; volume: number };
+  extraActivity?: true;
+} | null {
+  if (SEVERE_SYMPTOM_PATTERN.test(message)) return null;
+  if (SORENESS_PATTERN.test(message)) {
+    return { bodyFeel: "sore" };
+  }
+  if (FATIGUE_PATTERN.test(message)) {
+    return { bodyFeel: "tired" };
+  }
+  if (EXTRA_ACTIVITY_PATTERN.test(message)) {
+    return {
+      bodyFeel: "tired",
+      mods: { intensity: 0, volume: -1 },
+      extraActivity: true,
+    };
+  }
+  return null;
+}
+
+async function maybeApplyCoachAdaptation(
+  payload: CoachChatRequest,
+  context: RequestContext
+): Promise<DailyWorkoutAdjustment | null> {
+  if (!context.uid) return null;
+  const signal = inferCoachAdaptation(payload.message);
+  if (!signal) return null;
+  try {
+    if (signal.extraActivity) {
+      const activityId =
+        payload.messageId?.trim().slice(0, 120) || context.requestId;
+      await db.doc(`users/${context.uid}/activityEvents/${activityId}`).set(
+        scrubUndefined({
+          description: payload.message.slice(0, 400),
+          localDate: payload.context?.localDate,
+          source: "coach_chat",
+          calorieAdjustmentApplied: false,
+          calorieAdjustmentReason:
+            "Duration, intensity, and device measurements are required before changing nutrition targets.",
+          createdAt: FieldValue.serverTimestamp(),
+        }),
+        { merge: true }
+      );
+    }
+    return await persistDailyWorkoutAdjustment({
+      uid: context.uid,
+      requestId: context.requestId,
+      bodyFeel: signal.bodyFeel,
+      notes: payload.message,
+      dayId:
+        payload.context?.localDayName ??
+        payload.context?.nextWorkoutDayName ??
+        null,
+      date: payload.context?.localDate ?? null,
+      mods: signal.mods,
+      origin: "coach_chat",
+    });
+  } catch (error) {
+    logger.warn("coachChat.plan_adaptation_failed", {
+      uid: context.uid,
+      requestId: context.requestId,
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+function attachPlanAdaptation(
+  replyText: string,
+  metadata: CoachChatMetadata | undefined,
+  adjustment: DailyWorkoutAdjustment | null
+): { replyText: string; metadata?: CoachChatMetadata } {
+  if (!adjustment) return { replyText, metadata };
+  const notice = `I saved a recovery-adjusted ${adjustment.dayId} workout for ${adjustment.date}. ${adjustment.summary}`;
+  return {
+    replyText: `${replyText.trim()}\n\n${notice}`.trim(),
+    metadata: {
+      ...(metadata ?? {}),
+      planAdaptation: {
+        applied: true,
+        date: adjustment.date,
+        dayId: adjustment.dayId,
+        bodyFeel: adjustment.bodyFeel as "tired" | "sore",
+        summary: adjustment.summary ?? "Workout adjusted.",
+        origin: "coach_chat",
+      },
+    },
+  };
 }
 
 async function generateCoachResponse(
@@ -554,7 +723,13 @@ async function generateCoachResponse(
     userId: context.uid ?? undefined,
     requestId: context.requestId,
   });
-  const { replyText, metadata } = parseMetadataLine(answer);
+  const parsed = parseMetadataLine(answer);
+  const adaptation = await maybeApplyCoachAdaptation(payload, context);
+  const { replyText, metadata } = attachPlanAdaptation(
+    parsed.replyText,
+    parsed.metadata,
+    adaptation
+  );
   return {
     reply: replyText,
     suggestions: buildSuggestions(metadata),
@@ -706,7 +881,13 @@ async function generateCoachResponseForThread(
     userId: context.uid,
     requestId: context.requestId,
   });
-  const { replyText, metadata } = parseMetadataLine(content);
+  const parsed = parseMetadataLine(content);
+  const adaptation = await maybeApplyCoachAdaptation(payload, context);
+  const { replyText, metadata } = attachPlanAdaptation(
+    parsed.replyText,
+    parsed.metadata,
+    adaptation
+  );
 
   const userMessageId = payload.messageId?.trim() || randomUUID();
   await upsertUserMessage({
@@ -944,7 +1125,11 @@ export const coachChat = onCall<CoachChatRequest>(
         mapped.code === "failed-precondition" ||
         mapped.code === "unavailable"
       ) {
-        return deterministicCoachFallback(payload, requestId);
+        return adaptiveCoachFallback(payload, {
+          uid,
+          identifier,
+          requestId,
+        });
       }
       throw mapped;
     }
@@ -1021,7 +1206,13 @@ export async function coachChatHandler(
       mapped.code === "failed-precondition" ||
       mapped.code === "unavailable"
     ) {
-      res.status(200).json(deterministicCoachFallback(payload, requestId));
+      res.status(200).json(
+        await adaptiveCoachFallback(payload, {
+          uid,
+          identifier,
+          requestId,
+        })
+      );
       return;
     }
     const mappedDetails = getHttpsErrorDetails(mapped) ?? {};

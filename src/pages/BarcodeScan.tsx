@@ -628,6 +628,22 @@ export default function BarcodeScan() {
                     </details>
                   )}
 
+                  {insight.ingredientHighlights.length > 0 && (
+                    <div className="rounded-lg border bg-background/70 p-3 text-xs">
+                      <p className="font-medium">Ingredient notes</p>
+                      <ul className="mt-1 list-disc space-y-1 pl-4 text-muted-foreground">
+                        {insight.ingredientHighlights.map((highlight) => (
+                          <li key={highlight}>{highlight}</li>
+                        ))}
+                      </ul>
+                      <p className="mt-2 text-muted-foreground">
+                        These are neutral label callouts for preference
+                        matching. Presence alone does not make a food unsafe or
+                        determine its overall quality.
+                      </p>
+                    </div>
+                  )}
+
                   <p className="text-[11px] leading-relaxed text-muted-foreground">
                     Informational only—not medical advice or a safety
                     determination. Scores compare available nutrition data and

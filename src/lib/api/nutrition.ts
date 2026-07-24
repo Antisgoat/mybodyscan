@@ -7,7 +7,9 @@
 import { FirebaseError } from "firebase/app";
 import { httpsCallable } from "firebase/functions";
 import { apiFetchJson } from "@/lib/apiFetch";
-import { sanitizeFoodItem, type FoodItem } from "@/lib/nutrition/sanitize";
+import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
+import type { FoodItem } from "@/lib/nutrition/types";
+import { toRichFoodItem } from "@/lib/nutrition/toFoodItem";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
 import { isCapacitorNative } from "@/lib/platform/isNative";
@@ -45,13 +47,39 @@ export interface NutritionHistoryResponse {
   days: { date: string; totals: DailyLogResponse["totals"] }[];
 }
 
+function isRichFoodItem(value: unknown): value is FoodItem {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const item = value as Partial<FoodItem>;
+  return (
+    typeof item.id === "string" &&
+    typeof item.name === "string" &&
+    Boolean(item.basePer100g && typeof item.basePer100g === "object") &&
+    Array.isArray(item.servings) &&
+    Boolean(item.serving && typeof item.serving === "object") &&
+    Boolean(item.per_serving && typeof item.per_serving === "object")
+  );
+}
+
 const nutritionSearchCallable = httpsCallable<
   NutritionSearchRequest,
   NutritionSearchResponse
 >(functions, "nutritionSearch");
 
 export function normalizeFoodItem(raw: unknown): FoodItem {
-  return sanitizeFoodItem(raw);
+  if (isRichFoodItem(raw)) {
+    return {
+      ...raw,
+      id: raw.id.trim(),
+      name: raw.name.trim() || "Food",
+      brand:
+        typeof raw.brand === "string" && raw.brand.trim()
+          ? raw.brand.trim()
+          : null,
+      source:
+        raw.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
+    };
+  }
+  return toRichFoodItem(sanitizeFoodItem(raw));
 }
 
 function extractDebugId(error: FirebaseError): string | undefined {
@@ -108,7 +136,7 @@ function normalizeNutritionError(error: unknown): Error {
 
 function normalizeResponse(payload: NutritionSearchResponse): NutritionSearchResponse {
   const normalized = Array.isArray(payload?.results)
-    ? payload.results.map(sanitizeFoodItem).filter(Boolean)
+    ? payload.results.map(normalizeFoodItem).filter(Boolean)
     : [];
 
   if (!payload || payload.status === "upstream_error") {
