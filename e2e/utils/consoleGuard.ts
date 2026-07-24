@@ -1,4 +1,5 @@
 import type { ConsoleMessage, Page } from "@playwright/test";
+import { acceptPolicyGate } from "../../tests-e2e/helpers/policy";
 
 const benignConsolePatterns: Array<RegExp> = [
   /Extensions are not allowed/, // browser-specific noise
@@ -28,9 +29,7 @@ function isBenign(message: ConsoleMessage): boolean {
 }
 
 export async function acceptPoliciesIfShown(page: Page): Promise<void> {
-  const dialog = page.getByRole("dialog", { name: "Welcome to MyBodyScan" });
-  if (await dialog.isVisible().catch(() => false)) {
-    await dialog.getByRole("button", { name: "I Accept" }).click();
+  if (await acceptPolicyGate(page)) {
     await page.waitForLoadState("domcontentloaded");
   }
 }

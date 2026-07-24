@@ -12,6 +12,8 @@ export const env = {
   VITE_FIREBASE_APP_ID: (import.meta.env.VITE_FIREBASE_APP_ID ?? "") as string,
   VITE_FIREBASE_MEASUREMENT_ID:
     (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || "",
+  VITE_FUNCTIONS_REGION: (import.meta.env.VITE_FUNCTIONS_REGION ??
+    "us-central1") as string,
   VITE_ENABLE_GOOGLE: (import.meta.env.VITE_ENABLE_GOOGLE ?? "true") as string,
   VITE_ENABLE_APPLE: (import.meta.env.VITE_ENABLE_APPLE ?? "true") as string,
   VITE_ENABLE_EMAIL: (import.meta.env.VITE_ENABLE_EMAIL ?? "true") as string,

@@ -67,7 +67,7 @@ export default function Workouts() {
     id: string;
     name?: string;
     sets?: number | string;
-    reps?: string;
+    reps?: number | string;
   };
   type WorkoutDay = {
     day: string;
@@ -652,9 +652,7 @@ export default function Workouts() {
         const next = { ...plan };
         const idx = next.days.findIndex((d) => d.day === todayName);
         if (idx >= 0) {
-          next.days = next.days.map((d, i) =>
-            i === idx ? adjustedDay : d
-          );
+          next.days = next.days.map((d, i) => (i === idx ? adjustedDay : d));
           setPlan(next);
         }
       }

@@ -117,7 +117,9 @@ function normalizeScan(entry: RawScanEntry): DemoScanFixture {
   const createdAtIso = entry.createdAt ?? entry.takenAt ?? entry.completedAt;
   const completedAtMs = toEpochMs(entry.completedAt);
   const createdAtMs = toEpochMs(createdAtIso);
-  const updatedAtMs = toEpochMs(entry.updatedAt ?? entry.completedAt ?? createdAtIso);
+  const updatedAtMs = toEpochMs(
+    entry.updatedAt ?? entry.completedAt ?? createdAtIso
+  );
   const weightKg = lbToKg(entry.metrics.weightLb);
   const bodyFatLow = Math.max(3, entry.metrics.bodyFatPct - 1.5);
   const bodyFatHigh = Math.min(60, entry.metrics.bodyFatPct + 1.5);
@@ -197,7 +199,8 @@ function normalizeScan(entry: RawScanEntry): DemoScanFixture {
 }
 
 const scanJson = scanData as ScanJson;
-export const DEMO_SCAN_HISTORY: DemoScanFixture[] = scanJson.history.map(normalizeScan);
+export const DEMO_SCAN_HISTORY: DemoScanFixture[] =
+  scanJson.history.map(normalizeScan);
 export const DEMO_LATEST_SCAN: DemoScanFixture = normalizeScan(scanJson.latest);
 
 export function getDemoScanById(id: string): DemoScanFixture | null {
@@ -215,7 +218,7 @@ export const DEMO_USER_PROFILE: CoachProfile = {
   heightCm: 178,
   weight_kg: 82.7,
   weightKg: 82.7,
-  unit: "us",
+  unit: "lb",
   goal: "lose_fat",
   diet_preference: "balanced",
   activity_level: "moderate",

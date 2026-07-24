@@ -16,7 +16,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "@/hooks/use-toast";
-import type { FoodItem } from "@/lib/nutrition/types";
+import type { FoodItem, ServingOption } from "@/lib/nutrition/types";
 import {
   saveFavorite,
   removeFavorite,
@@ -99,8 +99,7 @@ function adaptSearchItem(raw: any): FoodItem {
         typeof raw.brand === "string" && raw.brand.trim()
           ? raw.brand.trim()
           : null,
-      source:
-        raw.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
+      source: raw.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
     } as FoodItem;
   }
   const calories =
@@ -198,14 +197,14 @@ function ServingModal({
   const [quantity, setQuantity] = useState<number>(1);
   const units = useMemo(() => availableServingUnits(item), [item]);
   const [unit, setUnit] = useState<ServingUnit>(
-    units.includes("serving") ? "serving" : units[0] ?? "g"
+    units.includes("serving") ? "serving" : (units[0] ?? "g")
   );
   const [mealType, setMealType] = useState<MealType>("snacks");
 
   useEffect(() => {
     setQuantity(1);
     const nextUnits = availableServingUnits(item);
-    setUnit(nextUnits.includes("serving") ? "serving" : nextUnits[0] ?? "g");
+    setUnit(nextUnits.includes("serving") ? "serving" : (nextUnits[0] ?? "g"));
     setMealType("snacks");
   }, [item]);
 
@@ -260,9 +259,7 @@ function ServingModal({
                 id="serving-unit"
                 className="min-h-10 w-full rounded-md border bg-background px-3 py-2 text-sm"
                 value={unit}
-                onChange={(event) =>
-                  setUnit(event.target.value as ServingUnit)
-                }
+                onChange={(event) => setUnit(event.target.value as ServingUnit)}
                 disabled={busy}
               >
                 {units.map((option) => (
@@ -301,9 +298,7 @@ function ServingModal({
             </div>
             <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
               <span>
-                {result.calories == null
-                  ? "—"
-                  : roundKcal(result.calories)}{" "}
+                {result.calories == null ? "—" : roundKcal(result.calories)}{" "}
                 kcal
               </span>
               <span>

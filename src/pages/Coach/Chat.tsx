@@ -19,11 +19,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import type { CoachPlanSession } from "@/hooks/useUserProfile";
+import type { CoachPlanSession } from "@/lib/coach/types";
 import { formatDistanceToNow } from "date-fns";
 import { coachChatApi, type CoachChatRequest } from "@/lib/api/coach";
 import { call } from "@/lib/callable";
-import { useAuthUser } from "@/auth/mbs-auth";
+import { getIdToken, useAuthUser } from "@/auth/mbs-auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { coachChatCollectionPath } from "@/lib/paths";
@@ -251,9 +251,7 @@ export default function CoachChatPage() {
   const threadStorageKey = uid ? `mbs_coach_active_thread_v1:${uid}` : null;
   const refreshAuthTokenSoft = useCallback(async () => {
     try {
-      if (user && typeof (user as any).getIdToken === "function") {
-        await user.getIdToken(true);
-      }
+      if (user) await getIdToken({ forceRefresh: true });
     } catch {
       // ignore
     }
@@ -340,7 +338,7 @@ export default function CoachChatPage() {
                     : null,
               } satisfies ThreadMeta;
             })
-            .filter((t): t is ThreadMeta => Boolean(t))
+            .filter((t): t is NonNullable<typeof t> => t !== null)
             .sort((a, b) => {
               const am =
                 a.updatedAt?.getTime?.() ?? a.createdAt?.getTime?.() ?? 0;

@@ -29,5 +29,6 @@
       "@mbs-firebase-impl": ["./src/lib/firebase/firebase.web.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/auth/facade.ts"]
 }

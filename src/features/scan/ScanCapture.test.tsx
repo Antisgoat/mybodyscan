@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import ScanCapture from "./ScanCapture";
@@ -8,7 +9,6 @@ describe("ScanCapture", () => {
     render(<ScanCapture onReady={vi.fn()} />);
     const lib = screen.getByTestId("library-input") as HTMLInputElement;
     expect(lib).toBeTruthy();
-    // @ts-expect-error jsdom attribute check
     expect(lib.getAttribute("capture")).toBe(null);
   });
 });

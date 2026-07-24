@@ -45,6 +45,7 @@ jobs:
           npm run check:ios-release-config
           npm run check:ios-release-guard
           npm run check:android-release-config
+          node scripts/check-native-release-guard.mjs
           node scripts/assert-no-native-firebase-auth.mjs
       - name: Verify Firestore rules parity
         run: npm run rules:check

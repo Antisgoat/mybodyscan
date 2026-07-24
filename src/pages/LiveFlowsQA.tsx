@@ -28,7 +28,6 @@ type Result = {
 
 const todayISO = new Date().toISOString().slice(0, 10);
 
-
 const redactScanForQa = (scan: any) => {
   if (!scan || typeof scan !== "object") return scan;
   const {
@@ -96,7 +95,13 @@ export default function LiveFlowsQA() {
       const latencyMs = Math.round(performance.now() - started);
       setResults((prev) => [
         ...prev,
-        { name, ok: true, latencyMs, error: "", detail },
+        {
+          name,
+          ok: true,
+          latencyMs,
+          error: "",
+          detail: typeof detail === "string" ? detail : undefined,
+        },
       ]);
     } catch (error) {
       const latencyMs = Math.round(performance.now() - started);

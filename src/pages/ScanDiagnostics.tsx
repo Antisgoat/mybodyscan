@@ -3,13 +3,10 @@ import { Navigate } from "react-router-dom";
 import {
   getFirebaseConfig,
   getFirebaseStorage,
-  storage as storageInstance,
 } from "@/lib/firebase";
 import { getCachedUser } from "@/auth/mbs-auth";
 
 type Check = { name: string; ok: boolean; detail?: string };
-
-const EXPECTED_BUCKET = "mybodyscan-f3daf.appspot.com";
 
 export default function ScanDiagnosticsPage() {
   const [checks, setChecks] = useState<Check[]>([]);
@@ -22,22 +19,31 @@ export default function ScanDiagnosticsPage() {
       const rows: Check[] = [];
       try {
         const cfg = getFirebaseConfig();
-        rows.push({ name: "Firebase app", ok: Boolean(cfg?.projectId), detail: cfg?.projectId });
+        rows.push({
+          name: "Firebase app",
+          ok: Boolean(cfg?.projectId),
+          detail: cfg?.projectId,
+        });
         rows.push({
           name: "Auth UID",
           ok: Boolean(getCachedUser()?.uid),
           detail: getCachedUser()?.uid || "missing",
         });
         const storage = getFirebaseStorage();
+        const bucket = storage.app.options.storageBucket ?? "";
+        const configuredBucket = cfg.storageBucket ?? "";
+        const functionsRegion = String(
+          import.meta.env.VITE_FUNCTIONS_REGION || "us-central1"
+        ).trim();
         rows.push({
           name: "Storage bucket",
-          ok: storage?.bucket === EXPECTED_BUCKET,
-          detail: storage?.bucket || "unset",
+          ok: Boolean(bucket) && bucket === configuredBucket,
+          detail: bucket || "unset",
         });
         rows.push({
           name: "Functions region",
-          ok: Boolean((storageInstance as any)?.app?.options?.locationId),
-          detail: (storageInstance as any)?.app?.options?.locationId || "unknown",
+          ok: Boolean(functionsRegion),
+          detail: functionsRegion || "unknown",
         });
         rows.push({
           name: "Env vars",
@@ -45,12 +51,18 @@ export default function ScanDiagnosticsPage() {
             Boolean(import.meta.env.VITE_FIREBASE_API_KEY) &&
             Boolean(import.meta.env.VITE_FIREBASE_PROJECT_ID),
           detail: [
-            import.meta.env.VITE_FIREBASE_PROJECT_ID ? "projectId" : "missing projectId",
+            import.meta.env.VITE_FIREBASE_PROJECT_ID
+              ? "projectId"
+              : "missing projectId",
             import.meta.env.VITE_FIREBASE_API_KEY ? "apiKey" : "missing apiKey",
           ].join(", "),
         });
       } catch (err: any) {
-        rows.push({ name: "Diagnostics error", ok: false, detail: err?.message || String(err) });
+        rows.push({
+          name: "Diagnostics error",
+          ok: false,
+          detail: err?.message || String(err),
+        });
       }
       if (!cancelled) {
         setChecks(rows);
@@ -81,7 +93,11 @@ export default function ScanDiagnosticsPage() {
           >
             <div>
               <div className="font-medium">{row.name}</div>
-              {row.detail && <div className="text-muted-foreground text-xs">{row.detail}</div>}
+              {row.detail && (
+                <div className="text-muted-foreground text-xs">
+                  {row.detail}
+                </div>
+              )}
             </div>
             <span
               className={`text-xs font-semibold ${
@@ -92,7 +108,9 @@ export default function ScanDiagnosticsPage() {
             </span>
           </div>
         ))}
-        {busy && <div className="text-xs text-muted-foreground">Running checks…</div>}
+        {busy && (
+          <div className="text-xs text-muted-foreground">Running checks…</div>
+        )}
       </div>
     </div>
   );

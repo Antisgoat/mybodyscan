@@ -149,7 +149,7 @@ export default function Login() {
           <button
             className="w-full rounded border p-2"
             disabled={busy}
-            onClick={() => wrap(() => signInWithEmailPassword(email, pass))}
+            onClick={() => wrap(() => signInEmailPassword(email, pass))}
           >
             Continue with Email
           </button>

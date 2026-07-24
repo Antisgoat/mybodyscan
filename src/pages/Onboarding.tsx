@@ -216,7 +216,7 @@ const mergeForms = (...forms: OnboardingForm[]): OnboardingForm =>
       ][]
     ).forEach(([key, value]) => {
       if (value !== undefined) {
-        next[key] = value;
+        Object.assign(next, { [key]: value });
       }
     });
     return next;

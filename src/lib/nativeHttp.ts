@@ -28,6 +28,6 @@ export async function nativeHttpRequest(options: {
     status: response.status,
     data: response.data,
     headers: response.headers,
-    statusText: response.statusText,
+    statusText: (response as { statusText?: string }).statusText,
   };
 }

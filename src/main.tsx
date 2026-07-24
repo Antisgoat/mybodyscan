@@ -54,10 +54,7 @@ function installNativeCspPolicy() {
     "https://*.cloudfunctions.net",
     "https://*.a.run.app",
   ].join(" ");
-  meta.setAttribute(
-    "content",
-    `script-src 'self'; connect-src ${connectSrc};`
-  );
+  meta.setAttribute("content", `script-src 'self'; connect-src ${connectSrc};`);
   if (!meta.parentNode) {
     document.head.appendChild(meta);
   }
@@ -88,13 +85,15 @@ function installNativeNetworkGuard() {
         message: error.message,
         detail: {
           url: requestUrl,
-          method: init?.method || (input instanceof Request ? input.method : "GET"),
+          method:
+            init?.method || (input instanceof Request ? input.method : "GET"),
         },
       });
       if (!__MBS_NATIVE_RELEASE__) {
         console.warn("[boot] blocked_external_network", {
           url: requestUrl,
-          method: init?.method || (input instanceof Request ? input.method : "GET"),
+          method:
+            init?.method || (input instanceof Request ? input.method : "GET"),
         });
       }
       return Promise.reject(error);
@@ -182,7 +181,7 @@ function installBootErrorListeners() {
     "error",
     (event: Event) => {
       const target = event.target as HTMLElement | null;
-      if (!target || target === window) return;
+      if (!target) return;
       const src = (target as HTMLScriptElement).src;
       const href = (target as HTMLLinkElement).href;
       if (!src && !href) return;
@@ -265,7 +264,10 @@ function installScriptCreationDiagnostics() {
   anyWin.__mbsScriptGuardInstalled = true;
 
   const originalCreateElement = document.createElement.bind(document);
-  document.createElement = ((tagName: string, options?: ElementCreationOptions) => {
+  document.createElement = ((
+    tagName: string,
+    options?: ElementCreationOptions
+  ) => {
     const element = originalCreateElement(tagName, options);
     if (typeof tagName === "string" && tagName.toLowerCase() === "script") {
       const scriptEl = element as HTMLScriptElement;
@@ -275,7 +277,8 @@ function installScriptCreationDiagnostics() {
         if (!isAllowedNativeScriptSrc(value)) {
           recordNativeSecurityReason({
             type: "script_blocked",
-            message: "Blocked by native security policy: external script source",
+            message:
+              "Blocked by native security policy: external script source",
             detail: { src: value },
           });
           if (!__MBS_NATIVE_RELEASE__) {
@@ -361,7 +364,10 @@ type BootFailure = {
   stack?: string;
 };
 
-function normalizeBootFailure(error: unknown, code = "boot_failed"): BootFailure {
+function normalizeBootFailure(
+  error: unknown,
+  code = "boot_failed"
+): BootFailure {
   if (error instanceof Error) {
     return {
       code,
@@ -442,9 +448,7 @@ function BootFailureScreen({ failure }: { failure: BootFailure }) {
   return (
     <div style={style}>
       <div style={card}>
-        <div style={{ fontSize: 16, fontWeight: 700 }}>
-          App failed to start
-        </div>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>App failed to start</div>
         <div style={muted}>
           Error code: <code>{failure.code}</code>
         </div>

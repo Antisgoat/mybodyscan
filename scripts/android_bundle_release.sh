@@ -35,4 +35,4 @@ MBS_PLATFORM=android npx cap sync android
 npm run check:android-release-config
 
 cd android
-./gradlew --no-daemon clean lintRelease bundleRelease
+./gradlew --no-daemon clean lintRelease testReleaseUnitTest bundleRelease

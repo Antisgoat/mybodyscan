@@ -6,9 +6,11 @@ function shouldSwallowDomError(error: unknown): boolean {
   const err = error as UnknownError;
   const name = err?.name ?? "";
   const message = err?.message ?? "";
-  return name === "NotFoundError" || message.includes("The object can not be found here");
+  return (
+    name === "NotFoundError" ||
+    message.includes("The object can not be found here")
+  );
 }
-
 
 function installIOSDomGuards(): void {
   if (!isIOSNativeRuntime()) return;
@@ -47,12 +49,10 @@ function installIOSDomGuards(): void {
     insertBefore?: (node: Node, child: Node | null) => Node;
   };
 
-  const wrapNodeMethod = (
-    method: "removeChild" | "insertBefore"
-  ) => {
+  const wrapNodeMethod = (method: "removeChild" | "insertBefore") => {
     const original = nodeProto[method];
     if (typeof original !== "function") return;
-    nodeProto[method] = function (...args: [Node, Node | null]) {
+    const wrapped = function (this: Node, ...args: [Node, Node | null]) {
       try {
         return (original as any).apply(this, args);
       } catch (error) {
@@ -62,6 +62,7 @@ function installIOSDomGuards(): void {
         throw error;
       }
     };
+    (nodeProto as Record<string, unknown>)[method] = wrapped;
   };
 
   wrapNodeMethod("removeChild");

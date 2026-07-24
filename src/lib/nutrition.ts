@@ -1,8 +1,6 @@
 import { sanitizeFoodItem as normalizeNutritionItem } from "@/features/nutrition/sanitize";
-import {
-  nutritionSearch as requestNutritionSearch,
-  nutritionBarcodeLookup as requestNutritionBarcode,
-} from "./api";
+import { nutritionSearch as requestNutritionSearch } from "./api/nutrition";
+import { nutritionBarcodeLookup as requestNutritionBarcode } from "./api";
 import { netError } from "./net";
 
 type RequestOptions = {
@@ -82,7 +80,14 @@ function normalizeFoodItem(raw: any): FoodItem {
         ? String(idSource)
         : `food-${Math.random().toString(36).slice(2, 10)}`;
 
-  const normalized = normalizeNutritionItem(raw) ?? {};
+  const normalized: Partial<{
+    name: string;
+    brand: string;
+    kcal: number;
+    protein_g: number;
+    carbs_g: number;
+    fat_g: number;
+  }> = normalizeNutritionItem(raw) ?? {};
   const name =
     typeof normalized.name === "string" && normalized.name.trim().length
       ? normalized.name.trim()

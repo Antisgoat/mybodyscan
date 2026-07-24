@@ -203,9 +203,13 @@ export async function nutritionBarcodeLookup(
       .map((item) => {
         const sanitized = sanitizeFoodItem(item);
         if (!sanitized) return null;
-        return { ...item, ...sanitized };
+        const source =
+          item && typeof item === "object"
+            ? (item as Record<string, unknown>)
+            : {};
+        return { ...source, ...sanitized };
       })
-      .filter((item): item is Record<string, unknown> => Boolean(item));
+      .filter((item): item is NonNullable<typeof item> => item !== null);
   }
 
   return payload ?? {};
@@ -389,7 +393,9 @@ export async function fetchFoods(q: string): Promise<FoodItem[]> {
     let payload: NutritionSearchResponse | undefined;
 
     try {
-      payload = await nutritionSearch(query, { signal: controller.signal });
+      payload = await nutritionSearchCallable(query, {
+        signal: controller.signal,
+      });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         throw error;

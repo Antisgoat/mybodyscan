@@ -16,9 +16,10 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
+  const allAccepted = acceptedTerms && acceptedPrivacy && acceptedDisclaimer;
 
   function onAccept() {
-    if (!acceptedTerms || !acceptedPrivacy || !acceptedDisclaimer) return;
+    if (!allAccepted) return;
     try {
       localStorage.setItem(KEY, "1");
     } catch {
@@ -91,14 +92,10 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
           onClick={onAccept}
           style={{
             ...btn,
-            cursor:
-              acceptedTerms && acceptedPrivacy && acceptedDisclaimer
-                ? "pointer"
-                : "not-allowed",
-            opacity:
-              acceptedTerms && acceptedPrivacy && acceptedDisclaimer ? 1 : 0.55,
+            cursor: allAccepted ? "pointer" : "not-allowed",
+            opacity: allAccepted ? 1 : 0.55,
           }}
-          disabled={!acceptedTerms || !acceptedPrivacy || !acceptedDisclaimer}
+          disabled={!allAccepted}
         >
           I Accept
         </button>

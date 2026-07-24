@@ -210,11 +210,7 @@ const Processing = () => {
       <div className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 bg-secondary text-secondary-foreground">
         <span
           className={`h-2 w-2 rounded-full ${
-            status === "complete"
-              ? "bg-primary"
-              : status === "error"
-                ? "bg-destructive"
-                : "bg-warning animate-pulse"
+            status === "complete" ? "bg-primary" : "bg-warning animate-pulse"
           }`}
         />
         <span className="text-sm font-medium">

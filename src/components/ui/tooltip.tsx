@@ -12,7 +12,7 @@ const Tooltip = ({
 }: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Root>) => {
   const disabled = isIOSNativeRuntime();
   return (
-    <TooltipPrimitive.Root disabled={disabled} {...props}>
+    <TooltipPrimitive.Root {...props} open={disabled ? false : props.open}>
       {children}
     </TooltipPrimitive.Root>
   );

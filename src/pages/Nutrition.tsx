@@ -15,7 +15,7 @@ import {
 import { useAuthUser } from "@/auth/mbs-auth";
 import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { roundGrams, roundKcal } from "@/lib/nutritionMath";
-import NutritionSearch from "@/components/NutritionSearch";
+import NutritionSearch from "@/features/meals/NutritionSearch";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 

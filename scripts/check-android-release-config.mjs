@@ -19,6 +19,7 @@ const requiredFiles = [
   "android/app/src/main/AndroidManifest.xml",
   "android/app/src/main/res/xml/data_extraction_rules.xml",
   "android/app/src/main/res/xml/full_backup_rules.xml",
+  "android/app/src/main/res/xml/file_paths.xml",
   "android/app/src/main/res/xml/network_security_config.xml",
   "android/app/src/test/java/com/mybodyscan/app/ExampleUnitTest.java",
   "android/app/src/androidTest/java/com/mybodyscan/app/ExampleInstrumentedTest.java",
@@ -39,6 +40,7 @@ if (!failures.length) {
   const networkSecurity = read(
     "android/app/src/main/res/xml/network_security_config.xml"
   );
+  const filePaths = read("android/app/src/main/res/xml/file_paths.xml");
   const packageJson = JSON.parse(read("package.json"));
   const productionExample = read(".env.production.example");
   const nativeAppCheck = read("src/lib/appCheck.native.ts");
@@ -91,11 +93,17 @@ if (!failures.length) {
     /android\.permission\.CAMERA/,
     "Android manifest must request camera permission for scan/barcode capture."
   );
-  requireText(
-    manifest,
-    /android:name=["']android\.hardware\.camera["'][\s\S]*android:required=["']false["']/,
-    "Android camera hardware must be optional so photo uploads remain available on non-camera devices."
-  );
+  const cameraFeatureTag = manifest.match(
+    /<uses-feature\b[^>]*android:name=["']android\.hardware\.camera["'][^>]*>/i
+  )?.[0];
+  if (
+    !cameraFeatureTag ||
+    !/android:required=["']false["']/i.test(cameraFeatureTag)
+  ) {
+    failures.push(
+      "Android camera hardware must be optional so photo uploads remain available on non-camera devices."
+    );
+  }
   requireText(
     manifest,
     /android:dataExtractionRules=["']@xml\/data_extraction_rules["']/,
@@ -116,23 +124,42 @@ if (!failures.length) {
     /cleartextTrafficPermitted=["']false["']/,
     "Android network security config must reject cleartext traffic."
   );
-  if (/READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE/.test(manifest)) {
+  if (
+    /READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|MANAGE_EXTERNAL_STORAGE/.test(
+      manifest
+    )
+  ) {
     failures.push(
       "Android must use the system photo picker and must not request broad storage access."
     );
   }
+  requireText(
+    filePaths,
+    /<external-files-path\b[^>]*path=["']Pictures\/["'][^>]*>/i,
+    "The Android camera FileProvider must expose only the app-owned Pictures directory."
+  );
+  requireText(
+    filePaths,
+    /<cache-path\b[^>]*path=["']images\/["'][^>]*>/i,
+    "The Android FileProvider cache grant must be limited to its images directory."
+  );
+  if (
+    /<external-path\b/i.test(filePaths) ||
+    /\bpath=["']\.["']/i.test(filePaths)
+  ) {
+    failures.push(
+      "Android FileProvider paths must not expose shared storage or an entire cache/files root."
+    );
+  }
 
-  const androidVersion =
-    packageJson.dependencies?.["@capacitor/android"] ?? "";
+  const androidVersion = packageJson.dependencies?.["@capacitor/android"] ?? "";
   const coreVersion = packageJson.dependencies?.["@capacitor/core"] ?? "";
   if (!androidVersion || androidVersion !== coreVersion) {
     failures.push(
       "@capacitor/android must be present at the exact @capacitor/core version."
     );
   }
-  if (
-    packageJson.dependencies?.["@capacitor-firebase/app-check"] !== "7.5.0"
-  ) {
+  if (packageJson.dependencies?.["@capacitor-firebase/app-check"] !== "7.5.0") {
     failures.push(
       "@capacitor-firebase/app-check must be pinned to 7.5.0 for native Play Integrity."
     );
