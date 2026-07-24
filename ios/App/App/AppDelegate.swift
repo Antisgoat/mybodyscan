@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import FirebaseAuth
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -15,12 +16,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-    NotificationCenter.default.post(name: .capacitorOpenURL, object: [
-      "url": url,
-      "options": options,
-    ])
-    NotificationCenter.default.post(name: NSNotification.Name.CDVPluginHandleOpenURL, object: url)
-    return true
+    if Auth.auth().canHandle(url) {
+      return true
+    }
+    return ApplicationDelegateProxy.shared.application(
+      app,
+      open: url,
+      options: options
+    )
   }
 
   func application(

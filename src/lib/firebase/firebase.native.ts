@@ -1,8 +1,16 @@
 import { env } from "@/env";
+import {
+  getApp,
+  getApps,
+  initializeApp,
+  type FirebaseApp,
+} from "firebase/app";
+import { getFirestore, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 import {
+  firebaseConfig,
   firebaseApiKey,
   firebaseConfigMissingKeys,
   firebaseConfigWarningKeys,
@@ -10,15 +18,28 @@ import {
   getFirebaseConfig,
   getFirebaseInitError,
   hasFirebaseConfig,
+  logBuildMetaOnce,
   logFirebaseConfigSummary,
   logFirebaseRuntimeInfo,
+  setFirebaseInitError,
 } from "./config";
-import { app, auth, db } from "./client";
 
-export { auth };
+let app: FirebaseApp;
+try {
+  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  setFirebaseInitError(message);
+  app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+}
+
+const db: Firestore = getFirestore(app);
+if (!(db as { app?: FirebaseApp }).app) {
+  throw new Error("[MBS] Firestore instance invalid (missing app)");
+}
+logBuildMetaOnce();
 
 export const firebaseApp = app;
-
 export { app, db };
 
 const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";

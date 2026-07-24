@@ -5,8 +5,10 @@ const FORBIDDEN_TOKENS = [
   "@firebase/auth-compat",
   "firebase/auth-compat",
   "firebase/compat/auth",
+  "@capacitor-firebase/authentication/dist/esm/web",
+  "@capacitor-firebase/app-check/dist/esm/web",
 ];
-const SDK_REGISTRY_CHUNK = /^fb-[A-Za-z0-9_-]+\.js$/;
+const SDK_REGISTRY_CHUNK = /^fb-[A-Za-z0-9_-]+\.js(?:\.map)?$/;
 
 async function statDir(dir) {
   try {
@@ -53,6 +55,24 @@ async function scanDir(label, dirPath, { required }) {
   const hits = [];
   const files = await listFilesRecursive(dirPath);
   for (const file of files) {
+    if (/^web-auth-[A-Za-z0-9_-]+\.js$/.test(path.basename(file))) {
+      hits.push({
+        label,
+        file,
+        forbidden:
+          "file:web-auth (native builds must use the explicit native-auth session bridge chunk)",
+      });
+      continue;
+    }
+    if (/^appCheck\.web-[A-Za-z0-9_-]+\.js$/.test(path.basename(file))) {
+      hits.push({
+        label,
+        file,
+        forbidden:
+          "file:appCheck.web (reCAPTCHA App Check must not ship natively)",
+      });
+      continue;
+    }
     // Firebase core includes compat package names in a version registry even
     // when those modules are absent. Actual compat imports are rejected by the
     // native Vite resolver; keep this text scan focused on app-owned chunks.
@@ -91,7 +111,9 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log("[verify:native] OK: no forbidden compat auth artifacts found");
+  console.log(
+    "[verify:native] OK: native Firebase Auth session bridge is isolated; no compat, web App Check, or plugin web-fallback artifacts found"
+  );
 }
 
 main().catch((err) => {

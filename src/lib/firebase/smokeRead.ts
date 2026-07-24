@@ -1,8 +1,7 @@
 import { doc, getDoc } from "firebase/firestore";
 
+import { db } from "@/lib/firebase";
 import { error as toastError } from "@/lib/toast";
-
-import { db } from "./client";
 
 let lastUid: string | null = null;
 let inFlight: Promise<void> | null = null;

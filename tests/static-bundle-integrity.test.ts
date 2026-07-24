@@ -22,7 +22,9 @@ describe("static bundle integrity", () => {
   it("extracts unique local assets without treating external URLs as files", () => {
     const html = `
       <script src="/assets/app.js?cache=1"></script>
+      <script src="./assets/native.js?cache=2"></script>
       <link href="/assets/app.css#theme" rel="stylesheet">
+      <link href="./assets/native.css#theme" rel="stylesheet">
       <link href="/assets/app.css" rel="preload">
       <link href="https://mybodyscanapp.com/" rel="canonical">
       <script src="//cdn.example.com/library.js"></script>
@@ -30,7 +32,9 @@ describe("static bundle integrity", () => {
 
     expect(extractLocalAssetPaths(html)).toEqual([
       "/assets/app.js",
+      "/assets/native.js",
       "/assets/app.css",
+      "/assets/native.css",
     ]);
   });
 

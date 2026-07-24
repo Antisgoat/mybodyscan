@@ -16,6 +16,8 @@ inhibit_all_warnings!
 def capacitor_pods
   pod 'Capacitor', :path => '../../node_modules/@capacitor/ios'
   pod 'CapacitorCordova', :path => '../../node_modules/@capacitor/ios'
+  pod 'CapacitorFirebaseAppCheck', :path => '../../node_modules/@capacitor-firebase/app-check'
+  pod 'CapacitorFirebaseAuthentication', :path => '../../node_modules/@capacitor-firebase/authentication'
   pod 'CapacitorFirebaseMessaging', :path => '../../node_modules/@capacitor-firebase/messaging'
   pod 'CapacitorApp', :path => '../../node_modules/@capacitor/app'
   pod 'CapacitorBrowser', :path => '../../node_modules/@capacitor/browser'
@@ -25,6 +27,7 @@ end
 target 'App' do
   capacitor_pods
   # Add your Pods here
+  pod 'CapacitorFirebaseAuthentication/Google', :path => '../../node_modules/@capacitor-firebase/authentication'
 end
 
 post_install do |installer|
@@ -34,6 +37,9 @@ post_install do |installer|
       config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
       config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+      if target.respond_to?(:product_type) && target.product_type == 'com.apple.product-type.bundle'
+        config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+      end
 
       # Reduce noisy Swift warnings from third-party pods (RevenueCat, etc).
       # Prefer upgrading pods when possible; this is a pragmatic fallback.

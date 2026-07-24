@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
-import { assertRevenueCatIosReleaseConfig } from "./lib/validate-revenuecat-release.mjs";
+import { assertRevenueCatReleaseConfig } from "./lib/validate-revenuecat-release.mjs";
 // Minimal dotenv-compatible parser (kept local to avoid runtime dependencies).
 const dotenv = {
   parse(src) {
@@ -85,8 +85,15 @@ const readBuildEnvValue = (key) => {
 };
 
 if (isNativeRelease) {
-  assertRevenueCatIosReleaseConfig({
+  const releasePlatform = String(
+    process.env.MBS_PLATFORM ?? process.env.CAPACITOR_PLATFORM ?? "ios"
+  )
+    .trim()
+    .toLowerCase();
+  assertRevenueCatReleaseConfig({
+    platform: releasePlatform,
     iosKey: readBuildEnvValue("VITE_RC_API_KEY_IOS"),
+    androidKey: readBuildEnvValue("VITE_RC_API_KEY_ANDROID"),
     entitlementId: readBuildEnvValue("VITE_RC_ENTITLEMENT_ID"),
   });
 }
@@ -245,8 +252,14 @@ const readAndroidFirebaseConfig = () => {
   };
 };
 
+const requestedNativePlatform = String(
+  process.env.MBS_PLATFORM ?? process.env.CAPACITOR_PLATFORM ?? ""
+)
+  .trim()
+  .toLowerCase();
+
 const readNativeFirebaseConfig = () => {
-  const platform = String(process.env.CAPACITOR_PLATFORM ?? "").toLowerCase();
+  const platform = requestedNativePlatform;
   const sources = [];
   const config = {};
   if (platform === "ios" || !platform) {
@@ -285,9 +298,7 @@ const isMissingValue = (value) =>
   value === undefined || value === null || String(value).trim() === "";
 
 const nativeConfig = isNative ? readNativeFirebaseConfig() : null;
-const nativePlatform = String(
-  process.env.CAPACITOR_PLATFORM ?? ""
-).toLowerCase();
+const nativePlatform = requestedNativePlatform;
 const buildNativeFileHint = () => {
   if (!isNative || nativeConfig?.sources?.length) return "";
   if (nativePlatform === "ios") {

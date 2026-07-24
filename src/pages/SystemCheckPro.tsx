@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { getToken as getAppCheckToken } from "firebase/app-check";
-import { appCheck } from "@/lib/appCheck";
+import { getAppCheckTokenHeader } from "@/lib/appCheck";
 import { resolveFunctionUrl } from "@/lib/api/functionsBase";
 import { apiFetch } from "@/lib/http";
 import { isDemoActive } from "@/lib/demo";
@@ -44,11 +43,12 @@ export default function SystemCheckPro() {
   const [running, setRunning] = useState(false);
 
   useEffect(() => {
-    if (!appCheck) return;
-    getAppCheckToken(appCheck, false)
-      .then((token) => setAppCheckToken(token?.token || ""))
+    getAppCheckTokenHeader(false)
+      .then((headers) =>
+        setAppCheckToken(headers["X-Firebase-AppCheck"] || "")
+      )
       .catch(() => {});
-  }, [appCheck]);
+  }, []);
 
   async function run() {
     setRunning(true);

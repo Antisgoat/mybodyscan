@@ -1,7 +1,7 @@
 # MyBodyScan production release runbook
 
 This is the single authoritative production runbook for the web app, Firebase
-backend, and Capacitor iOS app. `docs/GO-LIVE.md`, `docs/DEPLOY.md`,
+backend, and Capacitor iOS and Android apps. `docs/GO-LIVE.md`, `docs/DEPLOY.md`,
 `ios/RELEASE_IOS.md`, and README deployment notes defer to this file; older
 audit reports are historical and must not be used as deployment instructions.
 
@@ -21,6 +21,8 @@ audit reports are historical and must not be used as deployment instructions.
 - Functions region/runtime: `us-central1`, Node.js 22
 - iOS app: `MyBodyScan: Body Progress`, App Store ID `6793707279`, bundle ID
   `com.mybodyscan.app`, Apple team `LSSBW4456K`
+- Android app: `MyBodyScan: Body Progress`, application ID
+  `com.mybodyscan.app`, target/compile SDK 36, minimum SDK 23
 - RevenueCat project/app: `ADLR LABS` / `MyBodyScan`; entitlement `pro`
 - Production deploys come from reviewed `main`. Never deploy a dirty tree.
 - The `main` workflow verifies and deploys indexes, Functions, rules, Storage,
@@ -49,6 +51,8 @@ values still must not be pasted into tickets or logs.
 - the `VITE_PRICE_*` IDs represented in `.env.production.example`
 - for an iOS release, `VITE_RC_API_KEY_IOS` must be RevenueCat's public Apple
   SDK key (`appl_…`) and `VITE_RC_ENTITLEMENT_ID` must be `pro`
+- for an Android release, `VITE_RC_API_KEY_ANDROID` must be RevenueCat's public
+  Google Play SDK key (`goog_…`) and `VITE_RC_ENTITLEMENT_ID` must be `pro`
 
 The generated production bundle fails if any required Firebase Web field is
 empty. Run this status-only check; it never prints values:
@@ -92,6 +96,12 @@ Non-secret runtime configuration is committed in
 `functions/.env.mybodyscan-f3daf`, the Firebase-supported project-specific
 Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
 feature flags, and the effective Coach and nutrition rate limits.
+The shared OpenAI client uses the configured model (currently
+`gpt-4o-mini`), retries one transient 429/5xx response on that model, and then
+falls back to the current `gpt-4.1-mini` alias. Both models must pass an
+image-input plus structured-JSON account smoke test before release. Do not add
+an old dated model snapshot as a fallback without verifying that the production
+OpenAI project can still access it.
 New scan credits expire after 12 months by default, matching the purchase and
 legal pages. `CREDIT_EXP_MONTHS` may override that period only after the same
 change is approved and published in every customer-facing purchase and policy
@@ -137,6 +147,40 @@ subscription signal, and native builds do not bypass this check.
   retains branded serving data and only offers grams, ounces, milliliters,
   cups, slices, or pieces when the upstream record supports that conversion.
   Volume is never converted to mass without product-specific density data.
+- Preserve the upstream source on every result and meal entry. Do not average
+  conflicting values from different providers or claim that a crowd-sourced
+  record is manufacturer-verified. Prefer a matching branded/manufacturer
+  record, then a verified USDA record, and show the user when data is incomplete.
+
+FatSecret Search v5 is the evaluated third-provider candidate because it adds
+international branded coverage and localized serving data. Its standard
+Premier API terms permit storage of only `food_id` and `serving_id`, while
+MyBodyScan must retain names, servings, and nutrient values in meal history,
+favorites, and recents. Do not add it under the standard license. Before any
+implementation, obtain a written commercial agreement that explicitly permits
+those stored fields and the required countries, retention period, attribution,
+and product use. Only then create server-side `FATSECRET_CLIENT_ID` and
+`FATSECRET_CLIENT_SECRET` secrets, add a source-preserving adapter and fallback
+tests, and keep both credentials out of every client bundle.
+
+Do not add a provider merely to increase the displayed source count. USDA
+Branded Foods already receives label data from manufacturers and industry
+providers including GS1/1WorldSync, while Verified by GS1 primarily validates
+GTIN identity and a small set of basic product attributes rather than supplying
+an independent nutrition panel. Edamam's standard Food Database terms also
+limit which nutrient fields may be cached, which is incompatible with complete
+saved meal history without a separate commercial agreement. Treat the
+manufacturer label as the final user-verifiable reference, retain source and
+last-updated metadata, and allow a manual correction instead of averaging
+conflicting providers.
+
+Open Food Facts remains useful for international barcode and ingredient
+coverage, but its data is community supplied and its current documentation
+recommends API v3 for product reads. The legacy full-text endpoint is still the
+documented full-text search path while Search-a-licious is being completed.
+Migrate barcode reads to v3 under normalization/fallback tests before Open Food
+Facts removes v2 compatibility; do not replace the working search path with an
+undocumented endpoint.
 
 Apple HealthKit and Android Health Connect imports are not part of version 1.0.
 The existing Health screens must remain labeled **coming soon** and must not
@@ -306,26 +350,75 @@ the current-state notes below say it was configured:
       answers and make the Content Rights declaration; an operator must also
       provide truthful App Review contact details and working reviewer
       credentials. Do not invent any of those values.
-    - Native builds currently expose email/password authentication only;
-      Google and Apple buttons are deliberately hidden because the retired
-      native Firebase Auth integration caused startup failures. Web Google and
-      Apple sign-in remain enabled. Do not advertise native social sign-in or
-      add its buttons until a replacement native flow passes device tests.
+    - Native source uses the Capacitor Firebase Authentication bridge only for
+      secure Google/Apple provider UI. It then signs the returned credential
+      into modular Firebase JS Auth with IndexedDB persistence; email/password
+      also uses that canonical JS session. This synchronization is required
+      because Firestore, Storage, and callable Functions are Firebase JS
+      clients inside the Capacitor shell. Browser popup/redirect OAuth and
+      reCAPTCHA verification are not used natively. Google and Apple remain
+      release-gated until the freshly built candidate passes sign-in,
+      sign-out, token refresh, account switching, Firestore/Storage access, and
+      cold-launch tests on the physical iPhone.
+11. Google Play Console, Firebase Android, and RevenueCat:
+    - The Firebase Android app must belong to project `mybodyscan-f3daf`, use
+      package `com.mybodyscan.app`, and include the Play upload and app-signing
+      SHA-1 and SHA-256 fingerprints in addition to local debug fingerprints.
+    - The Play app is free to download and uses Billing only for the exact
+      product IDs above. Monthly and yearly are subscriptions; single scan is a
+      one-time consumable. Prices are $9.99/month, $79.99/year, and $4.99.
+      Never attach the consumable to RevenueCat entitlement `pro`.
+    - Enable Play App Signing, create a recoverable upload keystore outside
+      Git, copy `android/keystore.properties.example` to the ignored
+      `android/keystore.properties`, and record the keystore backup procedure
+      in the company password manager. Never commit a keystore or passwords.
+    - Add the Google Play app to the existing RevenueCat project, install its
+      public `goog_…` SDK key as `VITE_RC_API_KEY_ANDROID`, import all three
+      products, attach only monthly/yearly to `pro`, and reuse the current
+      offering/package semantics.
+    - Register Android App Check with Play Integrity only after the account
+      owner accepts Google's API terms. Link the Play app to Firebase/Google
+      Cloud as documented by Play Integrity, deploy to an internal testing
+      track, and observe valid tokens before any enforcement.
+    - Complete the Data safety form, content rating, target audience, ads
+      declaration, store listing, support/privacy URLs, countries, test-account
+      instructions, and required screenshots truthfully. Legal declarations
+      and Play terms remain account-owner actions.
+    - Use Play license testers and Google Play test payment methods on an
+      internal-test install. No real card charge is required or acceptable for
+      release verification.
 
-Current iOS external state on 2026-07-23: the App Store app record exists;
+Current Android external state on 2026-07-24: the Firebase Android app exists
+in `mybodyscan-f3daf` with package `com.mybodyscan.app`; its ignored
+`google-services.json`, local debug fingerprints, API-36 project, and debug APK
+are verified. Play Integrity registration is prepared but not saved because
+the account owner must accept the Google APIs and Play Integrity terms. The
+currently signed-in Google account still shows Play Console account creation,
+so the owner must either complete the correct ADLR Labs organization account
+or switch to the already-paid developer account. The current RevenueCat role
+cannot add app configurations, so an Owner/Admin must add the Google Play app
+and expose its public `goog_…` SDK key. No upload/app-signing key, product
+catalog, internal test build, or Android device acceptance test exists yet.
+
+Current iOS external state on 2026-07-24: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode. Build 6 is the final replacement candidate with the RevenueCat
-paywall and redirect-hardening fixes. It was archived, validated,
+Developer Mode. Build 6 was the prior candidate with the RevenueCat paywall
+and redirect-hardening fixes. It was archived, validated,
 distribution-signed, accepted by Apple's upload service for TestFlight
 processing, installed on the paired iPhone 14 Pro Max, and launched
 successfully. Fresh iPhone and iPad simulator builds also install, launch, and
-render the reviewed responsive layouts. Build 5 was accepted by Apple's upload
+render the reviewed responsive layouts. The native Firebase Authentication and
+App Check bridge work was added after build 6; therefore build 6 is superseded
+for final submission and a newly numbered candidate must be archived, uploaded,
+and device-tested. Build 5 was accepted by Apple's upload
 service but was superseded before device testing by the redirect-hardening fix.
 Build 4 must not be submitted because its native plan route bypassed the
 RevenueCat paywall. The real photo, purchase, restore, notification, and
 offline device checklist remains mandatory.
 
-Build 6 is selected for App Store version 1.0. Six ordered 1242 × 2688 iPhone
+Build 6 is still selected for App Store version 1.0 only as the prior metadata
+placeholder; replace it with the verified new candidate before submission. Six
+ordered 1242 × 2688 iPhone
 screenshots and six ordered 2064 × 2752 iPad screenshots are uploaded: body
 results, training, nutrition progress, meal planning, four-photo scanning, and
 AI coaching. The app download price is $0.00 and the app is scheduled to be
@@ -380,6 +473,15 @@ The web client initializes Firebase App Check only when
 and sends tokens through Firebase callable requests and the
 `X-Firebase-AppCheck` header.
 
+Native clients initialize the platform Firebase App Check SDK with App Attest
+on iOS and Play Integrity on Android. A Firebase JS `CustomProvider` then feeds
+that native token to the Firestore, Storage, and callable clients running
+inside Capacitor; explicit HTTP requests use the same token in
+`X-Firebase-AppCheck`. The native bundle includes modular Firebase JS Auth for
+the synchronized Firebase session, but must never initialize the web App Check
+reCAPTCHA provider, browser popup/redirect OAuth, or either Capacitor plugin's
+JavaScript web fallback.
+
 `APP_CHECK_MODE=soft` in `functions/.env.mybodyscan-f3daf` is the production
 bootstrap setting:
 
@@ -402,9 +504,12 @@ deletion, and mobile checks. Enable Firebase product enforcement one product at
 a time. Roll back to `soft` immediately if legitimate clients receive
 permission failures.
 
-Current verified console state on 2026-07-22: the web app is registered with
-reCAPTCHA Enterprise; Cloud Firestore and Authentication are in **Monitoring**
-and Storage is **Unenforced**. None of those Firebase products is rejecting
+Current verified console state on 2026-07-24: the web app is registered with
+reCAPTCHA Enterprise and the iOS app is registered with App Attest. Android is
+created in the correct Firebase project but Play Integrity registration is
+waiting for the account owner to accept the Google API and Play Integrity
+terms. Authentication is in **Monitoring**; Cloud Firestore, Storage, and
+Google Identity for iOS are **Unenforced**. None of those products is rejecting
 unverified users. Functions use the repository-controlled soft mode described
 above. Do not enable console enforcement as part of this release.
 
@@ -425,6 +530,8 @@ npm --prefix tests/rules ls --depth=0
 npm run check:production-config
 npm run check:ios-release-config
 npm run check:ios-release-guard
+npm run check:android-release-config
+node scripts/assert-no-native-firebase-auth.mjs
 npm run lint
 npm run typecheck
 npm test
@@ -437,6 +544,8 @@ npm run build:native:release
 npx cap sync ios
 npm run smoke:native:ios
 npm run smoke:ios
+npm run android:build:debug
+npm run verify:native
 npm run storage:cors:check
 npx firebase-tools deploy --only firestore:indexes,functions,firestore:rules,storage,hosting --project mybodyscan-f3daf --non-interactive --dry-run
 ```
@@ -463,8 +572,8 @@ specs in the broader suite run only when `PLAYWRIGHT_STORAGE_STATE` points to a
 real test-account state file.
 
 ```bash
-E2E_BASE_URL=http://127.0.0.1:4173 npm run test:e2e
-BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.config.ts
+E2E_BASE_URL=http://127.0.0.1:4173 npx playwright test
+E2E_BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.config.ts
 ```
 
 `build:prod` includes program validation, bundle-size safeguards, forbidden
@@ -486,6 +595,25 @@ real public RevenueCat Apple SDK key in `.env.production.local`. After every
 RevenueCat or native-config change, install the freshly signed build from Xcode
 on the paired iPhone; an older installed build is not evidence for the current
 bundle.
+
+The Android debug gate additionally requires ignored
+`android/app/google-services.json` from Firebase project
+`mybodyscan-f3daf`, JDK 21, Android SDK Platform/Build Tools 36, and the
+platform tools. A signed release bundle additionally requires the ignored
+release keystore configuration and public RevenueCat Google Play SDK key:
+
+```bash
+npm run android:doctor
+npm run android:build:debug
+npm run android:bundle:release
+```
+
+`android:build:debug` runs sync, the native release guards, unit tests, Android
+lint, and APK assembly. `android:bundle:release` must fail closed when signing
+or RevenueCat release configuration is absent. An APK build is not evidence of
+Google sign-in, Play Integrity, Play Billing, push delivery, or purchase
+restoration; those require an internal-track install on a licensed Android test
+account.
 
 ## Deployment order
 
@@ -521,6 +649,18 @@ In Xcode Organizer choose **Validate App**, then **Distribute App → App Store
 Connect → Upload**. Release only to internal TestFlight first. Apple submission
 is not authorized by a Firebase deploy and must wait for the device/purchase
 checklist below.
+
+After the same backend smoke test passes, build the signed Android App Bundle
+from the same reviewed commit:
+
+```bash
+npm run android:bundle:release
+```
+
+Upload `android/app/build/outputs/bundle/release/app-release.aab` to Google Play
+**Internal testing**, add only license-tester accounts, and publish that test
+release. Production rollout is a separate operator action and must wait for the
+Android device/purchase checklist below.
 
 ## Mandatory post-deploy smoke test
 
@@ -583,6 +723,13 @@ providers and does not replace the subscribed real-account checks below.
   support path for a customer who later returns with a different account.
 - On the physical iPhone, opt into plateau alerts, accept the system prompt,
   receive one visible APNs notification, and confirm tapping it opens History.
+- From a Google Play internal-test install, verify email, Google, and Apple
+  authentication only where the provider is intentionally offered; complete a
+  real four-photo scan; test notification opt-in; and purchase monthly, yearly,
+  and one scan using Play license testing. Confirm the same entitlement,
+  credit-ledger, idempotency, cancellation, restore, and account-deletion
+  expectations as iOS. Play Integrity metrics must show verified requests
+  before enforcement is considered.
 
 Useful status-only commands:
 
@@ -640,3 +787,10 @@ from sale in App Store Connect, restore the previous backend if compatibility
 requires it, fix the app, increment `CURRENT_PROJECT_VERSION`, and archive,
 validate, and upload a replacement. Do not disable the existing RevenueCat
 products or delete purchase history during rollback.
+
+For Android, stop or halt the staged production rollout in Play Console. If the
+release is fully available, upload a fixed bundle with a higher `versionCode`
+and roll that replacement out; Google Play does not support redeploying an old
+bundle as a new release. Restore the prior compatible Firebase backend if
+needed, but never delete subscriptions, consumables, RevenueCat customers, or
+purchase history during rollback.

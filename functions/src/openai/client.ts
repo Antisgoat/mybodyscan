@@ -11,6 +11,10 @@ const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_TIMEOUT_MS = 8_000;
 const DEFAULT_TEXT_TEMPERATURE = 0.6;
 const MAX_TOKENS_CAP = 4_096;
+const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+const FALLBACK_OPENAI_MODEL = "gpt-4.1-mini";
+const MAX_TRANSIENT_RETRIES = 1;
+const TRANSIENT_RETRY_DELAY_MS = 250;
 
 class InvalidModelError extends Error {}
 
@@ -72,8 +76,8 @@ function buildModelList(candidate?: string): string[] {
   const base = [
     candidate,
     process.env.OPENAI_MODEL,
-    "gpt-4o-mini",
-    "gpt-4o-mini-2024-07-18",
+    DEFAULT_OPENAI_MODEL,
+    FALLBACK_OPENAI_MODEL,
   ]
     .filter(
       (model): model is string =>
@@ -82,7 +86,7 @@ function buildModelList(candidate?: string): string[] {
     .map((model) => model.trim());
 
   if (base.length === 0) {
-    return ["gpt-4o-mini"];
+    return [DEFAULT_OPENAI_MODEL, FALLBACK_OPENAI_MODEL];
   }
 
   return Array.from(new Set(base));
@@ -105,7 +109,8 @@ function resolveOpenAIKey(): string {
 
 function resolveEndpoint(customBaseUrl?: string): string {
   const base =
-    (customBaseUrl || process.env.OPENAI_BASE_URL || "").trim() || OPENAI_ENDPOINT;
+    (customBaseUrl || process.env.OPENAI_BASE_URL || "").trim() ||
+    OPENAI_ENDPOINT;
   if (base.includes("/v1/chat/completions")) {
     return base;
   }
@@ -175,7 +180,10 @@ function stableBodyKey(body: Record<string, unknown>): string {
   return JSON.stringify(body, Object.keys(body).sort());
 }
 
-function buildChatBodies(model: string, request: ChatRequest): Record<string, unknown>[] {
+function buildChatBodies(
+  model: string,
+  request: ChatRequest
+): Record<string, unknown>[] {
   const maxTokens = clampMaxTokens(request.maxTokens);
   const base: Record<string, unknown> = {
     model,
@@ -186,7 +194,8 @@ function buildChatBodies(model: string, request: ChatRequest): Record<string, un
   const withTemperature: Record<string, unknown> = {
     ...base,
     temperature:
-      typeof request.temperature === "number" && Number.isFinite(request.temperature)
+      typeof request.temperature === "number" &&
+      Number.isFinite(request.temperature)
         ? request.temperature
         : DEFAULT_TEXT_TEMPERATURE,
   };
@@ -395,6 +404,45 @@ async function executeChat(
   }
 }
 
+function shouldRetrySameModel(error: unknown): boolean {
+  if (!(error instanceof OpenAIClientError)) return false;
+  if (error.message === "timeout") return false;
+  return error.status === 429 || error.status >= 500;
+}
+
+function waitForTransientRetry(attempt: number): Promise<void> {
+  const delayMs = TRANSIENT_RETRY_DELAY_MS * Math.max(1, attempt);
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function executeChatWithRetry(
+  model: string,
+  key: string,
+  request: ChatRequest,
+  requestId?: string,
+  baseUrl?: string
+): Promise<ChatResponse> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await executeChat(model, key, request, requestId, baseUrl);
+    } catch (error) {
+      if (attempt >= MAX_TRANSIENT_RETRIES || !shouldRetrySameModel(error)) {
+        throw error;
+      }
+      console.warn({
+        fn: "openai",
+        event: "retrying_transient_failure",
+        requestId: requestId ?? null,
+        model,
+        attempt: attempt + 1,
+        status: error instanceof OpenAIClientError ? error.status : null,
+        message: (error as Error)?.message,
+      });
+      await waitForTransientRetry(attempt + 1);
+    }
+  }
+}
+
 function shouldTryNextModel(error: unknown): boolean {
   if (error instanceof InvalidModelError) return true;
   if (error instanceof OpenAIClientError) {
@@ -428,7 +476,7 @@ export async function chatOnce(
 
   for (const model of models) {
     try {
-      const result = await executeChat(
+      const result = await executeChatWithRetry(
         model,
         key,
         {
@@ -502,7 +550,7 @@ export async function chatWithMessages(
 
   for (const model of models) {
     try {
-      const result = await executeChat(
+      const result = await executeChatWithRetry(
         model,
         key,
         {
@@ -559,7 +607,7 @@ export async function structuredJsonChat<T>(
 
   for (const model of models) {
     try {
-      const response = await executeChat(
+      const response = await executeChatWithRetry(
         model,
         key,
         {

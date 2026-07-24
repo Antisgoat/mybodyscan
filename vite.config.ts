@@ -24,7 +24,7 @@ function forbidNativeImports(isNative: boolean) {
         `FORBIDDEN in native build: ${match.label}\n` +
           `Importer: ${importerLabel}\n` +
           `Resolved: ${resolvedId}\n` +
-          "Web Firebase Auth and compat/namespace bundles must not ship to iOS."
+          "Firebase compat/namespace bundles must not ship to native apps."
       );
       return null;
     },
@@ -36,12 +36,30 @@ export default defineConfig(({ mode }) => {
   const isNative =
     mode === "native" ||
     process.env.MBS_NATIVE === "1" ||
+    process.env.MBS_PLATFORM === "ios" ||
+    process.env.MBS_PLATFORM === "android" ||
     process.env.CAPACITOR_NATIVE === "1" ||
     process.env.MBS_NATIVE_BUILD === "1";
   const enableNativeSourcemaps = isNative && process.env.MBS_NATIVE_RELEASE !== "1";
 
   const webAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.web.ts");
   const nativeAuthImpl = path.resolve(__dirname, "./src/auth/mbs-auth.native.ts");
+  const nativeWebAuthImpl = path.resolve(
+    __dirname,
+    "./src/auth/webAuth.native.ts"
+  );
+  const browserWebAuthImpl = path.resolve(
+    __dirname,
+    "./src/auth/webAuth.web.ts"
+  );
+  const nativeAppCheckImpl = path.resolve(
+    __dirname,
+    "./src/lib/appCheck.native.ts"
+  );
+  const browserAppCheckImpl = path.resolve(
+    __dirname,
+    "./src/lib/appCheck.web.ts"
+  );
   const webFirebaseImpl = path.resolve(
     __dirname,
     "./src/lib/firebase/firebase.web.ts"
@@ -82,8 +100,9 @@ export default defineConfig(({ mode }) => {
   return {
   // NOTE:
   // - `mode === "native"` is a special build mode for Capacitor/WKWebView.
-  // - Native builds still use firebase/* shims to avoid compat bundles, but
-  //   Firebase JS Auth is now allowed for email/password in WKWebView.
+  // - Native builds still use firebase/* shims to avoid compat bundles.
+  // - Modular Firebase JS Auth is intentionally present: native OAuth
+  //   credentials are synchronized into it so Firestore/Storage are signed in.
   base: isNative ? "./" : "/",
   server: {
     host: "::",
@@ -101,6 +120,14 @@ export default defineConfig(({ mode }) => {
   },
   resolve: {
     alias: [
+      {
+        find: /^@\/auth\/webAuth$/,
+        replacement: isNative ? nativeWebAuthImpl : browserWebAuthImpl,
+      },
+      {
+        find: /^@\/lib\/appCheck$/,
+        replacement: isNative ? nativeAppCheckImpl : browserAppCheckImpl,
+      },
       { find: "@", replacement: path.resolve(__dirname, "./src") },
       {
         find: "@mbs-auth-impl",
@@ -119,7 +146,6 @@ export default defineConfig(({ mode }) => {
             { find: /^firebase\/functions$/, replacement: nativeFunctionsShim },
             { find: /^firebase\/storage$/, replacement: nativeStorageShim },
             { find: /^firebase\/analytics$/, replacement: nativeAnalyticsShim },
-
             // Extra hardening for compat/app variants (forbidden).
             { find: /^firebase$/, replacement: forbiddenFirebaseNamespaceShim },
             { find: /^firebase\/app-compat$/, replacement: forbiddenFirebaseCompatShim },
@@ -182,16 +208,13 @@ export default defineConfig(({ mode }) => {
           // native-only module into a static chunk and execute it on web at boot.
           if (id.includes("@capacitor-firebase")) return "capacitor-firebase";
           if (id.includes("@capacitor/")) return "capacitor";
-          // IMPORTANT: keep firebase/auth in a *separate* lazy chunk.
-          // If we lump all Firebase files into one chunk, `firebase/auth` may be
-          // evaluated at boot even when only dynamically imported.
+          // Keep modular Firebase Auth in a distinct chunk. Native uses it as
+          // the canonical session after secure provider UI returns a credential.
           if (
             id.includes("/node_modules/firebase/auth") ||
             id.includes("/node_modules/@firebase/auth")
           ) {
-            // Intentionally not prefixed with "firebase-" so our boot-chunk greps
-            // (firebase-*.js) don't match this optional lazy auth chunk.
-            return "web-auth";
+            return isNative ? "native-auth" : "web-auth";
           }
           // Keep firebase core out of "firebase-*.js" so boot greps stay focused.
           if (id.includes("/node_modules/firebase/")) return "fb";

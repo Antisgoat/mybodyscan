@@ -1,31 +1,30 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 
 const KEY = "mbs_policy_ok_v1";
 
-export default function PolicyGate(_props: { children?: React.ReactNode }) {
-  const [accepted, setAccepted] = useState<boolean>(true);
+function hasAcceptedPolicies(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return localStorage.getItem(KEY) === "1";
+  } catch {
+    return true; // fail-open to avoid locking out browsers without storage
+  }
+}
 
-  useEffect(() => {
-    try {
-      const ok = localStorage.getItem(KEY) === "1";
-      setAccepted(ok);
-    } catch {
-      setAccepted(true); // fail-open to avoid lockout
-    }
-  }, []);
+export default function PolicyGate(_props: { children?: React.ReactNode }) {
+  const [accepted, setAccepted] = useState(hasAcceptedPolicies);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
 
   function onAccept() {
+    if (!acceptedTerms || !acceptedPrivacy || !acceptedDisclaimer) return;
     try {
       localStorage.setItem(KEY, "1");
     } catch {
       /* empty */
     }
-    // IMPORTANT: do not navigate to another route; just reload in place
-    try {
-      location.reload();
-    } catch {
-      /* empty */
-    }
+    setAccepted(true);
   }
 
   if (accepted) return null;
@@ -47,7 +46,12 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
         <ul style={list}>
           <li>
             <label>
-              <input type="checkbox" defaultChecked readOnly /> I accept the{" "}
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(event) => setAcceptedTerms(event.target.checked)}
+              />{" "}
+              I accept the{" "}
               <a href="/terms" target="_blank" rel="noreferrer">
                 Terms of Service
               </a>
@@ -55,7 +59,12 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
           </li>
           <li>
             <label>
-              <input type="checkbox" defaultChecked readOnly /> I accept the{" "}
+              <input
+                type="checkbox"
+                checked={acceptedPrivacy}
+                onChange={(event) => setAcceptedPrivacy(event.target.checked)}
+              />{" "}
+              I accept the{" "}
               <a href="/privacy" target="_blank" rel="noreferrer">
                 Privacy Policy
               </a>
@@ -63,14 +72,34 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
           </li>
           <li>
             <label>
-              <input type="checkbox" defaultChecked readOnly /> I understand the{" "}
+              <input
+                type="checkbox"
+                checked={acceptedDisclaimer}
+                onChange={(event) =>
+                  setAcceptedDisclaimer(event.target.checked)
+                }
+              />{" "}
+              I understand the{" "}
               <a href="/legal/disclaimer" target="_blank" rel="noreferrer">
                 Medical Disclaimer
               </a>
             </label>
           </li>
         </ul>
-        <button type="button" onClick={onAccept} style={btn}>
+        <button
+          type="button"
+          onClick={onAccept}
+          style={{
+            ...btn,
+            cursor:
+              acceptedTerms && acceptedPrivacy && acceptedDisclaimer
+                ? "pointer"
+                : "not-allowed",
+            opacity:
+              acceptedTerms && acceptedPrivacy && acceptedDisclaimer ? 1 : 0.55,
+          }}
+          disabled={!acceptedTerms || !acceptedPrivacy || !acceptedDisclaimer}
+        >
           I Accept
         </button>
       </div>
@@ -111,5 +140,4 @@ const btn: React.CSSProperties = {
   border: "1px solid #ddd",
   borderRadius: 8,
   background: "white",
-  cursor: "pointer",
 };

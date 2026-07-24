@@ -17,13 +17,11 @@ const iosPodfile = path.join(repoRoot, "ios/App/Podfile");
 const iosPodfileLock = path.join(repoRoot, "ios/App/Podfile.lock");
 const iosDuplicateDoctor = path.join(repoRoot, "scripts/doctor-ios-duplicates.mjs");
 
-const pluginPatterns = [
-  "@capacitor-firebase/authentication",
-  "capacitor-firebase/authentication",
-];
 const allowedPlugins = new Set([
   "@capacitor/app",
   "@capacitor/browser",
+  "@capacitor-firebase/app-check",
+  "@capacitor-firebase/authentication",
   "@capacitor-firebase/messaging",
   "@revenuecat/purchases-capacitor",
 ]);
@@ -113,15 +111,9 @@ function assertCapPlugins() {
       fail(`npx cap ls ios missing required plugin: ${plugin}.`);
     }
   }
-  if (/capacitor-firebase\/authentication/i.test(output)) {
-    fail("npx cap ls ios reports the disallowed native Firebase Authentication plugin.");
-  }
-  for (const pattern of pluginPatterns) {
-    if (output.includes(pattern)) {
-      fail(`npx cap ls ios reports disallowed plugin: ${pattern}.`);
-    }
-  }
-  pass("Capacitor iOS plugins match expected RevenueCat and Messaging list.");
+  pass(
+    "Capacitor iOS plugins match expected native App Check, Auth, Messaging, and RevenueCat list."
+  );
 }
 
 async function assertNoServerUrl() {
@@ -139,8 +131,7 @@ async function assertNoServerUrl() {
 }
 
 function assertNoSwiftFirebaseImports() {
-  const pattern =
-    "Firebase|FirebaseCore|FirebaseApp|FirebaseOptions|import Firebase|GoogleUtilities";
+  const pattern = "FirebaseCore|FirebaseApp|FirebaseOptions|GoogleUtilities";
   assertRgClean("ios/App/App Swift files", pattern, [
     "--glob",
     "**/*.swift",
@@ -148,15 +139,21 @@ function assertNoSwiftFirebaseImports() {
   ]);
 }
 
-async function assertAppDelegateIsCapacitorOnly() {
+async function assertAppDelegateAuthRouting() {
   if (!(await fileExists(iosAppDelegate))) {
     fail(`Missing ${iosAppDelegate}. Run npm run ios:reset.`);
   }
   const contents = await fs.readFile(iosAppDelegate, "utf8");
-  if (/(FirebaseCore|FirebaseApp|import Firebase)/.test(contents)) {
-    fail("AppDelegate.swift contains Firebase imports. Remove native Firebase usage.");
+  if (
+    !contents.includes("import FirebaseAuth") ||
+    !contents.includes("Auth.auth().canHandle(url)") ||
+    !contents.includes("ApplicationDelegateProxy.shared.application")
+  ) {
+    fail(
+      "AppDelegate.swift must route Firebase Auth callbacks before Capacitor URL handling."
+    );
   }
-  pass("AppDelegate.swift contains no Firebase imports.");
+  pass("AppDelegate.swift routes native Firebase Auth callbacks safely.");
 }
 
 async function assertIosProjectFirebaseReferences() {
@@ -224,7 +221,7 @@ async function assertNoAppFolderCopiedInPbxproj() {
   pass("project.pbxproj does not copy the App source folder into the bundle.");
 }
 
-function assertNoCapFirebaseAuthPackage() {
+function assertCapFirebasePackages() {
   const result = spawnSync(
     "npm",
     ["ls", "@capacitor-firebase/authentication", "--depth=0", "--json"],
@@ -240,10 +237,37 @@ function assertNoCapFirebaseAuthPackage() {
   } catch {
     data = {};
   }
-  if (data.dependencies && data.dependencies["@capacitor-firebase/authentication"]) {
-    fail("npm ls reports @capacitor-firebase/authentication is installed.");
+  const installed =
+    data.dependencies?.["@capacitor-firebase/authentication"]?.version;
+  if (installed !== "7.5.0") {
+    fail(
+      `npm ls must report @capacitor-firebase/authentication@7.5.0 (found ${installed || "missing"}).`
+    );
   }
-  pass("npm ls confirms no @capacitor-firebase/authentication package.");
+  pass("npm ls confirms native Firebase Authentication 7.5.0.");
+
+  const appCheckResult = spawnSync(
+    "npm",
+    ["ls", "@capacitor-firebase/app-check", "--depth=0", "--json"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }
+  );
+  let appCheckData;
+  try {
+    appCheckData = JSON.parse(appCheckResult.stdout || "{}");
+  } catch {
+    appCheckData = {};
+  }
+  const appCheckVersion =
+    appCheckData.dependencies?.["@capacitor-firebase/app-check"]?.version;
+  if (appCheckVersion !== "7.5.0") {
+    fail(
+      `npm ls must report @capacitor-firebase/app-check@7.5.0 (found ${appCheckVersion || "missing"}).`
+    );
+  }
+  pass("npm ls confirms native Firebase App Check 7.5.0.");
 }
 
 function assertNoDuplicateBuildOutputs() {
@@ -378,7 +402,7 @@ function formatSearchOutput(text, maxLines = 20, maxChars = 2000) {
 async function main() {
   await assertRepoRoot();
   await assertWorkspace();
-  await assertAppDelegateIsCapacitorOnly();
+  await assertAppDelegateAuthRouting();
   await assertPublicIndex();
   assertCapPlugins();
   await assertNoServerUrl();
@@ -386,7 +410,7 @@ async function main() {
   await assertIosProjectFirebaseReferences();
   await assertNoAppFolderCopiedInPbxproj();
   assertNoDuplicateBuildOutputs();
-  assertNoCapFirebaseAuthPackage();
+  assertCapFirebasePackages();
   console.log("✅ [smoke:native] PASS");
 }
 

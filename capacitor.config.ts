@@ -20,6 +20,12 @@ const config = {
     allowMixedContent: false,
   },
   plugins: {
+    FirebaseAuthentication: {
+      // OAuth provider UI is native, then its credential is synchronized into
+      // Firebase JS Auth so Firestore/Storage share the same signed-in user.
+      skipNativeAuth: true,
+      providers: ["google.com", "apple.com"],
+    },
     FirebaseMessaging: {
       presentationOptions: ["alert", "badge", "sound"],
     },
