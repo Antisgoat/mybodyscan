@@ -72,7 +72,7 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { isIOSSafari } from "@/lib/isIOSWeb";
 import { getInitAuthState } from "@/lib/auth/initAuth";
-import { isNativeCapacitor } from "@/lib/platform";
+import { isNativeCapacitor, openExternalUrl } from "@/lib/platform";
 import {
   disablePlateauPush,
   enablePlateauPush,
@@ -433,15 +433,12 @@ const Settings = () => {
   };
 
   const handleOpenBillingPortal = async () => {
-    if (iosBuild) {
-      toast({
-        title: "Available on web",
-        description: "Billing is disabled in the iOS build. Use the web app.",
-      });
-      return;
-    }
     try {
       setOpeningPortal(true);
+      if (iosBuild) {
+        await openExternalUrl("https://apps.apple.com/account/subscriptions");
+        return;
+      }
       const result = await openCustomerPortal({ navigate: false });
       const url = result?.url;
       if (url) {
@@ -1017,9 +1014,7 @@ const Settings = () => {
               checked={plateauPush}
               onChange={(checked) => void handlePlateauPushChange(checked)}
               disabled={
-                notificationLoading ||
-                notificationSaving ||
-                !isPushConfigured()
+                notificationLoading || notificationSaving || !isPushConfigured()
               }
             />
             {(notificationLoading || notificationSaving) && (
@@ -1190,22 +1185,23 @@ const Settings = () => {
                 variant="outline"
                 onClick={handleOpenBillingPortal}
                 className="w-full flex items-center justify-center gap-2"
-                disabled={openingPortal || iosBuild}
+                disabled={openingPortal}
               >
                 {openingPortal ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <CreditCard className="h-4 w-4" />
                 )}
-                {iosBuild
-                  ? "Billing available on web"
-                  : openingPortal
-                    ? "Opening portal…"
+                {openingPortal
+                  ? "Opening subscription settings…"
+                  : iosBuild
+                    ? "Manage App Store subscription"
                     : "Open billing portal"}
               </Button>
               {iosBuild && (
                 <p className="mt-2 text-center text-xs text-muted-foreground">
-                  Billing is available on web.
+                  Purchases and restores are available from the in-app plans
+                  screen. Apple manages subscription changes and cancellation.
                 </p>
               )}
             </div>
@@ -1363,9 +1359,9 @@ const Settings = () => {
                   <DialogTitle>Final confirmation</DialogTitle>
                   <DialogDescription>
                     This will revoke access, delete scans, and erase uploads
-                    immediately. You cannot undo this action. It does not
-                    cancel an Apple App Store or Stripe subscription; cancel
-                    the subscription first if you do not want it to renew.
+                    immediately. You cannot undo this action. It does not cancel
+                    an Apple App Store or Stripe subscription; cancel the
+                    subscription first if you do not want it to renew.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>

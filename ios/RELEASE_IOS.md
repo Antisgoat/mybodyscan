@@ -109,11 +109,19 @@ enabled on the device.
 
 Current release snapshot (2026-07-23):
 
-- Build 3 (`1.0.0`) passed the repository archive and export gates and was
-  accepted by Apple's upload service for TestFlight processing.
-- The repository now targets build 4. Build 4 contains the final subscription
-  boundary and must be archived, validated, uploaded, and tested; build 3 is
-  not release evidence for this code.
+- Build 6 (`1.0.0`) is the final replacement candidate containing the
+  corrected RevenueCat paywall routing, idempotent SDK initialization, and
+  hardened same-origin auth/paywall redirects. It passed the release archive
+  and App Store validation/export gates and was accepted by Apple's upload
+  service for TestFlight processing.
+- The paired iPhone was unavailable after upload, so build 6 has not yet been
+  installed or launched on the physical device.
+- Build 5 passed the release archive and App Store validation/export gates and
+  was accepted by Apple's upload service, but it was superseded before device
+  testing by the redirect-hardening fix and must not be submitted.
+- Build 4 was accepted by Apple's upload service and installed on the paired
+  iPhone, but it must not be submitted because its native plan route bypassed
+  the purchase paywall.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
@@ -141,7 +149,9 @@ Current release snapshot (2026-07-23):
   and calculated values and make no diagnostic/medical claims.
 - With Monthly and Yearly active, workout tracking, meal planning/logging,
   barcode fallback, food scoring/alternatives, Momentum, plateau coaching,
-  health sync, and Transformation Preview work.
+  and Transformation Preview work.
+- HealthKit and Health Connect imports remain explicitly **coming soon** in
+  version 1.0; the app must not request health-data permissions.
 - With only One Scan active, the complete purchased scan report and generated
   plan remain available while every recurring subscriber feature above stays
   locked in both the UI and backend.

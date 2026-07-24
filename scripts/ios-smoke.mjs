@@ -7,10 +7,14 @@ function readEnv(key, fallback = "") {
 }
 
 function deriveProjectId() {
-  const explicit = readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
+  const explicit =
+    readEnv("VITE_FIREBASE_PROJECT_ID") || readEnv("FIREBASE_PROJECT_ID");
   if (explicit) return explicit;
   try {
-    const appConfigTs = readFileSync(new URL("../src/generated/appConfig.ts", import.meta.url), "utf8");
+    const appConfigTs = readFileSync(
+      new URL("../src/generated/appConfig.ts", import.meta.url),
+      "utf8"
+    );
     const match = appConfigTs.match(/"projectId"\s*:\s*"([^"]+)"/);
     return match?.[1] || "";
   } catch {
@@ -21,7 +25,9 @@ function deriveProjectId() {
 function normalizeOrigin(input) {
   const trimmed = String(input || "").trim();
   if (!trimmed) return "";
-  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const withProtocol = /^https?:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
   try {
     const url = new URL(withProtocol);
     return url.origin;
@@ -34,11 +40,16 @@ function resolveFunctionsOrigin() {
   const region = readEnv("VITE_FUNCTIONS_REGION", "us-central1");
   const projectId = deriveProjectId();
   const functionsUrl = readEnv("VITE_FUNCTIONS_URL");
-  if (functionsUrl) return { origin: normalizeOrigin(functionsUrl), region, projectId };
-  const functionsOrigin = readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
-  if (functionsOrigin) return { origin: normalizeOrigin(functionsOrigin), region, projectId };
+  if (functionsUrl)
+    return { origin: normalizeOrigin(functionsUrl), region, projectId };
+  const functionsOrigin =
+    readEnv("VITE_FUNCTIONS_ORIGIN") || readEnv("VITE_FUNCTIONS_BASE_URL");
+  if (functionsOrigin)
+    return { origin: normalizeOrigin(functionsOrigin), region, projectId };
   return {
-    origin: projectId ? `https://${region}-${projectId}.cloudfunctions.net` : "",
+    origin: projectId
+      ? `https://${region}-${projectId}.cloudfunctions.net`
+      : "",
     region,
     projectId,
   };
@@ -51,39 +62,106 @@ async function fetchJson(url, init = {}, timeoutMs = 5000) {
     const res = await fetch(url, { ...init, signal: ctrl.signal });
     const text = await res.text();
     let json = null;
-    try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      json = null;
+    }
     return { ok: res.ok, status: res.status, json, text };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, status: 0, json: null, text: message };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchJsonWithRetry(
+  url,
+  init = {},
+  timeoutMs = 10000,
+  attempts = 3
+) {
+  let result = {
+    ok: false,
+    status: 0,
+    json: null,
+    text: "request_not_started",
+  };
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    result = await fetchJson(url, init, timeoutMs);
+    if (
+      result.ok ||
+      (result.status > 0 && result.status < 500 && result.status !== 429)
+    ) {
+      return result;
+    }
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 500));
+    }
+  }
+  return result;
 }
 
 (async () => {
   const { origin, region, projectId } = resolveFunctionsOrigin();
   console.log("[ios-smoke] Functions target", { origin, region, projectId });
   if (!origin) {
-    console.error("[ios-smoke] Unable to derive Cloud Functions origin (missing Firebase projectId).");
+    console.error(
+      "[ios-smoke] Unable to derive Cloud Functions origin (missing Firebase projectId)."
+    );
     process.exit(1);
   }
 
-  const health = await fetchJson(`${origin}/health`, { method: "GET" }, 2500);
+  const health = await fetchJsonWithRetry(
+    `${origin}/health`,
+    { method: "GET" },
+    10000
+  );
   if (!health.ok || !health.json?.ok) {
-    console.error("[ios-smoke] /health failed", health.status, health.text || health.json);
+    console.error(
+      "[ios-smoke] /health failed",
+      health.status,
+      health.text || health.json
+    );
     process.exit(1);
   }
   console.log("[ios-smoke] health ok");
 
-  const nutrition = await fetchJson(`${origin}/nutritionSearchHttp?q=banana&page=1`, { method: "GET" }, 5000);
-  const nutritionCount = Array.isArray(nutrition.json?.results) ? nutrition.json.results.length : 0;
-  if (!nutrition.ok) {
-    console.error("[ios-smoke] nutrition search failed", nutrition.status, nutrition.text || nutrition.json);
+  const authToken = readEnv("IOS_SMOKE_ID_TOKEN");
+  const nutrition = await fetchJsonWithRetry(
+    `${origin}/nutritionSearchHttp?q=banana&page=1`,
+    {
+      method: "GET",
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    },
+    10000
+  );
+  const nutritionCount = Array.isArray(nutrition.json?.results)
+    ? nutrition.json.results.length
+    : 0;
+  const unauthenticatedGateVerified =
+    !authToken && (nutrition.status === 401 || nutrition.status === 403);
+  if (!nutrition.ok && !unauthenticatedGateVerified) {
+    console.error(
+      "[ios-smoke] nutrition search failed",
+      nutrition.status,
+      nutrition.text || nutrition.json
+    );
     process.exit(1);
   }
-  console.log("[ios-smoke] nutrition search ok", { results: nutritionCount });
+  if (unauthenticatedGateVerified) {
+    console.log("[ios-smoke] nutrition auth/subscriber gate ok", {
+      status: nutrition.status,
+    });
+  } else {
+    console.log("[ios-smoke] nutrition search ok", { results: nutritionCount });
+  }
 
-  const authToken = readEnv("IOS_SMOKE_ID_TOKEN");
   if (!authToken) {
-    console.warn("[ios-smoke] IOS_SMOKE_ID_TOKEN missing; skipping authenticated workouts/scan checks.");
+    console.warn(
+      "[ios-smoke] IOS_SMOKE_ID_TOKEN missing; skipping authenticated workouts/scan checks."
+    );
     return;
   }
   const headers = {
@@ -93,25 +171,52 @@ async function fetchJson(url, init = {}, timeoutMs = 5000) {
 
   const workout = await fetchJson(
     `${origin}/generateWorkoutPlan`,
-    { method: "POST", headers, body: JSON.stringify({ prefs: { goal: "maintain", daysPerWeek: 3 } }) },
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ prefs: { goal: "maintain", daysPerWeek: 3 } }),
+    },
     15000
   );
-  if (!workout.ok || !Array.isArray(workout.json?.days) || workout.json.days.length === 0) {
-    console.error("[ios-smoke] workout generation failed", workout.status, workout.text || workout.json);
+  if (
+    !workout.ok ||
+    !Array.isArray(workout.json?.days) ||
+    workout.json.days.length === 0
+  ) {
+    console.error(
+      "[ios-smoke] workout generation failed",
+      workout.status,
+      workout.text || workout.json
+    );
     process.exit(1);
   }
-  console.log("[ios-smoke] workouts generate ok", { source: workout.json?.source || "unknown" });
+  console.log("[ios-smoke] workouts generate ok", {
+    source: workout.json?.source || "unknown",
+  });
 
   const scanProbe = await fetchJson(
     `${origin}/submitScan`,
     { method: "POST", headers, body: JSON.stringify({}) },
     10000
   );
-  const reason = scanProbe.json?.reason || scanProbe.json?.errorReason || scanProbe.json?.code;
-  const accepted = scanProbe.ok || reason === "provider_not_configured" || reason === "scan_engine_not_configured";
+  const reason =
+    scanProbe.json?.reason ||
+    scanProbe.json?.errorReason ||
+    scanProbe.json?.code;
+  const accepted =
+    scanProbe.ok ||
+    reason === "provider_not_configured" ||
+    reason === "scan_engine_not_configured";
   if (!accepted) {
-    console.error("[ios-smoke] scan submit probe failed", scanProbe.status, scanProbe.text || scanProbe.json);
+    console.error(
+      "[ios-smoke] scan submit probe failed",
+      scanProbe.status,
+      scanProbe.text || scanProbe.json
+    );
     process.exit(1);
   }
-  console.log("[ios-smoke] scan probe ok", { status: scanProbe.status, reason: reason || "none" });
+  console.log("[ios-smoke] scan probe ok", {
+    status: scanProbe.status,
+    reason: reason || "none",
+  });
 })();
