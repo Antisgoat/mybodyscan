@@ -294,33 +294,39 @@ Current iOS external state on 2026-07-23: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
 Developer Mode. Build 6 is the final replacement candidate with the RevenueCat
 paywall and redirect-hardening fixes. It was archived, validated,
-distribution-signed, and accepted by Apple's upload service for TestFlight
-processing. The paired iPhone was unavailable after upload, so build 6 has not
-yet been installed or launched on that device. Build 5 was accepted by Apple's
-upload service but was superseded before device testing by the
-redirect-hardening fix. Build 4 was installed and launched previously, but it
-must not be submitted because its native plan route bypassed the RevenueCat
-paywall. The real photo, purchase, restore,
+distribution-signed, accepted by Apple's upload service for TestFlight
+processing, installed on the paired iPhone 14 Pro Max, and launched
+successfully. Fresh iPhone and iPad simulator builds also install, launch, and
+render the reviewed responsive layouts. Build 5 was accepted by Apple's upload
+service but was superseded before device testing by the redirect-hardening fix.
+Build 4 must not be submitted because its native plan route bypassed the
+RevenueCat paywall. The real photo, purchase, restore,
 notification, and offline device checklist remains mandatory. The three exact
-App Store products exist at the approved prices. RevenueCat accepts in-app-purchase key
-`9Z23GBB5M7`; monthly and yearly are attached to `pro`; all three products are
-in the current/default offering. Native plan links open the RevenueCat
-purchase/restore paywall, while Settings opens Apple's subscription-management
-screen; native builds never open Stripe checkout. App Store production and
-sandbox server notification URLs are set, and APNs key `9R5X23CQQ9` is uploaded
-to Firebase for development and production.
+App Store products exist, but the live U.S. prices still require correction:
+single scan is $9.99 instead of $4.99, monthly is $24.99 instead of $9.99 and
+has a conflicting $14.99 first-month offer, and yearly is $199 instead of
+$79.99. Single-scan availability is not configured. RevenueCat accepts
+in-app-purchase key `9Z23GBB5M7`; monthly and yearly are attached to `pro`; all
+three products are in the current/default offering. Native plan links open the
+RevenueCat purchase/restore paywall, while Settings opens Apple's
+subscription-management screen; native builds never open Stripe checkout.
+APNs key `9R5X23CQQ9` is uploaded to Firebase for development and production.
+RevenueCat reports no App Store server-notification or webhook deliveries yet,
+so both integrations still require a sandbox event.
 
 App Store metadata, age rating, categories, and the App Privacy answers are
 configured. The privacy declaration is not published because the Account
 Holder must personally accept Apple's legal attestation. Content Rights,
 general App Store Connect API access, and Digital Services Act/trader
-attestations are also owner-only gates. Four 1242 × 2688 iPhone screenshots are
-generated under `release-artifacts/app-store-screenshots/`; upload those files
-manually because browser automation is not an acceptable release credential.
-The remaining critical gates are build processing/selection, review contact
-and demo credentials, screenshot upload, the real TestFlight device/purchase/
-push checklist, the owner attestations, and final submission. A successful
-archive or upload does not prove those device and store flows.
+attestations are also owner-only gates. The screenshot generator produces six
+1242 × 2688 iPhone and six 2064 × 2752 iPad candidates that highlight body
+results, training, nutrition, meal planning, four-photo scanning, and coaching
+under
+`release-artifacts/app-store-screenshots/`. The remaining critical gates are
+price and availability correction, build selection, review contact and demo
+credentials, screenshot upload, the real TestFlight device/purchase/push
+checklist, the owner attestations, and final submission. A successful archive
+or upload does not prove those device and store flows.
 
 Purchase restoration is verified only when the customer returns to the same
 Firebase account. Deleting that account and then creating a different Firebase
@@ -402,13 +408,16 @@ After `build:prod`, start the local production preview in a second terminal:
 npm run preview -- --host 127.0.0.1 --port 4173
 ```
 
-Generate the four App Store screenshot candidates from that reviewed preview.
-The script uses a 414 × 896 point viewport at 3× scale and writes exact
-1242 × 2688 PNGs:
+Generate the App Store screenshot candidates from that reviewed preview. The
+default `all` profile writes exact 1242 × 2688 iPhone PNGs and 2064 × 2752 iPad
+PNGs into device-specific subdirectories:
 
 ```bash
 node scripts/capture-app-store-screenshots.mjs http://127.0.0.1:4173
 ```
+
+To regenerate only one size, set `MBS_SCREENSHOT_PROFILE` to `iphone-6.5` or
+`ipad-13`. Every file's PNG dimensions are checked before the command succeeds.
 
 Then run the public/local browser gates from the first terminal. Authenticated
 specs in the broader suite run only when `PLAYWRIGHT_STORAGE_STATE` points to a

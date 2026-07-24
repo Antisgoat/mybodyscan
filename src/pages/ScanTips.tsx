@@ -18,8 +18,9 @@ const tips = [
 
 const silhouettes = [
   { label: "Front", description: "Feet together, arms out" },
-  { label: "Side", description: "Turn 90°, head forward" },
+  { label: "Left side", description: "Turn 90°, head forward" },
   { label: "Back", description: "Relaxed shoulders" },
+  { label: "Right side", description: "Turn 90°, head forward" },
 ];
 
 export default function ScanTips() {
@@ -30,10 +31,33 @@ export default function ScanTips() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Photo Tips</h1>
         <p className="text-muted-foreground">
-          Better lighting, distance, and framing lead to more accurate body-fat
-          estimates. Follow this checklist before each scan.
+          Consistent lighting, distance, and framing support more comparable
+          photo estimates. Follow this checklist before each scan.
         </p>
       </header>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Scan className="h-5 w-5 text-primary" /> Four required angles
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          {silhouettes.map((item) => (
+            <div key={item.label} className="flex flex-col items-center gap-2">
+              <div className="flex h-32 w-24 items-end justify-center rounded-lg border bg-muted">
+                <div className="h-28 w-6 rounded-full bg-gradient-to-t from-primary/70 to-primary/30" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium">{item.label}</p>
+                <p className="text-xs text-muted-foreground">
+                  {item.description}
+                </p>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -66,29 +90,6 @@ export default function ScanTips() {
             Mark a standing spot with tape so each scan uses the same distance.
             A consistent setup improves comparisons over time.
           </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Scan className="h-5 w-5 text-primary" /> Poses
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          {silhouettes.map((item) => (
-            <div key={item.label} className="flex flex-col items-center gap-2">
-              <div className="flex h-32 w-24 items-end justify-center rounded-lg border bg-muted">
-                <div className="h-28 w-6 rounded-full bg-gradient-to-t from-primary/70 to-primary/30" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium">{item.label}</p>
-                <p className="text-xs text-muted-foreground">
-                  {item.description}
-                </p>
-              </div>
-            </div>
-          ))}
         </CardContent>
       </Card>
 
