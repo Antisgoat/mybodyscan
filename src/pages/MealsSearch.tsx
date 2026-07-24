@@ -226,7 +226,7 @@ function ServingModal({
         if (!next) onClose();
       }}
     >
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-w-xl" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle className="flex flex-col gap-1">
             <span>{item.name}</span>
@@ -750,7 +750,7 @@ export default function MealsSearch() {
         )}
 
         <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md" aria-describedby={undefined}>
             <DialogHeader>
               <DialogTitle>Scan a barcode</DialogTitle>
             </DialogHeader>
