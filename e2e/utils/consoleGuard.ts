@@ -8,9 +8,10 @@ const benignConsolePatterns: Array<RegExp> = [
   /chrome-error\:\/\//,
 ];
 
-function isBenign(message: ConsoleMessage): boolean {
-  const text = message.text();
-  const sourceUrl = message.location().url;
+export function isBenignConsoleError(
+  text: string,
+  sourceUrl: string
+): boolean {
   const isLocalPreview = /^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\//.test(
     sourceUrl
   );
@@ -25,7 +26,44 @@ function isBenign(message: ConsoleMessage): boolean {
     return true;
   }
 
+  let source: URL | undefined;
+  try {
+    source = new URL(sourceUrl);
+  } catch {
+    source = undefined;
+  }
+
+  // Invisible reCAPTCHA Enterprise frames request unpartitioned storage, which
+  // Chromium denies in headless mode. This message comes from Google's frame,
+  // not from application code.
+  if (
+    text === "requestStorageAccess: Permission denied." &&
+    source?.hostname === "www.google.com" &&
+    source.pathname === "/recaptcha/enterprise/anchor"
+  ) {
+    return true;
+  }
+
+  // reCAPTCHA Enterprise intentionally refuses headless automation, so the
+  // App Check exchange returns 403 in live E2E. Production App Check remains in
+  // soft mode until real-browser attestation metrics are proven safe. Restrict
+  // this exception to this project's token-exchange endpoint so other 403s fail.
+  if (
+    /Failed to load resource.*403/.test(text) &&
+    source?.hostname === "content-firebaseappcheck.googleapis.com" &&
+    source.pathname.startsWith(
+      "/v1/projects/mybodyscan-f3daf/apps/"
+    ) &&
+    source.pathname.endsWith(":exchangeRecaptchaEnterpriseToken")
+  ) {
+    return true;
+  }
+
   return benignConsolePatterns.some((pattern) => pattern.test(text));
+}
+
+function isBenign(message: ConsoleMessage): boolean {
+  return isBenignConsoleError(message.text(), message.location().url);
 }
 
 export async function acceptPoliciesIfShown(page: Page): Promise<void> {
