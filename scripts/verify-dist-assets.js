@@ -2,32 +2,22 @@
 
 import { promises as fs } from "fs";
 import path from "path";
+import {
+  extractLocalAssetPaths,
+  findMissingLocalAssets,
+} from "./lib/static-bundle-integrity.mjs";
 
 const DIST_DIR = path.resolve(process.cwd(), "dist");
 const INDEX_PATH = path.join(DIST_DIR, "index.html");
 const BUILD_TAG_PATH = path.join(DIST_DIR, "build.txt");
 
-function uniq(arr) {
-  return Array.from(new Set(arr));
-}
-
 function extractAssetPaths(html) {
   // Capture Vite-built asset references like:
   //   src="/assets/index-XXXX.js"
   //   href="/assets/index-XXXX.css"
-  const matches = Array.from(
-    html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+\.(?:js|css))["']/g)
-  ).map((m) => m[1]);
-  return uniq(matches);
-}
-
-async function exists(filePath) {
-  try {
-    const stat = await fs.stat(filePath);
-    return stat.isFile();
-  } catch {
-    return false;
-  }
+  return extractLocalAssetPaths(html).filter((reference) =>
+    /^\/assets\/[^"']+\.(?:js|css)$/i.test(reference)
+  );
 }
 
 async function main() {
@@ -45,14 +35,14 @@ async function main() {
     process.exit(1);
   }
 
-  const missing = [];
-  for (const publicPath of assets) {
-    const rel = publicPath.replace(/^\//, ""); // "assets/..."
-    const filePath = path.join(DIST_DIR, rel);
-    if (!(await exists(filePath))) {
-      missing.push({ publicPath, filePath });
-    }
-  }
+  const { missing: localMissing } = await findMissingLocalAssets(
+    DIST_DIR,
+    indexHtml
+  );
+  const assetSet = new Set(assets);
+  const missing = localMissing.filter(({ publicPath }) =>
+    assetSet.has(publicPath)
+  );
 
   if (missing.length) {
     console.error(
