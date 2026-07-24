@@ -45,6 +45,7 @@ jobs:
           npm run check:ios-release-config
           npm run check:ios-release-guard
           npm run check:android-release-config
+          node scripts/check-native-release-guard.mjs
           node scripts/assert-no-native-firebase-auth.mjs
       - name: Verify Firestore rules parity
         run: npm run rules:check
@@ -79,6 +80,8 @@ jobs:
       - name: Install dependencies (functions)
         working-directory: functions
         run: npm ci --no-audit --no-fund
+      - name: Typecheck functions
+        run: npm run typecheck:functions
       - name: Audit production Functions dependencies
         working-directory: functions
         run: npx --yes npm@11 audit --omit=dev --audit-level=high

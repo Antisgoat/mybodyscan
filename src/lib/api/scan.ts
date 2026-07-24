@@ -242,8 +242,8 @@ export type ScanError = {
 };
 
 export type ScanApiResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: ScanError };
+  | { ok: true; data: T; error?: never }
+  | { ok: false; error: ScanError; data?: never };
 
 function parseTimestamp(value: unknown): Date {
   if (value instanceof Date) return value;
@@ -1187,9 +1187,10 @@ export async function getScan(
 }
 
 type DeleteScanResponse =
-  | { ok: true; data?: { scanId?: string | null } }
+  | { ok: true; data?: { scanId?: string | null }; error?: never }
   | {
       ok: false;
+      data?: never;
       error?: {
         code?: string | null;
         message?: string | null;

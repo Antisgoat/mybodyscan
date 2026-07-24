@@ -5,7 +5,10 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 
 function isHttpUrl(value: string): boolean {
   try {
-    const url = new URL(value, typeof window !== "undefined" ? window.location.href : undefined);
+    const url = new URL(
+      value,
+      typeof window !== "undefined" ? window.location.href : undefined
+    );
     return url.protocol === "http:" || url.protocol === "https:";
   } catch {
     return false;
@@ -144,7 +147,7 @@ export function installNativeFetchPolyfill(options?: {
 
       return new Response(body, {
         status: response.status,
-        statusText: response.statusText || "",
+        statusText: (response as { statusText?: string }).statusText || "",
         headers: responseHeaders,
       });
     } catch (error) {

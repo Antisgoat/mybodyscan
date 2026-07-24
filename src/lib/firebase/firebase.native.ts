@@ -42,7 +42,7 @@ logBuildMetaOnce();
 export const firebaseApp = app;
 export { app, db };
 
-const functionsRegion = env.VITE_FIREBASE_REGION ?? "us-central1";
+const functionsRegion = env.VITE_FUNCTIONS_REGION;
 export const functions: Functions = getFunctions(app, functionsRegion);
 export const storage: FirebaseStorage = getStorage(app);
 

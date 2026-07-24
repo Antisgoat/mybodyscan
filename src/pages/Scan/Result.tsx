@@ -35,7 +35,11 @@ import {
   type ScanUploadProgress,
 } from "@/lib/api/scan";
 import type { UploadMethod } from "@/lib/uploads/uploadPhoto";
-import { getFirebaseApp, getFirebaseConfig, getFirebaseStorage } from "@/lib/firebase";
+import {
+  getFirebaseApp,
+  getFirebaseConfig,
+  getFirebaseStorage,
+} from "@/lib/firebase";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
   CAPTURE_VIEW_SETS,
@@ -99,7 +103,10 @@ function formatBytes(bytes: number | null | undefined): string {
   const b = typeof bytes === "number" ? bytes : 0;
   if (!Number.isFinite(b) || b <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(b) / Math.log(1024)));
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(b) / Math.log(1024))
+  );
   const val = b / Math.pow(1024, i);
   return `${val.toFixed(val >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
@@ -178,7 +185,8 @@ export default function ScanFlowResult() {
   const profileHeightCm =
     typeof profile?.heightCm === "number" && Number.isFinite(profile.heightCm)
       ? profile.heightCm
-      : typeof profile?.height_cm === "number" && Number.isFinite(profile.height_cm)
+      : typeof profile?.height_cm === "number" &&
+          Number.isFinite(profile.height_cm)
         ? profile.height_cm
         : undefined;
   const [refineOpen, setRefineOpen] = useState(false);
@@ -236,17 +244,6 @@ export default function ScanFlowResult() {
     };
   }, []);
 
-  const hasRetryCountdown = useMemo(() => {
-    return Object.values(photoState).some(
-      (s) => s.status === "retrying" && typeof s.nextRetryAt === "number"
-    );
-  }, [photoState]);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    if (!hasRetryCountdown) return;
-    const id = window.setInterval(() => setNowMs(Date.now()), 250);
-    return () => window.clearInterval(id);
-  }, [hasRetryCountdown]);
   const uploadAbortRef = useRef<AbortController | null>(null);
   const lastAutoRetryAtRef = useRef<number>(0);
   const autoRetryCountRef = useRef<number>(0);
@@ -286,7 +283,12 @@ export default function ScanFlowResult() {
   }, [files]);
   const poseUploadsReady = POSES.every((pose) => Boolean(poseFiles[pose]));
 
-  type PerPhotoStatus = "preparing" | "uploading" | "retrying" | "done" | "failed";
+  type PerPhotoStatus =
+    | "preparing"
+    | "uploading"
+    | "retrying"
+    | "done"
+    | "failed";
   const [photoState, setPhotoState] = useState<
     Record<
       Pose,
@@ -307,9 +309,25 @@ export default function ScanFlowResult() {
     left: { status: "preparing", percent: 0, attempt: 0 },
     right: { status: "preparing", percent: 0, attempt: 0 },
   });
+  const hasRetryCountdown = useMemo(() => {
+    return Object.values(photoState).some(
+      (state) =>
+        state.status === "retrying" && typeof state.nextRetryAt === "number"
+    );
+  }, [photoState]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasRetryCountdown) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [hasRetryCountdown]);
   const failedPoses = useMemo(() => {
-    const entries = Object.entries(photoState) as Array<[Pose, (typeof photoState)[Pose]]>;
-    return entries.filter(([, s]) => s.status === "failed").map(([pose]) => pose);
+    const entries = Object.entries(photoState) as Array<
+      [Pose, (typeof photoState)[Pose]]
+    >;
+    return entries
+      .filter(([, s]) => s.status === "failed")
+      .map(([pose]) => pose);
   }, [photoState]);
   const canRetryFailed = Boolean(session?.scanId) && failedPoses.length > 0;
 
@@ -322,7 +340,11 @@ export default function ScanFlowResult() {
         lastError?: { code?: string; message?: string };
         lastBytesTransferred?: number;
         lastTotalBytes?: number;
-        lastFirebaseError?: { code?: string; message?: string; serverResponse?: string };
+        lastFirebaseError?: {
+          code?: string;
+          message?: string;
+          serverResponse?: string;
+        };
         lastTaskState?: "running" | "paused" | "success" | "canceled" | "error";
         lastProgressAt?: number;
         fullPath?: string;
@@ -331,7 +353,11 @@ export default function ScanFlowResult() {
         uploadMethod?: UploadMethod;
         correlationId?: string;
         elapsedMs?: number;
-        lastUploadError?: { code?: string; message?: string; details?: unknown };
+        lastUploadError?: {
+          code?: string;
+          message?: string;
+          details?: unknown;
+        };
       }
     >
   >({
@@ -549,7 +575,7 @@ export default function ScanFlowResult() {
                 percent:
                   typeof info.percent === "number"
                     ? info.percent
-                    : existing?.percent ?? 0,
+                    : (existing?.percent ?? 0),
                 message: info.message ?? existing?.message,
                 nextRetryAt:
                   typeof (info as any)?.nextRetryAt === "number"
@@ -563,7 +589,8 @@ export default function ScanFlowResult() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
-                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
+                uploadMethod:
+                  (info as any)?.uploadMethod ?? existing?.uploadMethod,
               };
               return next;
             });
@@ -584,7 +611,8 @@ export default function ScanFlowResult() {
                     ? (info as any).totalBytes
                     : existing.lastTotalBytes,
                 lastFirebaseError:
-                  (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
+                  (info as any)?.lastFirebaseError ??
+                  existing.lastFirebaseError,
                 lastTaskState:
                   (info as any)?.taskState ?? existing.lastTaskState,
                 lastProgressAt:
@@ -683,7 +711,8 @@ export default function ScanFlowResult() {
 
   const retryFailed = useCallback(async () => {
     if (!session?.scanId || !canRetryFailed) return;
-    if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
+    if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null)
+      return;
     if (!user) return;
     setFlowStatus("uploading");
     setFlowError(null);
@@ -730,24 +759,25 @@ export default function ScanFlowResult() {
               percent:
                 typeof info.percent === "number"
                   ? info.percent
-                  : existing?.percent ?? 0,
+                  : (existing?.percent ?? 0),
               message: info.message ?? existing?.message,
-                nextRetryAt:
-                  typeof (info as any)?.nextRetryAt === "number"
-                    ? (info as any).nextRetryAt
-                    : existing?.nextRetryAt,
-                nextRetryDelayMs:
-                  typeof (info as any)?.nextRetryDelayMs === "number"
-                    ? (info as any).nextRetryDelayMs
-                    : existing?.nextRetryDelayMs,
-                offline:
-                  typeof (info as any)?.offline === "boolean"
-                    ? (info as any).offline
-                    : existing?.offline,
-                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
-              };
-              return next;
-            });
+              nextRetryAt:
+                typeof (info as any)?.nextRetryAt === "number"
+                  ? (info as any).nextRetryAt
+                  : existing?.nextRetryAt,
+              nextRetryDelayMs:
+                typeof (info as any)?.nextRetryDelayMs === "number"
+                  ? (info as any).nextRetryDelayMs
+                  : existing?.nextRetryDelayMs,
+              offline:
+                typeof (info as any)?.offline === "boolean"
+                  ? (info as any).offline
+                  : existing?.offline,
+              uploadMethod:
+                (info as any)?.uploadMethod ?? existing?.uploadMethod,
+            };
+            return next;
+          });
           setUploadMeta((prev) => {
             const next = { ...prev };
             const existing = next[info.pose as Pose] ?? {};
@@ -767,28 +797,28 @@ export default function ScanFlowResult() {
               lastFirebaseError:
                 (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
               lastTaskState: (info as any)?.taskState ?? existing.lastTaskState,
-                lastProgressAt:
-                  typeof (info as any)?.lastProgressAt === "number"
-                    ? (info as any).lastProgressAt
-                    : existing.lastProgressAt,
-                fullPath: (info as any)?.fullPath ?? existing.fullPath,
-                bucket: (info as any)?.bucket ?? existing.bucket,
-                pathMismatch:
-                  (info as any)?.pathMismatch ?? existing.pathMismatch,
-                uploadMethod:
-                  (info as any)?.uploadMethod ?? existing.uploadMethod,
-                correlationId:
-                  (info as any)?.correlationId ?? existing.correlationId,
-                elapsedMs:
-                  typeof (info as any)?.elapsedMs === "number"
-                    ? (info as any).elapsedMs
-                    : existing.elapsedMs,
-                lastUploadError:
-                  (info as any)?.lastUploadError ?? existing.lastUploadError,
-                lastError:
-                  info.status === "failed"
-                    ? { code: undefined, message: info.message }
-                    : existing.lastError,
+              lastProgressAt:
+                typeof (info as any)?.lastProgressAt === "number"
+                  ? (info as any).lastProgressAt
+                  : existing.lastProgressAt,
+              fullPath: (info as any)?.fullPath ?? existing.fullPath,
+              bucket: (info as any)?.bucket ?? existing.bucket,
+              pathMismatch:
+                (info as any)?.pathMismatch ?? existing.pathMismatch,
+              uploadMethod:
+                (info as any)?.uploadMethod ?? existing.uploadMethod,
+              correlationId:
+                (info as any)?.correlationId ?? existing.correlationId,
+              elapsedMs:
+                typeof (info as any)?.elapsedMs === "number"
+                  ? (info as any).elapsedMs
+                  : existing.elapsedMs,
+              lastUploadError:
+                (info as any)?.lastUploadError ?? existing.lastUploadError,
+              lastError:
+                info.status === "failed"
+                  ? { code: undefined, message: info.message }
+                  : existing.lastError,
             };
             return next;
           });
@@ -828,7 +858,8 @@ export default function ScanFlowResult() {
   const retryPose = useCallback(
     async (pose: Pose) => {
       if (!session?.scanId) return;
-      if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null) return;
+      if (!poseUploadsReady || currentWeightKg == null || goalWeightKg == null)
+        return;
       if (!user) return;
       setFlowStatus("uploading");
       setFlowError(null);
@@ -851,13 +882,13 @@ export default function ScanFlowResult() {
       const submit = await submitScanClient(
         {
           scanId: session.scanId,
-        storagePaths: canonicalStoragePaths,
-        photos,
-        currentWeightKg,
-        goalWeightKg,
-        heightCm: profileHeightCm,
-        scanCorrelationId: session.correlationId,
-      },
+          storagePaths: canonicalStoragePaths,
+          photos,
+          currentWeightKg,
+          goalWeightKg,
+          heightCm: profileHeightCm,
+          scanCorrelationId: session.correlationId,
+        },
         {
           posesToUpload: [pose],
           onUploadProgress: (info: ScanUploadProgress) => {
@@ -875,7 +906,7 @@ export default function ScanFlowResult() {
                 percent:
                   typeof info.percent === "number"
                     ? info.percent
-                    : existing?.percent ?? 0,
+                    : (existing?.percent ?? 0),
                 message: info.message ?? existing?.message,
                 nextRetryAt:
                   typeof (info as any)?.nextRetryAt === "number"
@@ -889,7 +920,8 @@ export default function ScanFlowResult() {
                   typeof (info as any)?.offline === "boolean"
                     ? (info as any).offline
                     : existing?.offline,
-                uploadMethod: (info as any)?.uploadMethod ?? existing?.uploadMethod,
+                uploadMethod:
+                  (info as any)?.uploadMethod ?? existing?.uploadMethod,
               };
               return next;
             });
@@ -910,8 +942,10 @@ export default function ScanFlowResult() {
                     ? (info as any).totalBytes
                     : existing.lastTotalBytes,
                 lastFirebaseError:
-                  (info as any)?.lastFirebaseError ?? existing.lastFirebaseError,
-                lastTaskState: (info as any)?.taskState ?? existing.lastTaskState,
+                  (info as any)?.lastFirebaseError ??
+                  existing.lastFirebaseError,
+                lastTaskState:
+                  (info as any)?.taskState ?? existing.lastTaskState,
                 lastProgressAt:
                   typeof (info as any)?.lastProgressAt === "number"
                     ? (info as any).lastProgressAt
@@ -974,8 +1008,13 @@ export default function ScanFlowResult() {
     const maybeAutoRetry = () => {
       if (!canRetryFailed) return;
       if (flowStatus !== "error") return;
-      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
-      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false)
+        return;
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      )
+        return;
       const now = Date.now();
       if (now - lastAutoRetryAtRef.current < 15_000) return;
       if (autoRetryCountRef.current >= 2) return;
@@ -1284,7 +1323,9 @@ export default function ScanFlowResult() {
               {shots.map((view) => {
                 const file = files[view];
                 const pose = VIEW_TO_POSE[view];
-                const compressed = pose ? uploadMeta[pose]?.compressed : undefined;
+                const compressed = pose
+                  ? uploadMeta[pose]?.compressed
+                  : undefined;
                 return (
                   <li
                     key={view}
@@ -1328,7 +1369,8 @@ export default function ScanFlowResult() {
           ) : null}
           {isOffline && flowStatus === "uploading" ? (
             <p className="text-xs text-amber-700" aria-live="polite">
-              Connection lost — we’ll retry automatically when you’re back online.
+              Connection lost — we’ll retry automatically when you’re back
+              online.
             </p>
           ) : null}
           {flowStatus === "uploading" ? (
@@ -1356,7 +1398,9 @@ export default function ScanFlowResult() {
               ) : null}
             </div>
           ) : null}
-          {flowStatus === "uploading" || flowStatus === "queued" || flowStatus === "error" ? (
+          {flowStatus === "uploading" ||
+          flowStatus === "queued" ||
+          flowStatus === "error" ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -1395,11 +1439,16 @@ export default function ScanFlowResult() {
           ) : null}
           {flowStatus === "uploading" || flowStatus === "error" ? (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Photo upload status</p>
+              <p className="text-xs text-muted-foreground">
+                Photo upload status
+              </p>
               <div className="space-y-2">
                 {POSES.map((pose) => {
                   const s = photoState[pose];
-                  const pct = Math.max(0, Math.min(100, Math.round((s?.percent ?? 0) * 100)));
+                  const pct = Math.max(
+                    0,
+                    Math.min(100, Math.round((s?.percent ?? 0) * 100))
+                  );
                   const label = pose.charAt(0).toUpperCase() + pose.slice(1);
                   const retryInMs =
                     s.status === "retrying" && typeof s.nextRetryAt === "number"
@@ -1412,7 +1461,9 @@ export default function ScanFlowResult() {
                         <span className="text-muted-foreground">
                           {s.status}
                           {s.attempt ? ` (attempt ${s.attempt})` : ""}
-                          {s.status === "uploading" || s.status === "retrying" ? ` · ${pct}%` : ""}
+                          {s.status === "uploading" || s.status === "retrying"
+                            ? ` · ${pct}%`
+                            : ""}
                           {retryInMs != null && retryInMs > 0 && !isOffline
                             ? ` · retry in ${Math.ceil(retryInMs / 1000)}s`
                             : ""}
@@ -1427,11 +1478,15 @@ export default function ScanFlowResult() {
                                 ? "h-2 rounded-full bg-primary"
                                 : "h-2 rounded-full bg-primary/70"
                           }
-                          style={{ width: `${s.status === "done" ? 100 : pct}%` }}
+                          style={{
+                            width: `${s.status === "done" ? 100 : pct}%`,
+                          }}
                         />
                       </div>
                       {s.message ? (
-                        <p className="mt-1 text-[11px] text-muted-foreground">{s.message}</p>
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {s.message}
+                        </p>
                       ) : null}
                     </div>
                   );
@@ -1451,9 +1506,9 @@ export default function ScanFlowResult() {
                   ? "Queued…"
                   : flowStatus === "processing"
                     ? "Processing…"
-                  : flowStatus === "starting"
-                    ? "Preparing…"
-                    : "Finalize with AI"}
+                    : flowStatus === "starting"
+                      ? "Preparing…"
+                      : "Finalize with AI"}
             </Button>
             <Button
               type="button"
@@ -1476,7 +1531,9 @@ export default function ScanFlowResult() {
               <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
                 {(() => {
                   const cfg = getFirebaseConfig();
-                  const appBucket = String(getFirebaseApp().options?.storageBucket || "");
+                  const appBucket = String(
+                    getFirebaseApp().options?.storageBucket || ""
+                  );
                   const bucketFromStorage = String(
                     getFirebaseStorage().app?.options?.storageBucket || ""
                   );
@@ -1505,8 +1562,12 @@ export default function ScanFlowResult() {
                     (uploadMeta.right.preprocessDebug as any)?.device ??
                     null;
                   if (!anyDebug) return "—";
-                  const mode = anyDebug.isMobileUploadDevice ? "mobile" : "desktop";
-                  const safari = anyDebug.isProbablyMobileSafari ? " (iOS Safari)" : "";
+                  const mode = anyDebug.isMobileUploadDevice
+                    ? "mobile"
+                    : "desktop";
+                  const safari = anyDebug.isProbablyMobileSafari
+                    ? " (iOS Safari)"
+                    : "";
                   return `${mode}${safari}`;
                 })()}
               </span>
@@ -1521,13 +1582,16 @@ export default function ScanFlowResult() {
             <div>
               <span className="font-medium">app check:</span>{" "}
               <span className="text-muted-foreground">
-                {appCheck.status} · tokenPresent={appCheck.tokenPresent ? "true" : "false"}
+                {appCheck.status} · tokenPresent=
+                {appCheck.tokenPresent ? "true" : "false"}
                 {appCheck.message ? ` · ${appCheck.message}` : ""}
               </span>
             </div>
             <div>
               <span className="font-medium">scanId:</span>{" "}
-              <span className="text-muted-foreground">{session?.scanId ?? "—"}</span>
+              <span className="text-muted-foreground">
+                {session?.scanId ?? "—"}
+              </span>
             </div>
             <div>
               <span className="font-medium">storage path(s):</span>
@@ -1542,7 +1606,9 @@ export default function ScanFlowResult() {
               <span className="text-muted-foreground">
                 {lastUploadError
                   ? `${lastUploadError.code ?? "unknown"} · ${lastUploadError.message ?? ""}${
-                      lastUploadError.pose ? ` · pose=${lastUploadError.pose}` : ""
+                      lastUploadError.pose
+                        ? ` · pose=${lastUploadError.pose}`
+                        : ""
                     }`
                   : "—"}
               </span>
@@ -1556,8 +1622,8 @@ export default function ScanFlowResult() {
                   <div key={pose} className="rounded border p-2">
                     <div className="font-medium">{pose}</div>
                     <div className="text-muted-foreground">
-                      state: {state.status} · attempt {state.attempt || 0} · method{" "}
-                      {formatUploadMethod(state.uploadMethod)}
+                      state: {state.status} · attempt {state.attempt || 0} ·
+                      method {formatUploadMethod(state.uploadMethod)}
                     </div>
                     <div className="text-muted-foreground">
                       original:{" "}
@@ -1573,11 +1639,14 @@ export default function ScanFlowResult() {
                     </div>
                     <div className="text-muted-foreground">
                       object path:{" "}
-                      {uploadMeta[pose]?.fullPath ?? session?.storagePaths?.[pose] ?? "—"}
+                      {uploadMeta[pose]?.fullPath ??
+                        session?.storagePaths?.[pose] ??
+                        "—"}
                     </div>
                     {uploadMeta[pose]?.uploadMethod ? (
                       <div className="text-muted-foreground">
-                        methodUsed: {formatUploadMethod(uploadMeta[pose]!.uploadMethod)}
+                        methodUsed:{" "}
+                        {formatUploadMethod(uploadMeta[pose]!.uploadMethod)}
                       </div>
                     ) : null}
                     {uploadMeta[pose]?.bucket ? (
@@ -1587,32 +1656,42 @@ export default function ScanFlowResult() {
                     ) : null}
                     {uploadMeta[pose]?.pathMismatch ? (
                       <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
-                        {JSON.stringify(uploadMeta[pose]!.pathMismatch, null, 2)}
+                        {JSON.stringify(
+                          uploadMeta[pose]!.pathMismatch,
+                          null,
+                          2
+                        )}
                       </pre>
                     ) : null}
                     <div className="text-muted-foreground">
                       lastBytesTransferred:{" "}
-                      {typeof uploadMeta[pose]?.lastBytesTransferred === "number"
+                      {typeof uploadMeta[pose]?.lastBytesTransferred ===
+                      "number"
                         ? `${uploadMeta[pose]!.lastBytesTransferred} / ${uploadMeta[pose]!.lastTotalBytes ?? "?"}`
                         : "—"}
                     </div>
                     {uploadMeta[pose]?.lastTaskState ? (
                       <div className="text-muted-foreground">
-                        taskState: {uploadMeta[pose]!.lastTaskState} · lastProgressAt:{" "}
+                        taskState: {uploadMeta[pose]!.lastTaskState} ·
+                        lastProgressAt:{" "}
                         {uploadMeta[pose]!.lastProgressAt
-                          ? new Date(uploadMeta[pose]!.lastProgressAt!).toLocaleTimeString()
+                          ? new Date(
+                              uploadMeta[pose]!.lastProgressAt!
+                            ).toLocaleTimeString()
                           : "—"}
                       </div>
                     ) : null}
                     {uploadMeta[pose]?.lastFirebaseError?.message ? (
                       <div className="text-muted-foreground">
-                        lastFirebaseError: {uploadMeta[pose]!.lastFirebaseError!.code ?? "unknown"} ·{" "}
-                        {uploadMeta[pose]!.lastFirebaseError!.message}
+                        lastFirebaseError:{" "}
+                        {uploadMeta[pose]!.lastFirebaseError!.code ?? "unknown"}{" "}
+                        · {uploadMeta[pose]!.lastFirebaseError!.message}
                       </div>
                     ) : null}
                     {uploadMeta[pose]?.lastUploadError?.message ? (
                       <div className="text-muted-foreground">
-                        lastUploadError: {uploadMeta[pose]!.lastUploadError!.code ?? "unknown"} ·{" "}
+                        lastUploadError:{" "}
+                        {uploadMeta[pose]!.lastUploadError!.code ?? "unknown"} ·{" "}
                         {uploadMeta[pose]!.lastUploadError!.message}
                       </div>
                     ) : null}

@@ -409,7 +409,7 @@ processing, installed on the paired iPhone 14 Pro Max, and launched
 successfully. Fresh iPhone and iPad simulator builds also install, launch, and
 render the reviewed responsive layouts. The native Firebase Authentication and
 App Check bridge work was added after build 6; therefore build 6 is superseded
-for final submission and a newly numbered candidate must be archived, uploaded,
+for final submission. The project is now build 7; it must be archived, uploaded,
 and device-tested. Build 5 was accepted by Apple's upload
 service but was superseded before device testing by the redirect-hardening fix.
 Build 4 must not be submitted because its native plan route bypassed the
@@ -417,7 +417,7 @@ RevenueCat paywall. The real photo, purchase, restore, notification, and
 offline device checklist remains mandatory.
 
 Build 6 is still selected for App Store version 1.0 only as the prior metadata
-placeholder; replace it with the verified new candidate before submission. Six
+placeholder; replace it with verified build 7 before submission. Six
 ordered 1242 × 2688 iPhone
 screenshots and six ordered 2064 × 2752 iPad screenshots are uploaded: body
 results, training, nutrition progress, meal planning, four-photo scanning, and
@@ -572,7 +572,11 @@ specs in the broader suite run only when `PLAYWRIGHT_STORAGE_STATE` points to a
 real test-account state file.
 
 ```bash
-E2E_BASE_URL=http://127.0.0.1:4173 npx playwright test
+# Public policy, App Check, demo, Storage, and Firebase Hosting init safeguards.
+# Run this against Hosting because /__/firebase/init.json is not served by Vite:
+E2E_BASE_URL=https://mybodyscanapp.com npx playwright test --config playwright.config.ts
+# Broader product suite against a local production preview
+# (uses PLAYWRIGHT_STORAGE_STATE when set):
 E2E_BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.config.ts
 ```
 

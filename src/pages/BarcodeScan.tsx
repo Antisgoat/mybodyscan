@@ -330,7 +330,10 @@ export default function BarcodeScan() {
     const track = streamRef.current?.getVideoTracks()?.[0];
     if (!track?.applyConstraints) return;
     try {
-      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      const torchConstraint = {
+        torch: !torchOn,
+      } as MediaTrackConstraintSet & { torch: boolean };
+      await track.applyConstraints({ advanced: [torchConstraint] });
       setTorchOn((prev) => !prev);
     } catch (error) {
       console.error("torch_toggle_error", error);

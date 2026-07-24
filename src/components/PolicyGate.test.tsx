@@ -1,3 +1,4 @@
+import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -24,7 +25,13 @@ describe("PolicyGate", () => {
     );
     expect((acceptButton as HTMLButtonElement).disabled).toBe(true);
 
-    checkboxes.forEach((checkbox) => fireEvent.click(checkbox));
+    fireEvent.click(checkboxes[0]);
+    expect((acceptButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(checkboxes[1]);
+    expect((acceptButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(checkboxes[2]);
     expect((acceptButton as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(acceptButton);

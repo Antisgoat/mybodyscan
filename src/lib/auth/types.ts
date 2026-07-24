@@ -10,9 +10,10 @@ export type Unsubscribe = () => void;
  */
 export type AuthUser = {
   uid: string;
-  email: string | null;
-  displayName: string | null;
+  email?: string | null;
+  displayName?: string | null;
   photoUrl?: string | null;
+  photoURL?: string | null;
   phoneNumber?: string | null;
   emailVerified?: boolean;
   isAnonymous?: boolean;

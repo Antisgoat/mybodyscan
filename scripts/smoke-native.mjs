@@ -15,7 +15,18 @@ const iosPbxproj = path.join(repoRoot, "ios/App/App.xcodeproj/project.pbxproj");
 const iosAppDelegate = path.join(repoRoot, "ios/App/App/AppDelegate.swift");
 const iosPodfile = path.join(repoRoot, "ios/App/Podfile");
 const iosPodfileLock = path.join(repoRoot, "ios/App/Podfile.lock");
-const iosDuplicateDoctor = path.join(repoRoot, "scripts/doctor-ios-duplicates.mjs");
+const iosDuplicateDoctor = path.join(
+  repoRoot,
+  "scripts/doctor-ios-duplicates.mjs"
+);
+const capacitorCli = path.join(
+  repoRoot,
+  "node_modules",
+  "@capacitor",
+  "cli",
+  "bin",
+  "capacitor"
+);
 
 const allowedPlugins = new Set([
   "@capacitor/app",
@@ -60,7 +71,9 @@ async function assertPublicIndex() {
     fail(`ios/App/App/public/index.html is too small (${stats.size} bytes).`);
   }
   if (!(await fileExists(publicAssetsDir))) {
-    fail(`Missing ${publicAssetsDir}. Run npm run ios:reset or npx cap sync ios.`);
+    fail(
+      `Missing ${publicAssetsDir}. Run npm run ios:reset or npx cap sync ios.`
+    );
   }
   pass("iOS web bundle exists and is large enough.");
 }
@@ -74,7 +87,8 @@ async function assertWorkspace() {
       "[smoke:native] WARN: Open ios/App/App.xcworkspace (not ios/App/App.xcodeproj)."
     );
   }
-  const openedContainer = process.env.XCODE_CONTAINER || process.env.MBS_XCODE_CONTAINER;
+  const openedContainer =
+    process.env.XCODE_CONTAINER || process.env.MBS_XCODE_CONTAINER;
   if (openedContainer && openedContainer.includes(".xcodeproj")) {
     fail(`Xcode container is ${openedContainer}. Use ios/App/App.xcworkspace.`);
   }
@@ -82,9 +96,10 @@ async function assertWorkspace() {
 }
 
 function assertCapPlugins() {
-  const result = spawnSync("npx", ["cap", "ls", "ios"], {
+  const result = spawnSync(process.execPath, [capacitorCli, "ls", "ios"], {
     cwd: repoRoot,
     encoding: "utf8",
+    timeout: 15_000,
   });
   if (result.status !== 0) {
     const errText = (result.stderr || result.stdout || "").trim();
@@ -130,13 +145,40 @@ async function assertNoServerUrl() {
   pass("No dev server.url in capacitor.config.ts.");
 }
 
+function listFilesRecursively(directory) {
+  const files = [];
+  for (const entry of fsSync.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listFilesRecursively(entryPath));
+    } else {
+      files.push(entryPath);
+    }
+  }
+  return files;
+}
+
 function assertNoSwiftFirebaseImports() {
-  const pattern = "FirebaseCore|FirebaseApp|FirebaseOptions|GoogleUtilities";
-  assertRgClean("ios/App/App Swift files", pattern, [
-    "--glob",
-    "**/*.swift",
-    path.join(repoRoot, "ios/App/App"),
-  ]);
+  const appDelegatePath = path.resolve(iosAppDelegate);
+  const unexpected = listFilesRecursively(iosAppDir)
+    .filter(
+      (filePath) =>
+        filePath.endsWith(".swift") &&
+        path.resolve(filePath) !== appDelegatePath
+    )
+    .filter((filePath) =>
+      /^\s*import\s+Firebase(?:[A-Za-z0-9_]*)\s*$/m.test(
+        fsSync.readFileSync(filePath, "utf8")
+      )
+    );
+  if (unexpected.length) {
+    fail(
+      `Only AppDelegate.swift may import Firebase directly:\n${unexpected
+        .map((filePath) => path.relative(repoRoot, filePath))
+        .join("\n")}`
+    );
+  }
+  pass("Swift Firebase imports are limited to AppDelegate.swift.");
 }
 
 async function assertAppDelegateAuthRouting() {
@@ -144,10 +186,19 @@ async function assertAppDelegateAuthRouting() {
     fail(`Missing ${iosAppDelegate}. Run npm run ios:reset.`);
   }
   const contents = await fs.readFile(iosAppDelegate, "utf8");
+  const executable = contents
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""');
+  const authHandlerIndex = executable.indexOf("Auth.auth().canHandle(url)");
+  const capacitorHandlerIndex = executable.indexOf(
+    "ApplicationDelegateProxy.shared.application"
+  );
   if (
-    !contents.includes("import FirebaseAuth") ||
-    !contents.includes("Auth.auth().canHandle(url)") ||
-    !contents.includes("ApplicationDelegateProxy.shared.application")
+    !/^\s*import\s+FirebaseAuth\s*$/m.test(executable) ||
+    authHandlerIndex === -1 ||
+    capacitorHandlerIndex === -1 ||
+    authHandlerIndex > capacitorHandlerIndex
   ) {
     fail(
       "AppDelegate.swift must route Firebase Auth callbacks before Capacitor URL handling."
@@ -174,18 +225,24 @@ async function assertIosProjectFirebaseReferences() {
 
   for (const snippet of requiredGoogleSnippets) {
     if (!contents.includes(snippet)) {
-      fail(`project.pbxproj is missing expected GoogleService-Info.plist reference: ${snippet}`);
+      fail(
+        `project.pbxproj is missing expected GoogleService-Info.plist reference: ${snippet}`
+      );
     }
   }
 
-  const absolutePathPattern = /(\/(Users|Applications|Volumes|private\/var|var\/folders|tmp|opt\/homebrew|usr\/local)\/)/;
+  const absolutePathPattern =
+    /(\/(Users|Applications|Volumes|private\/var|var\/folders|tmp|opt\/homebrew|usr\/local)\/)/;
   if (absolutePathPattern.test(contents)) {
-    fail("project.pbxproj contains absolute paths. Use relative project references only.");
+    fail(
+      "project.pbxproj contains absolute paths. Use relative project references only."
+    );
   }
 
-  pass("iOS project references Info.plist and GoogleService-Info.plist correctly.");
+  pass(
+    "iOS project references Info.plist and GoogleService-Info.plist correctly."
+  );
 }
-
 
 async function assertNoAppFolderCopiedInPbxproj() {
   if (!(await fileExists(iosPbxproj))) {
@@ -205,8 +262,14 @@ async function assertNoAppFolderCopiedInPbxproj() {
     }
   }
   const phaseBlocks = [
-    { label: "PBXResourcesBuildPhase", regex: /PBXResourcesBuildPhase[\s\S]*?files = \(([\s\S]*?)\);/g },
-    { label: "PBXCopyFilesBuildPhase", regex: /PBXCopyFilesBuildPhase[\s\S]*?files = \(([\s\S]*?)\);/g },
+    {
+      label: "PBXResourcesBuildPhase",
+      regex: /PBXResourcesBuildPhase[\s\S]*?files = \(([\s\S]*?)\);/g,
+    },
+    {
+      label: "PBXCopyFilesBuildPhase",
+      regex: /PBXCopyFilesBuildPhase[\s\S]*?files = \(([\s\S]*?)\);/g,
+    },
   ];
   for (const phase of phaseBlocks) {
     let match;
@@ -230,6 +293,17 @@ function assertCapFirebasePackages() {
       encoding: "utf8",
     }
   );
+  if (result.status !== 0) {
+    const details = (
+      result.stderr ||
+      result.stdout ||
+      result.error?.message ||
+      ""
+    ).trim();
+    fail(
+      `npm ls @capacitor-firebase/authentication failed: ${details || "unknown error"}.`
+    );
+  }
   const output = result.stdout || "{}";
   let data;
   try {
@@ -254,6 +328,17 @@ function assertCapFirebasePackages() {
       encoding: "utf8",
     }
   );
+  if (appCheckResult.status !== 0) {
+    const details = (
+      appCheckResult.stderr ||
+      appCheckResult.stdout ||
+      appCheckResult.error?.message ||
+      ""
+    ).trim();
+    fail(
+      `npm ls @capacitor-firebase/app-check failed: ${details || "unknown error"}.`
+    );
+  }
   let appCheckData;
   try {
     appCheckData = JSON.parse(appCheckResult.stdout || "{}");
@@ -314,17 +399,25 @@ function assertRgClean(label, pattern, paths) {
     pass(`${label} skipped (no matching paths).`);
     return;
   }
-  const rgResult = spawnSync("rg", ["-n", pattern, ...rgArgs, ...existingPaths], {
-    cwd: repoRoot,
-    encoding: "utf8",
-  });
+  const rgResult = spawnSync(
+    "rg",
+    ["-n", pattern, ...rgArgs, ...existingPaths],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+    }
+  );
   if (rgResult.error) {
     if (rgResult.error.code === "ENOENT") {
       runGrepScan(label, pattern, existingPaths, grepIncludes);
       return;
     }
-    const errText = formatSearchOutput(rgResult.stderr || rgResult.stdout || "");
-    fail(`rg failed while scanning ${label}: ${errText || rgResult.error.message}`);
+    const errText = formatSearchOutput(
+      rgResult.stderr || rgResult.stdout || ""
+    );
+    fail(
+      `rg failed while scanning ${label}: ${errText || rgResult.error.message}`
+    );
   }
   if (rgResult.status === null && rgResult.error) {
     runGrepScan(label, pattern, existingPaths, grepIncludes);
@@ -343,7 +436,9 @@ function assertRgClean(label, pattern, paths) {
 }
 
 function runGrepScan(label, pattern, existingPaths, includes) {
-  const grepPath = fsSync.existsSync("/usr/bin/grep") ? "/usr/bin/grep" : "grep";
+  const grepPath = fsSync.existsSync("/usr/bin/grep")
+    ? "/usr/bin/grep"
+    : "grep";
   const includeArgs = includes.map((glob) => `--include=${glob}`);
   const result = spawnSync(
     grepPath,
@@ -396,8 +491,6 @@ function formatSearchOutput(text, maxLines = 20, maxChars = 2000) {
   }
   return result;
 }
-
-
 
 async function main() {
   await assertRepoRoot();

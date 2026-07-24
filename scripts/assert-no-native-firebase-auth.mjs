@@ -22,10 +22,13 @@ if (packageJson.dependencies?.["@capacitor-firebase/app-check"] !== "7.5.0") {
 }
 
 const config = read("capacitor.config.ts");
+const firebaseAuthConfig =
+  config.match(/FirebaseAuthentication\s*:\s*\{([\s\S]*?)\n\s*\}/)?.[1] ?? "";
+const configuredProviders =
+  firebaseAuthConfig.match(/providers\s*:\s*\[([^\]]*)\]/)?.[1] ?? "";
 if (
-  !/FirebaseAuthentication[\s\S]*providers:\s*\[[^\]]*"google\.com"[^\]]*"apple\.com"/.test(
-    config
-  )
+  !/["']google\.com["']/.test(configuredProviders) ||
+  !/["']apple\.com["']/.test(configuredProviders)
 ) {
   failures.push(
     "Capacitor Firebase Authentication must load both Google and Apple providers."
@@ -45,15 +48,13 @@ if (!/registerPlugin<[\s\S]*>\(\s*"FirebaseAuthentication"/.test(nativeImpl)) {
 }
 
 const nativeAppCheck = read("src/lib/appCheck.native.ts");
-if (
-  !/registerPlugin<[\s\S]*>\(\s*"FirebaseAppCheck"/.test(nativeAppCheck)
-) {
-  failures.push("Native App Check must register its Capacitor bridge directly.");
+if (!/registerPlugin<[\s\S]*>\(\s*"FirebaseAppCheck"/.test(nativeAppCheck)) {
+  failures.push(
+    "Native App Check must register its Capacitor bridge directly."
+  );
 }
 if (
-  /(?:from|import\()\s*["']@capacitor-firebase\/app-check/.test(
-    nativeAppCheck
-  )
+  /(?:from|import\()\s*["']@capacitor-firebase\/app-check/.test(nativeAppCheck)
 ) {
   failures.push(
     "Native App Check must not import the plugin JavaScript entrypoint; it would bundle the web fallback."
@@ -81,9 +82,7 @@ if (
   );
 }
 if (
-  /(?:from|import\()\s*["']@capacitor-firebase\/authentication/.test(
-    nativeImpl
-  )
+  /(?:from|import\()\s*["']@capacitor-firebase\/authentication/.test(nativeImpl)
 ) {
   failures.push(
     "Native auth must not import the plugin JavaScript entrypoint; it would bundle the web fallback."
@@ -140,34 +139,42 @@ if (!/com\.apple\.developer\.applesignin/.test(entitlements)) {
   failures.push("The iOS Sign in with Apple entitlement is missing.");
 }
 
-const capList = spawnSync("npx", ["cap", "ls", "ios"], {
-  cwd: root,
-  encoding: "utf8",
-});
-if (capList.status !== 0) {
-  failures.push(
-    `Unable to inspect iOS Capacitor plugins: ${(
-      capList.stderr ||
-      capList.stdout ||
-      "unknown error"
-    ).trim()}`
-  );
-} else if (
-  !`${capList.stdout}\n${capList.stderr}`.includes(
-    "@capacitor-firebase/authentication"
-  )
-) {
-  failures.push(
-    "The native Firebase Authentication plugin is not synced into iOS."
-  );
-}
-if (
-  capList.status === 0 &&
-  !`${capList.stdout}\n${capList.stderr}`.includes(
-    "@capacitor-firebase/app-check"
-  )
-) {
-  failures.push("The native Firebase App Check plugin is not synced into iOS.");
+const capCli = path.join(
+  root,
+  "node_modules",
+  "@capacitor",
+  "cli",
+  "bin",
+  "capacitor"
+);
+for (const platform of ["ios", "android"]) {
+  const capList = spawnSync(process.execPath, [capCli, "ls", platform], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 15_000,
+  });
+  if (capList.status !== 0) {
+    failures.push(
+      `Unable to inspect ${platform} Capacitor plugins: ${(
+        capList.stderr ||
+        capList.stdout ||
+        capList.error?.message ||
+        "unknown error"
+      ).trim()}`
+    );
+    continue;
+  }
+  const pluginOutput = `${capList.stdout}\n${capList.stderr}`;
+  for (const plugin of [
+    "@capacitor-firebase/authentication",
+    "@capacitor-firebase/app-check",
+  ]) {
+    if (!pluginOutput.includes(plugin)) {
+      failures.push(
+        `The native ${plugin} plugin is not synced into ${platform}.`
+      );
+    }
+  }
 }
 
 if (failures.length) {
@@ -178,5 +185,5 @@ if (failures.length) {
 }
 
 console.log(
-  "[native-auth] PASS: native OAuth/App Check bridges, Firebase JS session and attestation adapters, Google/Apple providers, iOS callback handling, and web-fallback boundaries are configured."
+  "[native-auth] PASS: native OAuth/App Check bridges, Firebase JS session and attestation adapters, Google/Apple providers, iOS callback handling, Android/iOS plugin sync, and web-fallback boundaries are configured."
 );

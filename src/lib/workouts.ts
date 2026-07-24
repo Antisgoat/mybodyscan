@@ -17,7 +17,10 @@ import {
   buildCustomPlanTitleFromPrefs,
   generateCustomPlanDaysFromLibrary,
 } from "@/lib/workoutsCustomGenerator";
-import { CORE_WORKOUT_FALLBACK, toWorkoutSummaryFallback } from "@/lib/workoutsFallback";
+import {
+  CORE_WORKOUT_FALLBACK,
+  toWorkoutSummaryFallback,
+} from "@/lib/workoutsFallback";
 
 export interface WorkoutExercise {
   id: string;
@@ -35,6 +38,12 @@ export interface WorkoutSummary {
   planId: string | null;
   days: WorkoutDay[];
   progress: Record<string, string[]>;
+}
+
+export interface ActiveWorkoutPlan {
+  id: string;
+  title?: string;
+  days: WorkoutDay[];
 }
 
 export interface CatalogPlanExercise {
@@ -56,7 +65,11 @@ export interface CatalogPlanSubmission {
   days: CatalogPlanDay[];
 }
 
-export type CustomPlanGoal = "lose_fat" | "build_muscle" | "recomp" | "performance";
+export type CustomPlanGoal =
+  | "lose_fat"
+  | "build_muscle"
+  | "recomp"
+  | "performance";
 export type CustomPlanExperience = "beginner" | "intermediate" | "advanced";
 export type CustomPlanStyle =
   | "strength"
@@ -129,7 +142,8 @@ function isRetryableActivationError(error: unknown): boolean {
   const anyErr = error as any;
   const message =
     typeof anyErr?.message === "string" ? (anyErr.message as string) : "";
-  const status = typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
+  const status =
+    typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
   // Common transient cases:
   // - Safari/Network: "Load failed", "Failed to fetch"
   // - Functions transient: 429/502/503/504
@@ -150,12 +164,15 @@ function isRetryableActivationError(error: unknown): boolean {
   return false;
 }
 
-async function callFn(path: string, body?: any) {
+async function callFn<T extends Record<string, any> = Record<string, any>>(
+  path: string,
+  body?: any
+): Promise<T> {
   const name = path.replace(/^\/+/, "");
-  return callRequestFunction(name, body || {}, { method: "POST" });
+  return callRequestFunction<T>(name, body || {}, { method: "POST" });
 }
 
-async function fetchPlanFromFirestore() {
+async function fetchPlanFromFirestore(): Promise<ActiveWorkoutPlan | null> {
   const uid = getCachedUser()?.uid;
   if (!uid) throw new Error("auth");
   try {
@@ -171,7 +188,12 @@ async function fetchPlanFromFirestore() {
     );
     if (!planSnap.exists()) return null;
     const data = planSnap.data() as Record<string, any>;
-    return { id: planId, ...data };
+    return {
+      ...data,
+      id: planId,
+      title: typeof data.title === "string" ? data.title : undefined,
+      days: Array.isArray(data.days) ? (data.days as WorkoutDay[]) : [],
+    };
   } catch (error) {
     console.warn("workouts.plan_fallback_failed", error);
     return CORE_WORKOUT_FALLBACK;
@@ -202,13 +224,23 @@ async function fetchProgressFromFirestore(planId: string) {
   }
 }
 
-export async function generateWorkoutPlan(prefs?: Record<string, any>) {
+export async function generateWorkoutPlan(
+  prefs?: Record<string, any>
+): Promise<{ planId: string; days: WorkoutDay[] }> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_generate" });
     throw new Error("demo-blocked");
   }
   try {
-    return await callFn("/generateWorkoutPlan", { prefs });
+    const response = await callFn<{ planId?: string; days?: WorkoutDay[] }>(
+      "/generateWorkoutPlan",
+      { prefs }
+    );
+    const planId = typeof response.planId === "string" ? response.planId : "";
+    if (!planId || !Array.isArray(response.days)) {
+      throw new Error("workouts_generate_invalid_response");
+    }
+    return { planId, days: response.days };
   } catch (error: any) {
     if (
       typeof error?.message === "string" &&
@@ -220,13 +252,36 @@ export async function generateWorkoutPlan(prefs?: Record<string, any>) {
   }
 }
 
-export async function getPlan() {
+export async function getPlan(): Promise<ActiveWorkoutPlan> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_plan" });
-    return DEMO_WORKOUT_PLAN;
+    return {
+      id: DEMO_WORKOUT_PLAN.id,
+      title: "Demo workout plan",
+      days: DEMO_WORKOUT_PLAN.days,
+    };
   }
   try {
-    return await callFn("/getPlan", { localDate: localDateKey() });
+    const response = await callFn<{
+      id?: string;
+      planId?: string;
+      title?: string;
+      days?: WorkoutDay[];
+    }>("/getPlan", { localDate: localDateKey() });
+    const id =
+      typeof response.id === "string"
+        ? response.id
+        : typeof response.planId === "string"
+          ? response.planId
+          : "";
+    if (!id || !Array.isArray(response.days)) {
+      throw new Error("workouts_plan_invalid_response");
+    }
+    return {
+      id,
+      title: typeof response.title === "string" ? response.title : undefined,
+      days: response.days,
+    };
   } catch (error) {
     console.warn("workouts.getPlan", error);
     if (error instanceof Error && error.message.startsWith("fn_not_found")) {
@@ -234,16 +289,23 @@ export async function getPlan() {
       if (fallback) return fallback;
       throw new Error("workouts_disabled_missing_fn");
     }
-    return toWorkoutSummaryFallback();
+    const fallback = toWorkoutSummaryFallback();
+    return {
+      id: fallback.planId ?? CORE_WORKOUT_FALLBACK.id,
+      title: CORE_WORKOUT_FALLBACK.title,
+      days: fallback.days,
+    };
   }
 }
 
-export async function applyCatalogPlan(plan: CatalogPlanSubmission) {
+export async function applyCatalogPlan(
+  plan: CatalogPlanSubmission
+): Promise<{ planId?: string }> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_apply_plan" });
     throw new Error("demo-blocked");
   }
-  return callFn("/applyCatalogPlan", plan);
+  return callFn<{ planId?: string }>("/applyCatalogPlan", plan);
 }
 
 export async function previewCustomPlan(params: {
@@ -286,7 +348,7 @@ export async function activateCustomPlan(params: {
     track("demo_block", { action: "workout_activate_custom_plan" });
     throw new Error("demo-blocked");
   }
-  const res = await callFn("/applyCustomPlan", params);
+  const res = await callFn<{ planId?: string }>("/applyCustomPlan", params);
   const planId = typeof res?.planId === "string" ? res.planId : "";
   if (!planId) throw new Error("workouts_apply_invalid_response");
   return { planId };
@@ -300,7 +362,7 @@ export async function updateWorkoutPlanRemote(params: {
     track("demo_block", { action: "workout_update_plan" });
     throw new Error("demo-blocked");
   }
-  const res = await callFn("/updateWorkoutPlan", params);
+  const res = await callFn<{ ok?: boolean }>("/updateWorkoutPlan", params);
   return { ok: Boolean(res?.ok) as true };
 }
 
@@ -312,7 +374,7 @@ export async function setWorkoutPlanStatusRemote(params: {
     track("demo_block", { action: "workout_plan_status" });
     throw new Error("demo-blocked");
   }
-  const res = await callFn("/setWorkoutPlanStatus", params);
+  const res = await callFn<{ ok?: boolean }>("/setWorkoutPlanStatus", params);
   return { ok: Boolean(res?.ok) as true };
 }
 
@@ -389,7 +451,11 @@ export async function getWorkouts(): Promise<WorkoutSummary | null> {
     };
   }
   try {
-    const res = await callFn("/getWorkouts", { localDate: localDateKey() });
+    const res = await callFn<{
+      planId?: string | null;
+      days?: WorkoutDay[];
+      progress?: Record<string, string[]>;
+    }>("/getWorkouts", { localDate: localDateKey() });
     const planId = (res?.planId as string | null | undefined) ?? null;
     const days = Array.isArray(res?.days) ? (res.days as WorkoutDay[]) : [];
     const progress = (res?.progress as Record<string, string[]>) ?? {};
@@ -417,12 +483,20 @@ export async function markExerciseDone(
   dayIndex: number,
   exerciseId: string,
   done: boolean
-) {
+): Promise<{ ratio: number }> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_done" });
     throw new Error("demo-blocked");
   }
-  return callFn("/markExerciseDone", { planId, dayIndex, exerciseId, done });
+  const response = await callFn<{ ratio?: number }>("/markExerciseDone", {
+    planId,
+    dayIndex,
+    exerciseId,
+    done,
+  });
+  return {
+    ratio: Number.isFinite(response.ratio) ? Number(response.ratio) : 0,
+  };
 }
 
 export async function logWorkoutExercise(params: {
@@ -436,7 +510,7 @@ export async function logWorkoutExercise(params: {
     track("demo_block", { action: "workout_log_exercise" });
     throw new Error("demo-blocked");
   }
-  const res = await callFn("/logWorkoutExercise", params);
+  const res = await callFn<{ ok?: boolean }>("/logWorkoutExercise", params);
   return { ok: Boolean(res?.ok) as true };
 }
 

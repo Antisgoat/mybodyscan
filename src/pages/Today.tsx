@@ -6,7 +6,7 @@ import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutritionBackend";
-import { getPlan } from "@/lib/workouts";
+import { getPlan, type WorkoutDay } from "@/lib/workouts";
 import { DemoBanner } from "@/components/DemoBanner";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -43,11 +43,6 @@ export default function Today() {
     demo ? DEMO_WORKOUT_PROGRESS : { done: 0, total: 0 }
   );
 
-  type WorkoutDay = {
-    day: string;
-    exercises: Array<{ length: number }>;
-  };
-
   useEffect(() => {
     if (demo) {
       setMealTotals(DEMO_NUTRITION_LOG.totals);
@@ -72,8 +67,8 @@ export default function Today() {
 
       try {
         const plan = await getPlan();
-        const planDays = Array.isArray(plan?.days)
-          ? (plan.days as WorkoutDay[])
+        const planDays: WorkoutDay[] = Array.isArray(plan?.days)
+          ? plan.days
           : [];
         if (!plan || planDays.length === 0) {
           if (!cancelled) {

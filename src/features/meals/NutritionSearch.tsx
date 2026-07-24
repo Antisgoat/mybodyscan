@@ -27,7 +27,6 @@ import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
 import { toast } from "@/hooks/use-toast";
 import { demoToast } from "@/lib/demoToast";
 import type { FoodItem as RichFoodItem } from "@/lib/nutrition/types";
-import { toRichFoodItem } from "@/lib/nutrition/toFoodItem";
 
 type NutritionSearchProps = {
   onMealLogged?: (item: FoodItem) => void;
@@ -165,9 +164,7 @@ export default function NutritionSearch({
       });
       return;
     }
-    // Guardrail: ServingEditor expects the rich `FoodItem` shape; convert the
-    // lightweight callable result into a safe, fully-populated item.
-    setEditorItem(toRichFoodItem(item));
+    setEditorItem(item);
     setEditorSource(source);
     editorMealIdRef.current =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -209,7 +206,10 @@ export default function NutritionSearch({
         description: `${editorItem.name} added to today.`,
       });
       if (result?.meal && result?.totals) {
-        onMealAdded?.({ meal: result.meal as MealEntry, totals: result.totals });
+        onMealAdded?.({
+          meal: result.meal as MealEntry,
+          totals: result.totals,
+        });
       }
       // `onMealLogged` expects the lightweight search item; forward the raw snapshot if available.
       onMealLogged?.((editorItem.raw ?? editorItem) as any);
@@ -321,7 +321,7 @@ export default function NutritionSearch({
                   ) : null}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {fmtCal(it.calories)}
+                  {fmtCal(it.per_serving.kcal ?? it.per_100g?.kcal)}
                   {sep(it)}
                   {fmtMacros(it)}
                   {sep(it)}
@@ -381,22 +381,30 @@ function fmtCal(kcal?: number | null) {
   return kcal ? `${round(kcal)} kcal` : "kcal ?";
 }
 function fmtMacros(it: {
-  protein?: number | null;
-  carbs?: number | null;
-  fat?: number | null;
+  per_serving: {
+    protein_g: number | null;
+    carbs_g: number | null;
+    fat_g: number | null;
+  };
 }) {
-  const p = it.protein != null ? `P ${round(it.protein)}g` : "P ?";
-  const c = it.carbs != null ? `C ${round(it.carbs)}g` : "C ?";
-  const f = it.fat != null ? `F ${round(it.fat)}g` : "F ?";
+  const p =
+    it.per_serving.protein_g != null
+      ? `P ${round(it.per_serving.protein_g)}g`
+      : "P ?";
+  const c =
+    it.per_serving.carbs_g != null
+      ? `C ${round(it.per_serving.carbs_g)}g`
+      : "C ?";
+  const f =
+    it.per_serving.fat_g != null ? `F ${round(it.per_serving.fat_g)}g` : "F ?";
   return [p, c, f].join(" • ");
 }
 function fmtServing(it: {
-  servingSize?: number | null;
-  servingUnit?: string | null;
+  serving: { qty: number | null; unit: string | null; text?: string | null };
 }) {
-  if (it.servingSize != null && it.servingUnit)
-    return `${round(it.servingSize)} ${it.servingUnit}`;
-  if (it.servingSize != null) return `${round(it.servingSize)} g`;
+  if (it.serving.text) return it.serving.text;
+  if (it.serving.qty != null && it.serving.unit)
+    return `${round(it.serving.qty)} ${it.serving.unit}`;
   return "per serving";
 }
 function sep(it: any) {

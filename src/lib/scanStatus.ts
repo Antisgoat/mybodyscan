@@ -37,11 +37,13 @@ function toMillis(value: TimestampLike): number | null {
   }
   if (typeof value === "object") {
     const maybeMillis =
-      typeof value.toMillis === "function" ? value.toMillis() : null;
+      "toMillis" in value && typeof value.toMillis === "function"
+        ? value.toMillis()
+        : null;
     if (maybeMillis != null && Number.isFinite(maybeMillis)) {
       return maybeMillis;
     }
-    if (typeof value.seconds === "number") {
+    if ("seconds" in value && typeof value.seconds === "number") {
       return Math.round(value.seconds * 1000);
     }
   }

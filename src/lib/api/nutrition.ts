@@ -9,6 +9,7 @@ import { httpsCallable } from "firebase/functions";
 import { apiFetchJson } from "@/lib/apiFetch";
 import { sanitizeFoodItem } from "@/lib/nutrition/sanitize";
 import type { FoodItem } from "@/lib/nutrition/types";
+export type { FoodItem } from "@/lib/nutrition/types";
 import { toRichFoodItem } from "@/lib/nutrition/toFoodItem";
 import { ensureAppCheck } from "@/lib/appCheck";
 import { functions } from "@/lib/firebase";
@@ -34,6 +35,7 @@ export type NutritionSearchResponse =
       results: FoodItem[];
       message?: string | null;
       debugId?: string | null;
+      source?: string | null;
     };
 
 export interface DailyLogResponse {
@@ -75,8 +77,7 @@ export function normalizeFoodItem(raw: unknown): FoodItem {
         typeof raw.brand === "string" && raw.brand.trim()
           ? raw.brand.trim()
           : null,
-      source:
-        raw.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
+      source: raw.source === "Open Food Facts" ? "Open Food Facts" : "USDA",
     };
   }
   return toRichFoodItem(sanitizeFoodItem(raw));
@@ -134,7 +135,9 @@ function normalizeNutritionError(error: unknown): Error {
   return new Error("Unable to load nutrition results right now.");
 }
 
-function normalizeResponse(payload: NutritionSearchResponse): NutritionSearchResponse {
+function normalizeResponse(
+  payload: NutritionSearchResponse
+): NutritionSearchResponse {
   const normalized = Array.isArray(payload?.results)
     ? payload.results.map(normalizeFoodItem).filter(Boolean)
     : [];
@@ -165,6 +168,7 @@ export async function nutritionSearch(
     page?: number;
     pageSize?: number;
     sourcePreference?: "usda-first" | "off-first" | "combined";
+    signal?: AbortSignal;
   }
 ): Promise<NutritionSearchResponse> {
   const trimmed = term.trim();
@@ -185,6 +189,7 @@ export async function nutritionSearch(
       {
         method: "POST",
         body: JSON.stringify(body),
+        signal: init?.signal,
       }
     );
     return normalizeResponse(payload);

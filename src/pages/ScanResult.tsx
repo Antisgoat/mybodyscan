@@ -14,6 +14,7 @@ import {
 import {
   getScan,
   retryScanProcessingClient,
+  deserializeScanDocument,
   type ScanDocument,
 } from "@/lib/api/scan";
 import { scanStatusLabel } from "@/lib/scanStatus";
@@ -573,11 +574,7 @@ export default function ScanResultPage() {
     scan.createdAt;
   const lastUpdateLabel = lastUpdateAt ? formatDateTime(lastUpdateAt) : null;
 
-  if (
-    statusMeta.recommendRescan &&
-    scan.status !== "error" &&
-    scan.status !== "failed"
-  ) {
+  if (statusMeta.recommendRescan) {
     const canResume =
       scan.status === "uploaded" ||
       scan.status === "pending" ||

@@ -9,7 +9,7 @@ import { Seo } from "@/components/Seo";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { track } from "@/lib/analytics";
-import { useAuthUser } from "@/auth/mbs-auth";
+import { getIdToken, useAuthUser } from "@/auth/mbs-auth";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { useCredits } from "@/hooks/useCredits";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -103,7 +103,7 @@ export default function Plans() {
           method: "POST",
           body: JSON.stringify({}),
         });
-        await user.getIdToken(true).catch(() => undefined);
+        await getIdToken({ forceRefresh: true }).catch(() => undefined);
       } catch (error) {
         if (import.meta.env.DEV) {
           console.warn("plans_refresh_credits_failed", error);
@@ -162,7 +162,8 @@ export default function Plans() {
           : "Subscription management is unavailable right now.";
       setBillingActionError({
         title: "Can't open portal",
-        message: "Subscription management is currently unavailable. Please try again.",
+        message:
+          "Subscription management is currently unavailable. Please try again.",
       });
       void reportError({
         kind: "client_error",
@@ -433,8 +434,8 @@ export default function Plans() {
           <Alert className="border-amber-300 bg-amber-50 text-amber-900">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="text-xs">
-              Purchases and subscription management are disabled in the iOS build
-              for App Store compliance. Use the web app to manage billing.
+              Purchases and subscription management are disabled in the iOS
+              build for App Store compliance. Use the web app to manage billing.
             </AlertDescription>
           </Alert>
         )}
@@ -565,9 +566,9 @@ export default function Plans() {
               food-insight, and coaching tools.
             </p>
             <p>
-              <strong>Improve:</strong> rescan under similar conditions,
-              compare valid results, and optionally receive conservative
-              plateau check-ins.
+              <strong>Improve:</strong> rescan under similar conditions, compare
+              valid results, and optionally receive conservative plateau
+              check-ins.
             </p>
           </CardContent>
         </Card>

@@ -677,22 +677,14 @@ export default function SmokeKit() {
     setNutritionSearchProbe({ status: "running" });
     try {
       const raw = await nutritionSearch("chicken breast");
-      const items = Array.isArray(raw?.items)
-        ? raw.items
-        : Array.isArray(raw)
-          ? raw
-          : [];
+      const items = Array.isArray(raw?.results) ? raw.results : [];
       const sanitized = items.map(sanitizeFoodItem).filter(Boolean);
       setNutritionSearchProbe({
         status: sanitized.length > 0 ? "success" : "error",
         httpStatus: sanitized.length > 0 ? 200 : 500,
         payload: raw,
-        error: typeof raw?.error === "string" ? raw.error : undefined,
         count: sanitized.length,
-        source:
-          typeof raw?.primarySource === "string"
-            ? raw.primarySource
-            : undefined,
+        source: typeof raw?.source === "string" ? raw.source : undefined,
       });
     } catch (error: any) {
       setNutritionSearchProbe({

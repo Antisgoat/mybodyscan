@@ -3,8 +3,20 @@ import { isNative } from "@/lib/platform";
 export type IapInitParams = { uid: string };
 
 export type IapProviderResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; code: string; message: string; cause?: unknown };
+  | {
+      ok: true;
+      value: T;
+      code?: undefined;
+      message?: undefined;
+      cause?: undefined;
+    }
+  | {
+      ok: false;
+      value?: undefined;
+      code: string;
+      message: string;
+      cause?: unknown;
+    };
 
 type Platform = "ios" | "android" | "web";
 
@@ -82,7 +94,10 @@ export async function initPurchases(
       const Purchases = await getPurchases();
       if (import.meta.env.DEV) {
         try {
-          await Purchases.setLogLevel({ level: 2 }); // LOG_LEVEL.DEBUG (number enum in internal types)
+          const debugLevel = 2 as unknown as Parameters<
+            typeof Purchases.setLogLevel
+          >[0]["level"];
+          await Purchases.setLogLevel({ level: debugLevel });
         } catch {
           // ignore
         }

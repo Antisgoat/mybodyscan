@@ -1,9 +1,9 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-function forbidNativeImports(isNative: boolean) {
+function forbidNativeImports(isNative: boolean): Plugin {
   const forbiddenMatchers: Array<{ pattern: RegExp; label: string }> = [
     { pattern: /^firebase\/app-compat$/, label: "firebase/app-compat" },
     { pattern: /^firebase\/compat\//, label: "firebase/compat/*" },

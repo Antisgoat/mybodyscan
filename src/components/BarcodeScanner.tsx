@@ -22,7 +22,6 @@ export function BarcodeScanner({ onResult, onError }: Props) {
   }, []);
 
   const startNativeDetector = React.useCallback(async () => {
-    // @ts-expect-error -- BarcodeDetector is an experimental browser API
     if (!("BarcodeDetector" in window)) return false;
     try {
       // @ts-expect-error -- BarcodeDetector may not exist in all browsers
