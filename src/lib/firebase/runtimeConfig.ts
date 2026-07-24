@@ -1,5 +1,6 @@
 import { getFirebaseConfig } from "@/lib/firebase";
 import { isIdentityToolkitProbeEnabled } from "@/lib/firebase/identityToolkitProbe";
+import { buildIdentityToolkitProjectConfigUrl } from "@/utils/idtoolkit";
 
 export type IdentityToolkitProbeStatus = {
   status: "ok" | "warning" | "error";
@@ -91,8 +92,7 @@ export async function probeFirebaseRuntime(): Promise<{
         });
       }
 
-      const normalizedProjectId =
-        projectId || getFirebaseConfig()?.projectId;
+      const normalizedProjectId = projectId || getFirebaseConfig()?.projectId;
       if (!normalizedProjectId) {
         return recordIdentityToolkitProbe({
           status: "warning",
@@ -100,9 +100,7 @@ export async function probeFirebaseRuntime(): Promise<{
         });
       }
 
-      const url = `https://identitytoolkit.googleapis.com/v2/projects/${encodeURIComponent(
-        normalizedProjectId
-      )}/clientConfig?key=${encodeURIComponent(apiKey)}`;
+      const url = buildIdentityToolkitProjectConfigUrl(apiKey);
       const resp = await fetch(url, { mode: "cors" }).catch((error) => {
         if (!warnedIdentityToolkit) {
           console.info("[probe] IdentityToolkit fetch error (network)", error);
@@ -120,7 +118,10 @@ export async function probeFirebaseRuntime(): Promise<{
 
       if (resp.ok) {
         if (!warnedIdentityToolkit) {
-          console.info("[probe] IdentityToolkit clientConfig ok", resp.status);
+          console.info(
+            "[probe] IdentityToolkit public project config ok",
+            resp.status
+          );
           warnedIdentityToolkit = true;
         }
         return recordIdentityToolkitProbe({
@@ -132,13 +133,16 @@ export async function probeFirebaseRuntime(): Promise<{
       const status = resp.status;
       const reason =
         status === 404
-          ? "clientConfig not provisioned for this origin"
-          : `clientConfig responded ${status}`;
+          ? "public project config not provisioned for this origin"
+          : `public project config responded ${status}`;
       const level: IdentityToolkitProbeStatus["status"] =
         status === 404 || status === 403 ? "warning" : "error";
       const logFn = level === "warning" ? console.info : console.warn;
       if (!warnedIdentityToolkit) {
-        logFn("[probe] IdentityToolkit clientConfig", { status, reason });
+        logFn("[probe] IdentityToolkit public project config", {
+          status,
+          reason,
+        });
         warnedIdentityToolkit = true;
       }
       return recordIdentityToolkitProbe({

@@ -96,6 +96,12 @@ Non-secret runtime configuration is committed in
 `functions/.env.mybodyscan-f3daf`, the Firebase-supported project-specific
 Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
 feature flags, and the effective Coach and nutrition rate limits.
+The shared OpenAI client uses the configured model (currently
+`gpt-4o-mini`), retries one transient 429/5xx response on that model, and then
+falls back to the current `gpt-4.1-mini` alias. Both models must pass an
+image-input plus structured-JSON account smoke test before release. Do not add
+an old dated model snapshot as a fallback without verifying that the production
+OpenAI project can still access it.
 New scan credits expire after 12 months by default, matching the purchase and
 legal pages. `CREDIT_EXP_MONTHS` may override that period only after the same
 change is approved and published in every customer-facing purchase and policy
@@ -566,8 +572,8 @@ specs in the broader suite run only when `PLAYWRIGHT_STORAGE_STATE` points to a
 real test-account state file.
 
 ```bash
-BASE_URL=http://127.0.0.1:4173 npm run test:e2e
-BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.config.ts
+E2E_BASE_URL=http://127.0.0.1:4173 npx playwright test
+E2E_BASE_URL=http://127.0.0.1:4173 npx playwright test --config e2e/playwright.config.ts
 ```
 
 `build:prod` includes program validation, bundle-size safeguards, forbidden

@@ -1,10 +1,13 @@
-const ENDPOINT =
-  "https://identitytoolkit.googleapis.com/v1/projects/mybodyscan-f3daf/config";
+const ENDPOINT = "https://identitytoolkit.googleapis.com/v1/projects";
 
 export type IdentityToolkitStatus = {
   reachable: boolean;
   reason?: string;
 };
+
+export function buildIdentityToolkitProjectConfigUrl(apiKey: string): string {
+  return `${ENDPOINT}?key=${encodeURIComponent(apiKey)}`;
+}
 
 export async function checkIdentityToolkitReachability(
   apiKey?: string,
@@ -19,7 +22,7 @@ export async function checkIdentityToolkitReachability(
 
   try {
     const response = await fetch(
-      `${ENDPOINT}?key=${encodeURIComponent(trimmed)}`,
+      buildIdentityToolkitProjectConfigUrl(trimmed),
       {
         method: "GET",
         signal: options?.signal,

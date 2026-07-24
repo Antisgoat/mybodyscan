@@ -1,13 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Boot diagnostics", () => {
-  test.skip(
-    true,
-    "Enable after hosting cache is purged and init.json matches rotated key"
-  );
-
   test("init.json exposes apiKey and ITK responds", async ({
-    page,
     request,
     baseURL,
   }) => {
@@ -20,7 +14,13 @@ test.describe("Boot diagnostics", () => {
     expect(j.apiKey.length).toBeGreaterThan(10);
 
     const itk = await request.get(
-      `https://identitytoolkit.googleapis.com/v2/projects/mybodyscan-f3daf/config?key=${encodeURIComponent(j.apiKey)}`
+      `https://identitytoolkit.googleapis.com/v1/projects?key=${encodeURIComponent(j.apiKey)}`,
+      {
+        headers: {
+          Origin: baseURL ?? "https://mybodyscanapp.com",
+          Referer: `${baseURL ?? "https://mybodyscanapp.com"}/`,
+        },
+      }
     );
     expect(itk.ok()).toBeTruthy();
   });

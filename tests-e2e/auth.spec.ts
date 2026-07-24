@@ -1,13 +1,27 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Auth flows (smoke)", () => {
-  test.skip(true, "Enable when authorized domains and providers are confirmed");
-
-  test("homepage loads without recaptcha requests", async ({ page }) => {
+  test("App Check loads without blocking the landing page", async ({
+    page,
+  }) => {
     const urls: string[] = [];
-    page.on("requestfinished", (req) => urls.push(req.url()));
-    await page.goto("/");
-    const hasRecaptcha = urls.some((u) => u.includes("google.com/recaptcha"));
-    expect(hasRecaptcha).toBeFalsy();
+    page.on("request", (req) => urls.push(req.url()));
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    const policyDialog = page.getByRole("dialog", {
+      name: "Welcome to MyBodyScan",
+    });
+    if (await policyDialog.isVisible()) {
+      for (const checkbox of await policyDialog.getByRole("checkbox").all()) {
+        if (!(await checkbox.isChecked())) await checkbox.check();
+      }
+      await policyDialog.getByRole("button", { name: "I Accept" }).click();
+    }
+    await page.waitForTimeout(1_500);
+    await expect(
+      page.getByRole("heading", {
+        name: "See your progress. Know what to do next.",
+      })
+    ).toBeVisible();
+    expect(urls.some((url) => url.includes("google.com/recaptcha"))).toBe(true);
   });
 });
