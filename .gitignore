@@ -26,6 +26,8 @@ dist-ssr
 !ios/**/*.gif
 !ios/**/*.xcassets/**/*
 !resources/**/*.png
+!public/icons/*.png
+!public/marketing/*.png
 
 # Android launcher/splash assets are native source and must be committed.
 !android/app/src/main/res/**/*.png

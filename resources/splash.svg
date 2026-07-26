@@ -1,0 +1,54 @@
+<svg width="2732" height="2732" viewBox="0 0 2732 2732" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="620" y1="250" x2="2100" y2="2482" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FAFF"/>
+      <stop offset="1" stop-color="#EDF4FF"/>
+    </linearGradient>
+    <linearGradient id="tile" x1="1065" y1="993" x2="1667" y2="1739" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1739"/>
+      <stop offset="0.55" stop-color="#1559D7"/>
+      <stop offset="1" stop-color="#2F7CF6"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="1159" y1="1111" x2="1573" y2="1621" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#BDEBFF"/>
+    </linearGradient>
+    <filter id="tileShadow" x="930" y="870" width="872" height="932" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="42" stdDeviation="44" flood-color="#1A4A9C" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+
+  <rect width="2732" height="2732" fill="url(#background)"/>
+
+  <g filter="url(#tileShadow)">
+    <rect x="1016" y="952" width="700" height="700" rx="176" fill="url(#tile)"/>
+    <g fill="url(#mark)">
+      <rect x="1152" y="1172" width="112" height="260" rx="56"/>
+      <rect x="1310" y="1098" width="112" height="408" rx="56"/>
+      <rect x="1468" y="1202" width="112" height="200" rx="56"/>
+    </g>
+    <path d="M1088 1302H1644" stroke="#7BE4FF" stroke-width="14" stroke-linecap="round"/>
+    <circle cx="1366" cy="1302" r="14" fill="#FFFFFF"/>
+  </g>
+
+  <text
+    x="1366"
+    y="1868"
+    text-anchor="middle"
+    fill="#10182A"
+    font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="128"
+    font-weight="700"
+    letter-spacing="-4"
+  >MyBodyScan</text>
+  <text
+    x="1366"
+    y="1972"
+    text-anchor="middle"
+    fill="#61708A"
+    font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="54"
+    font-weight="500"
+    letter-spacing="2"
+  >YOUR PROGRESS, CLEARLY EXPLAINED</text>
+</svg>
