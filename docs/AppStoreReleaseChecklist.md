@@ -40,6 +40,18 @@ Use this checklist before submitting a build to App Store Connect. It focuses on
 - Update `MARKETING_VERSION` (user-visible version) and `CURRENT_PROJECT_VERSION` (build number) in Xcode.
 - Ensure the version matches the release notes and App Store Connect metadata.
 
+## Store and Brand Assets
+
+- Store copy source of truth: `docs/STORE_METADATA_EN_US.md`.
+- App icon master: `resources/icon.svg` and its 1024 × 1024 opaque PNG export at `resources/icon.png`.
+- Light and dark launch-screen masters: `resources/splash.svg` and `resources/splash-dark.svg`.
+- Regenerate native assets with `npm run ios:assets && npm run android:assets`, then inspect both light and dark launch screens before committing.
+- Web/social share artwork: `public/marketing/mybodyscan-share.png` (1200 × 630).
+- Google Play icon and feature graphic: `resources/marketing/google-play-icon-512.png` and `resources/marketing/google-play-feature.png`.
+- Recapture current iPhone and iPad store screenshots after material UI changes:
+  `node scripts/capture-app-store-screenshots.mjs http://127.0.0.1:4173`.
+- A changed iOS app icon does not update the live App Store listing until a new binary containing that icon is uploaded and selected for the version.
+
 ## Native Bundle + Plugins
 
 - Run `npm run build && npx cap sync ios && npm run smoke:native` and confirm all checks pass.

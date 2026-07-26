@@ -1,0 +1,68 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="background" x1="88" y1="42" x2="1112" y2="588" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FAFF"/>
+      <stop offset="1" stop-color="#E8F3FF"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="70" y1="70" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1739"/>
+      <stop offset="0.58" stop-color="#1559D7"/>
+      <stop offset="1" stop-color="#2F7CF6"/>
+    </linearGradient>
+    <linearGradient id="report" x1="770" y1="84" x2="1110" y2="560" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101A2A"/>
+      <stop offset="1" stop-color="#071018"/>
+    </linearGradient>
+    <filter id="cardShadow" x="690" y="25" width="500" height="610" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="20" stdDeviation="24" flood-color="#2B5FAD" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#background)"/>
+  <circle cx="1110" cy="20" r="260" fill="#65D9FF" opacity="0.12"/>
+  <circle cx="890" cy="650" r="290" fill="#246CF1" opacity="0.09"/>
+
+  <rect x="68" y="62" width="82" height="82" rx="22" fill="url(#brand)"/>
+  <g fill="#FFFFFF">
+    <rect x="88" y="84" width="13" height="38" rx="6.5"/>
+    <rect x="105" y="76" width="13" height="54" rx="6.5"/>
+    <rect x="122" y="89" width="13" height="28" rx="6.5"/>
+  </g>
+  <path d="M80 103H138" stroke="#78E5FF" stroke-width="3" stroke-linecap="round"/>
+  <text x="168" y="115" fill="#10182A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="38" font-weight="700">MyBodyScan</text>
+
+  <text x="70" y="246" fill="#2563EB" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25" font-weight="700" letter-spacing="1.4">BODY PROGRESS, CONNECTED</text>
+  <text x="70" y="315" fill="#10182A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="58" font-weight="760" letter-spacing="-2">See your progress.</text>
+  <text x="70" y="380" fill="#10182A" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="58" font-weight="760" letter-spacing="-2">Know what to do next.</text>
+  <text x="70" y="440" fill="#55647B" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25" font-weight="500">Guided scans · Training · Nutrition · Adaptive coaching</text>
+
+  <g>
+    <rect x="70" y="492" width="180" height="52" rx="26" fill="#FFFFFF" stroke="#D2DEEF"/>
+    <text x="160" y="526" text-anchor="middle" fill="#34445C" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="19" font-weight="650">Private by design</text>
+    <rect x="266" y="492" width="224" height="52" rx="26" fill="#FFFFFF" stroke="#D2DEEF"/>
+    <text x="378" y="526" text-anchor="middle" fill="#34445C" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="19" font-weight="650">Clearly labeled estimates</text>
+  </g>
+
+  <g filter="url(#cardShadow)">
+    <rect x="746" y="58" width="388" height="526" rx="44" fill="url(#report)"/>
+    <rect x="778" y="91" width="324" height="132" rx="28" fill="#162333" stroke="#2A3A4C"/>
+    <text x="808" y="127" fill="#64E0F2" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="700" letter-spacing="3">MYBODYSCAN REPORT</text>
+    <text x="808" y="170" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="35" font-weight="720">Your next phase</text>
+    <rect x="954" y="187" width="116" height="24" rx="12" fill="#63DDF0"/>
+    <text x="1012" y="204" text-anchor="middle" fill="#071018" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="12" font-weight="750">COMPLETE</text>
+
+    <rect x="778" y="246" width="324" height="99" rx="24" fill="#141D26" stroke="#2A333D"/>
+    <text x="804" y="277" fill="#8996A7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="16" font-weight="550">Photo estimate</text>
+    <text x="804" y="319" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="31" font-weight="700">Source labeled</text>
+
+    <rect x="778" y="362" width="154" height="154" rx="24" fill="#141D26" stroke="#2A333D"/>
+    <text x="800" y="394" fill="#8996A7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="550">Training</text>
+    <text x="800" y="438" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25" font-weight="700">5 days</text>
+    <text x="800" y="472" fill="#63DDF0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="650">PERSONALIZED</text>
+
+    <rect x="948" y="362" width="154" height="154" rx="24" fill="#141D26" stroke="#2A333D"/>
+    <text x="970" y="394" fill="#8996A7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="550">Nutrition</text>
+    <text x="970" y="438" fill="#FFFFFF" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25" font-weight="700">7 days</text>
+    <text x="970" y="472" fill="#63DDF0" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="15" font-weight="650">CONNECTED</text>
+  </g>
+</svg>
