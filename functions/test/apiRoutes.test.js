@@ -4,11 +4,11 @@ import http from 'node:http';
 
 const { apiAppForTest } = await import('../lib/index.js');
 
-function postJson(base, path) {
+function postJson(base, path, body = {}) {
   return fetch(`${base}${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({})
+    body: JSON.stringify(body)
   });
 }
 
@@ -47,6 +47,17 @@ test('api router returns json for legacy workout endpoints on / and /api aliases
       assert.equal(payload.ok, true);
       assert.ok(payload.data);
     }
+
+    const billing = await postJson(
+      base,
+      '/api/billing/create-checkout-session',
+      { priceId: 'price_1TwQ1OQQU5vuhlNj5peGUJbZ', plan: 'one' },
+    );
+    assert.equal(billing.status, 401);
+    assert.deepEqual(await billing.json(), {
+      error: 'auth_required',
+      code: 'auth_required',
+    });
   } finally {
     global.fetch = originalFetch;
     await new Promise((resolve) => server.close(resolve));

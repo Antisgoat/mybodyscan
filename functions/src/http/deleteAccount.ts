@@ -5,6 +5,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { verifyAppCheck } from "../http.js";
 import { deletePushTokenOwnershipForUser } from "../pushTokenOwnership.js";
+import { deleteStripeCustomerForUser } from "../accountDeletion.js";
+import {
+  stripeSecretKeyParam,
+  stripeSecretParam,
+} from "../stripe/keys.js";
 
 export const deleteAccount = onRequest(
   {
@@ -12,6 +17,7 @@ export const deleteAccount = onRequest(
     region: "us-central1",
     timeoutSeconds: 540,
     memory: "1GiB",
+    secrets: [stripeSecretParam, stripeSecretKeyParam],
   },
   async (req, res) => {
     if (req.method !== "POST")
@@ -32,8 +38,11 @@ export const deleteAccount = onRequest(
       }
 
       const uid = decoded.uid;
+      const requestId =
+        String(req.headers["x-request-id"] || "").trim() || "unknown";
       logger.info("deleteAccount_start", { uid });
 
+      await deleteStripeCustomerForUser(uid, requestId);
       await deleteUserData(uid);
 
       await getAuth().deleteUser(uid);

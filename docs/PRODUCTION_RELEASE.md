@@ -249,21 +249,28 @@ the current-state notes below say it was configured:
    - subscribed events include `checkout.session.completed`,
      `invoice.payment_succeeded`, `customer.subscription.updated`, and
      `customer.subscription.deleted`.
-     As of 2026-07-22 the current destination is active and listens to all four
-     required events; its Function has a webhook secret bound and rejects an
-     intentionally invalid signature with HTTP 400. On 2026-07-23 the product
+     As of 2026-07-26 the current `inspiring-dream` destination is active and
+     listens to all four required events. A locally generated, harmless Stripe
+     event signed with the deployed secret returned HTTP 200 from the direct
+     Cloud Run Function URL, proving the live secret and handler are aligned.
+     The dead legacy `memorable-radiance` / `stripeWebhook2` destination
+     returned HTTP 404 and was disabled. On 2026-07-23 the product
      owner approved the launch catalog: $4.99 for one scan, $9.99/month, and
      $79.99/year. New immutable live prices were created on the existing
      MyBodyScan products, made the product defaults, and installed in the web
      and Functions allowlists. Verify all three live Checkouts before archiving
      superseded prices. Old price IDs remain recognized temporarily for delayed
-     pre-cutover webhook events. A stale zero-activity
-     `stripeWebhook2` destination also remains; disable it
-     only after a successful signed delivery to the current destination.
+     pre-cutover webhook events. The Hosting `/api/billing/*` router and direct
+     callable handlers share the same price allowlist and customer-cache
+     implementation; do not reintroduce a second set of price environment
+     variables.
      Customer Portal subscription cancellation, payment-method updates, and
      invoice history are enabled. Its account-wide legal links are blank;
      because this Stripe account is branded ADLR LABS, do not replace those
      links with MyBodyScan URLs without an account-owner/legal decision.
+     Stripe still reports incomplete account onboarding (email/business
+     verification and tax-monitoring setup); the account owner must resolve
+     those dashboard items before accepting live customer payments.
 6. Firebase Hosting → Custom domains: `mybodyscanapp.com` is the canonical
    Firebase custom domain. On 2026-07-22, the `www` custom domain was explicitly
    configured in Firebase as a redirect to `mybodyscanapp.com`, and Firebase
@@ -399,17 +406,33 @@ release guard. RevenueCat still has no Google service-account credentials or
 Real-Time Developer Notifications connection, so Play purchases cannot be
 accepted as release-verified.
 
+A new ignored upload keystore was generated at
+`android/mybodyscan-upload.jks`, with its ignored configuration at
+`android/keystore.properties`. Its password is stored in the macOS Keychain
+under service `MyBodyScan Android Upload Keystore` and account
+`mybodyscan-upload`; an identical keystore backup is stored outside Git at
+`/Users/adlr/Documents/MyBodyScan Release Keys/mybodyscan-upload.jks`.
+The upload certificate SHA-1 is
+`6F:FF:1F:AF:9A:98:E1:7D:37:60:92:42:55:57:C7:1E:3A:2F:AB:AB` and SHA-256 is
+`FE:0F:86:19:89:5B:D8:39:3F:3F:C1:01:6C:30:C6:A4:59:F0:A5:38:62:98:6C:C0:FD:9C:C0:4D:0A:5D:21:4D`.
+The backup hash matches the working keystore. A release AAB was built through
+the production credential guard, unit tests, Android lint, and Gradle release
+signing, and `jarsigner -verify` accepted it. Rebuild it from the final reviewed
+commit before upload; never upload an AAB produced from a different commit.
+
 Play Integrity registration is prepared but not saved because the account
 owner must accept the Google APIs and Play Integrity terms. The currently
 signed-in Google account still shows Play Console account creation and asks
 whether the owner is an organization or individual; ownership cannot be
 changed later. Do not complete that flow unless it is the intended ADLR Labs
 organization account. Otherwise switch to the already-paid developer account.
-No recoverable upload/app-signing key, Play product catalog, internal test
-build, or Android device acceptance test exists yet. The current RevenueCat
-role can inspect but cannot change app credentials; an Owner/Admin must upload
-the least-privileged Google service-account JSON and complete RTDN after the
-correct Play account and app exist.
+No Play product catalog, internal-test upload, Play App Signing certificate, or
+Android device acceptance test exists yet. Register both the upload certificate
+above and the Play-generated app-signing certificate in Firebase after the
+correct Play app exists. The current RevenueCat role can inspect but cannot
+change app credentials; an Owner/Admin must upload the least-privileged Google
+service-account JSON and complete RTDN after the correct Play account and app
+exist.
 
 Current iOS external state on 2026-07-26: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
@@ -736,7 +759,11 @@ providers and does not replace the subscribed real-account checks below.
 - Account deletion removes the Auth user, the complete Firestore user subtree,
   `scans/{uid}/`, `user_uploads/{uid}/`, and
   `transformation-previews/{uid}/`, plus that user's global hashed push-token
-  ownership records.
+  ownership records. It also deletes every Stripe customer found by the cached
+  customer ID or the user's Stripe metadata before deleting Firebase data,
+  canceling linked Stripe subscriptions without relying on a later webhook.
+  Apple App Store and Google Play subscriptions remain store-managed and the
+  deletion UI must continue to tell users how to cancel them.
 - `/legal/privacy`, `/legal/terms`, `/legal/refund`, `/legal/disclaimer`, and
   the compatibility `/medical` route work on the custom and Firebase domains;
   SPA deep links refresh successfully.

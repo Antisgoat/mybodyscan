@@ -69,9 +69,10 @@ export default function SettingsAccountPrivacyPage() {
           Deleting your account will permanently remove your scans, notes, and
           settings. This cannot be undone. For security, sign in again first if
           your last authentication was more than five minutes ago. Deleting
-          your MyBodyScan account does not cancel an Apple App Store or Stripe
-          subscription; cancel it in Apple Subscriptions or the billing portal
-          first if you do not want it to renew.
+          your MyBodyScan account cancels its linked Stripe customer and
+          subscription, but it cannot cancel an Apple App Store or Google Play
+          subscription. Cancel store subscriptions in the applicable store
+          settings first if you do not want them to renew.
         </p>
 
         <label className="text-xs block">

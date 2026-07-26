@@ -513,7 +513,7 @@ function sendPaymentsDisabled(
   );
 }
 
-async function handleCreateCheckout(req: Request, res: Response) {
+export async function handleCreateCheckout(req: Request, res: Response) {
   if (cors(req, res)) return;
   await appCheckSoft(req);
   const { allowedOrigin, ended } = applyCors(req, res);
@@ -717,7 +717,7 @@ async function handleCreateCheckout(req: Request, res: Response) {
   }
 }
 
-async function handleCustomerPortal(req: Request, res: Response) {
+export async function handleCustomerPortal(req: Request, res: Response) {
   if (cors(req, res)) return;
   await appCheckSoft(req);
   const { allowedOrigin, ended } = applyCors(req, res);
