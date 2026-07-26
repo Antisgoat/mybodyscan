@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useNavigate } from "react-router-dom";
 import { useI18n } from "@/lib/i18n";
 import { getDailyLog } from "@/lib/nutritionBackend";
 import { getPlan, type WorkoutDay } from "@/lib/workouts";
-import { DemoBanner } from "@/components/DemoBanner";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useDemoMode } from "@/components/DemoModeProvider";
@@ -168,7 +166,6 @@ export default function Today() {
         className="max-w-md mx-auto p-6 space-y-6"
         data-testid="today-dashboard"
       >
-        <DemoBanner />
         <h1 className="text-2xl font-semibold text-foreground">
           {t("today.title")}
         </h1>
@@ -320,7 +317,6 @@ export default function Today() {
           </Button>
         </div>
       </main>
-      <BottomNav />
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { AlertTriangle, Check, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -756,7 +755,6 @@ export default function Plans() {
           </p>
         </div>
       </main>
-      <BottomNav />
     </div>
   );
 }

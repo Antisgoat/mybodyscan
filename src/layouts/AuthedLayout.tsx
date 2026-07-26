@@ -15,6 +15,7 @@ import CreditBadge from "@/components/CreditBadge";
 import { FeatureName, isFeatureEnabled } from "@/lib/featureFlags";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { AppFooter } from "@/components/AppFooter";
+import { BottomNav } from "@/components/BottomNav";
 import { disableDemoEverywhere, isDemoAllowed } from "@/state/demo";
 import {
   isSubscriberOnlyPath,
@@ -108,11 +109,11 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
           key={item.to}
           to={item.to}
           className={({ isActive }) =>
-            `transition-opacity ${
+            `relative rounded-md px-1 py-2 transition-colors ${
               isActive
-                ? "underline underline-offset-8 decoration-2 font-medium"
-                : "opacity-80 hover:opacity-100"
-            } ${mobile ? "block py-2" : ""}`
+                ? "font-semibold text-foreground after:absolute after:inset-x-1 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-primary"
+                : "text-muted-foreground hover:text-foreground"
+            } ${mobile ? "block min-h-11 px-2 py-3" : ""}`
           }
           onClick={() => mobile && setMobileMenuOpen(false)}
         >
@@ -130,15 +131,21 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
           {/* Logo */}
           <div className="flex items-center gap-2">
             <button
-              className="flex items-center gap-2 font-semibold"
+              className="flex min-h-11 items-center gap-2.5 rounded-lg font-semibold tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => navigate("/home")}
+              aria-label="Go to MyBodyScan home"
             >
-              <img src="/logo.svg" alt="MyBodyScan" className="w-6 h-6" />
+              <img
+                src="/favicon.svg"
+                alt=""
+                className="h-7 w-7 shrink-0"
+                aria-hidden="true"
+              />
               MyBodyScan
             </button>
             {showDemo ? (
@@ -150,7 +157,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
 
           {/* Desktop Navigation */}
           <nav
-            className="hidden md:flex items-center gap-6 text-sm"
+            className="hidden items-center gap-4 text-sm lg:flex xl:gap-5"
             data-testid="app-nav"
           >
             <NavLinks />
@@ -162,7 +169,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             <CreditBadge />
 
             {/* Desktop Avatar Menu */}
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -193,7 +200,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
             </div>
 
             {/* Mobile Menu */}
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
                 <SheetTrigger asChild>
                   <Button
@@ -273,7 +280,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 py-6 md:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-5 pb-24 sm:px-6 sm:py-7 sm:pb-24 lg:pb-8">
           {isSubscriberOnlyPath(location.pathname) ? (
             <SubscriberFeatureGate>{children}</SubscriberFeatureGate>
           ) : (
@@ -282,6 +289,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
         </div>
       </main>
       <AppFooter />
+      <BottomNav />
     </div>
   );
 }

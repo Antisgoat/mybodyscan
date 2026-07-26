@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { CalendarRange } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -158,7 +157,6 @@ export default function MealsHistory() {
           </CardContent>
         </Card>
       </main>
-      <BottomNav />
     </div>
   );
 }

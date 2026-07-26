@@ -10,7 +10,7 @@ export default function DemoBanner() {
     <div
       role="status"
       data-testid="demo-banner"
-      className="bg-amber-50 border border-amber-300 text-amber-900 px-3 py-2 text-sm"
+      className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-950"
     >
       Demo lets you browse; sign up to save your progress.
     </div>

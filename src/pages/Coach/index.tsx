@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Sparkles,
 } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,10 +88,16 @@ export default function CoachOverview() {
   const { totals, latestScan } = useCoachTodayAtAGlance();
   const computedGoals = useMemo(() => {
     const overrides: { calories?: number; proteinGrams?: number } = {};
-    if (typeof plan?.calorieTarget === "number" && Number.isFinite(plan.calorieTarget)) {
+    if (
+      typeof plan?.calorieTarget === "number" &&
+      Number.isFinite(plan.calorieTarget)
+    ) {
       overrides.calories = plan.calorieTarget;
     }
-    if (typeof plan?.proteinFloor === "number" && Number.isFinite(plan.proteinFloor)) {
+    if (
+      typeof plan?.proteinFloor === "number" &&
+      Number.isFinite(plan.proteinFloor)
+    ) {
       overrides.proteinGrams = plan.proteinFloor;
     }
     return deriveNutritionGoals({
@@ -100,11 +105,22 @@ export default function CoachOverview() {
       heightCm: profile?.height_cm ?? null,
       age: profile?.age ?? null,
       sex: profile?.sex ?? null,
-      goal: profile?.goal === "lose_fat" ? "lose_fat" : profile?.goal === "gain_muscle" ? "gain_muscle" : null,
+      goal:
+        profile?.goal === "lose_fat"
+          ? "lose_fat"
+          : profile?.goal === "gain_muscle"
+            ? "gain_muscle"
+            : null,
       activityLevel: profile?.activity_level ?? null,
       overrides,
     });
-  }, [plan?.calorieTarget, plan?.proteinFloor, profile?.activity_level, profile?.goal, profile?.weight_kg]);
+  }, [
+    plan?.calorieTarget,
+    plan?.proteinFloor,
+    profile?.activity_level,
+    profile?.goal,
+    profile?.weight_kg,
+  ]);
 
   const todayCaloriesGoal = computedGoals.calories;
   const todayProteinGoalGrams = computedGoals.proteinGrams;
@@ -330,13 +346,16 @@ export default function CoachOverview() {
                 <span className="text-muted-foreground">Today’s calories</span>
                 <span className="font-medium">
                   {Math.round(totals.calories)}{" "}
-                  {typeof todayCaloriesGoal === "number" && todayCaloriesGoal > 0
+                  {typeof todayCaloriesGoal === "number" &&
+                  todayCaloriesGoal > 0
                     ? ` / Goal ${Math.round(todayCaloriesGoal)}`
                     : "/ Goal —"}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Workouts this week</span>
+                <span className="text-muted-foreground">
+                  Workouts this week
+                </span>
                 <span className="font-medium">
                   {workoutsCompletedThisWeek} / {daysThisWeek || "—"}
                 </span>
@@ -654,7 +673,6 @@ export default function CoachOverview() {
             </CardContent>
           </Card>
         </main>
-        <BottomNav />
       </ErrorBoundary>
     </div>
   );

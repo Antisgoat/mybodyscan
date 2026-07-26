@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CheckCircle2, Info, Loader2 } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -166,10 +165,9 @@ export default function ProgramDetail() {
     if (!startAllowed) {
       toast({
         title: "Programs locked",
-        description:
-          isNative()
-            ? "Upgrade to Pro to start programs."
-            : "Upgrade to Pro to start programs. Visit Plans to activate your account.",
+        description: isNative()
+          ? "Upgrade to Pro to start programs."
+          : "Upgrade to Pro to start programs. Visit Plans to activate your account.",
         variant: "destructive",
       });
       window.location.assign(isNative() ? "/paywall" : "/plans");
@@ -204,7 +202,8 @@ export default function ProgramDetail() {
         confirmPolls: 5,
         backoffMs: 500,
       });
-      workoutPlanId = typeof applied?.planId === "string" ? applied.planId : null;
+      workoutPlanId =
+        typeof applied?.planId === "string" ? applied.planId : null;
       if (!workoutPlanId) {
         throw new Error("Unable to activate workout plan.");
       }
@@ -276,7 +275,8 @@ export default function ProgramDetail() {
     } catch (error) {
       recordPermissionDenied(error, { op: "programs.startProgram" });
       const anyErr = error as any;
-      const status = typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
+      const status =
+        typeof anyErr?.status === "number" ? (anyErr.status as number) : 0;
       const code =
         typeof anyErr?.code === "string"
           ? (anyErr.code as string)
@@ -334,7 +334,6 @@ export default function ProgramDetail() {
             <div className="h-32 animate-pulse rounded bg-muted/40" />
           </div>
         </main>
-        <BottomNav />
       </div>
     );
   }
@@ -362,7 +361,6 @@ export default function ProgramDetail() {
             </CardContent>
           </Card>
         </main>
-        <BottomNav />
       </div>
     );
   }
@@ -692,7 +690,11 @@ export default function ProgramDetail() {
                 ) : (
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                 )}{" "}
-                {demo ? "Demo only" : isSaving ? "Activating…" : "Start program"}
+                {demo
+                  ? "Demo only"
+                  : isSaving
+                    ? "Activating…"
+                    : "Start program"}
               </DemoWriteButton>
             </div>
           </CardContent>
@@ -703,7 +705,6 @@ export default function ProgramDetail() {
           </p>
         )}
       </main>
-      <BottomNav />
     </div>
   );
 }

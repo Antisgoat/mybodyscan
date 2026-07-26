@@ -69,13 +69,16 @@ const PublicLanding = () => {
         description="Turn four guided photos into a transparent wellness estimate, then follow connected workout, nutrition, food, and progress tools."
         canonical="https://mybodyscanapp.com/"
       />
-      <section className="py-8">
-        <div className="grid gap-8 md:grid-cols-2 md:items-center">
+      <section className="py-10 sm:py-16">
+        <div className="grid gap-10 md:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)] md:items-center">
           <article>
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+            <p className="mb-3 text-sm font-semibold text-primary">
+              Your progress, clearly explained
+            </p>
+            <h1 className="max-w-2xl text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
               See your progress. Know what to do next.
             </h1>
-            <p className="mt-3 text-muted-foreground">
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
               Four guided photos create a transparent body-composition wellness
               estimate. MyBodyScan then connects that report to personalized
               training, nutrition, food insights, and progress coaching.
@@ -84,7 +87,7 @@ const PublicLanding = () => {
               Photo-based results are estimates, not medical measurements or
               diagnoses.
             </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Button size="lg" onClick={handleLaunch}>
                 Launch Web App
               </Button>
@@ -95,27 +98,36 @@ const PublicLanding = () => {
               >
                 Pricing
               </Button>
-              <Link
-                to={demoLink}
-                className="btn-secondary"
-                onClick={() => enableDemo()}
-              >
-                Browse the demo
-              </Link>
+              <Button asChild size="lg" variant="secondary">
+                <Link to={demoLink} onClick={() => enableDemo()}>
+                  Browse the demo
+                </Link>
+              </Button>
             </div>
           </article>
-          <aside className="justify-self-center md:justify-self-end">
-            <img
-              src={silhouetteFront}
-              alt="MyBodyScan app illustration showing body scan silhouette"
-              className="w-64 h-auto rounded-lg border shadow-sm"
-              loading="lazy"
-            />
+          <aside className="w-full justify-self-center md:justify-self-end">
+            <div className="mx-auto max-w-sm rounded-[2rem] border border-primary/15 bg-gradient-to-br from-white via-blue-50 to-cyan-50 p-6 shadow-[0_24px_60px_rgba(37,99,235,0.12)]">
+              <div className="mb-4 flex items-center justify-between text-xs font-semibold text-muted-foreground">
+                <span>Four-photo scan</span>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
+                  Private
+                </span>
+              </div>
+              <img
+                src={silhouetteFront}
+                alt="MyBodyScan app illustration showing body scan silhouette"
+                className="mx-auto h-auto w-56 rounded-2xl border border-white/80 bg-white/80"
+                loading="lazy"
+              />
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                Estimates, calculations, and observations stay clearly labeled.
+              </p>
+            </div>
           </aside>
         </div>
       </section>
 
-      <section className="py-8">
+      <section className="py-10 sm:py-14">
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-primary">
             More than a scan result
@@ -128,11 +140,11 @@ const PublicLanding = () => {
             so you can focus on the next useful step.
           </p>
         </div>
-        <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {PRODUCT_HIGHLIGHTS.map(({ title, description, icon: Icon }) => (
             <article
               key={title}
-              className="rounded-xl border bg-card p-5 shadow-sm"
+              className="rounded-2xl border border-border/80 bg-card p-5 shadow-[0_8px_30px_rgba(15,23,42,0.05)]"
             >
               <Icon className="h-5 w-5 text-primary" aria-hidden="true" />
               <h3 className="mt-3 font-medium">{title}</h3>
@@ -144,11 +156,14 @@ const PublicLanding = () => {
         </div>
       </section>
 
-      <section className="py-8">
-        <h2 className="text-xl font-semibold">How it works</h2>
+      <section className="py-10 sm:py-14">
+        <h2 className="text-2xl font-semibold">How it works</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {HOW_IT_WORKS.map((item) => (
-            <article key={item.step} className="rounded-lg border p-4">
+            <article
+              key={item.step}
+              className="rounded-2xl border border-border/80 bg-card p-5"
+            >
               <h3 className="font-medium">{item.step}</h3>
               <p className="text-sm text-muted-foreground mt-1">{item.text}</p>
             </article>
@@ -156,15 +171,22 @@ const PublicLanding = () => {
         </div>
       </section>
 
-      <section className="py-8">
-        <h2 className="text-xl font-semibold">Pricing snapshot</h2>
+      <section className="py-10 sm:py-14">
+        <h2 className="text-2xl font-semibold">Simple pricing</h2>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {[
             PRICING_CATALOG.oneScan,
             PRICING_CATALOG.monthly,
             PRICING_CATALOG.yearly,
           ].map((card) => (
-            <article key={card.id} className="rounded-xl border bg-card p-4">
+            <article
+              key={card.id}
+              className={`rounded-2xl border bg-card p-5 ${
+                card.id === "monthly"
+                  ? "border-primary/40 shadow-[0_12px_36px_rgba(37,99,235,0.10)]"
+                  : "border-border/80"
+              }`}
+            >
               <h3 className="font-medium">{card.label}</h3>
               <p className="text-sm text-foreground mt-1">{card.priceText}</p>
               {card.blurb ? (
@@ -177,8 +199,8 @@ const PublicLanding = () => {
         </div>
       </section>
 
-      <section className="py-8">
-        <h2 className="text-xl font-semibold">Privacy & Security</h2>
+      <section className="my-10 rounded-2xl border border-border/80 bg-card p-6 sm:p-8">
+        <h2 className="text-2xl font-semibold">Privacy & Security</h2>
         <p className="mt-2 text-sm text-muted-foreground">
           Your uploaded media stays private to your account and is used to
           provide the scan and optional features you request. We do not sell
@@ -186,20 +208,6 @@ const PublicLanding = () => {
           Settings.
         </p>
       </section>
-
-      <footer className="py-8 border-t mt-8">
-        <nav className="flex flex-wrap gap-4 text-sm">
-          <Link to="/privacy" className="underline-offset-4 hover:underline">
-            Privacy
-          </Link>
-          <Link to="/terms" className="underline-offset-4 hover:underline">
-            Terms
-          </Link>
-          <Link to="/support" className="underline-offset-4 hover:underline">
-            Support
-          </Link>
-        </nav>
-      </footer>
     </>
   );
 };

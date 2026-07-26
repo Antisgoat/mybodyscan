@@ -1,6 +1,4 @@
 import { FormEvent, useState } from "react";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,7 +16,11 @@ const STATUS_CLASS = "text-xs text-muted-foreground";
 export default function MealsBarcode() {
   const { t } = useI18n();
   const demo = useDemoMode();
-  const { health: systemHealth, functionsOrigin, lastErrorStatus } = useSystemHealth();
+  const {
+    health: systemHealth,
+    functionsOrigin,
+    lastErrorStatus,
+  } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(
     systemHealth ?? undefined
   );
@@ -74,7 +76,6 @@ export default function MealsBarcode() {
         description="Scan packaged foods to log meals"
       />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
-        <DemoBanner />
         {lookupsBlocked && (
           <Alert variant="destructive">
             <AlertTitle>Nutrition search unavailable</AlertTitle>
@@ -127,7 +128,6 @@ export default function MealsBarcode() {
           </CardContent>
         </Card>
       </main>
-      <BottomNav />
     </div>
   );
 }

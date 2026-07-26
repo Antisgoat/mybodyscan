@@ -4,27 +4,27 @@
 
 @layer base {
   :root {
-    /* Soft blue theme tokens (light) */
-    --background: 218 100% 98%;
+    /* Calm, high-contrast product palette (light) */
+    --background: 216 60% 98%;
     --foreground: 222.2 47.4% 11.2%;
-    --muted: 216 100% 95%;
-    --muted-foreground: 215 15% 47%;
+    --muted: 216 40% 95%;
+    --muted-foreground: 215 18% 42%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 47.4% 11.2%;
-    --border: 214 100% 91%;
-    --input: 214 100% 91%;
-    --primary: 214 100% 61%;
+    --border: 214 36% 89%;
+    --input: 214 36% 86%;
+    --primary: 216 88% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 216 100% 95%;
+    --secondary: 216 45% 94%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-    --accent: 214 100% 91%;
+    --accent: 214 52% 92%;
     --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 358 75% 59%;
     --destructive-foreground: 0 0% 100%;
-    --ring: 214 100% 61%;
-    --radius: 0.5rem;
+    --ring: 216 88% 50%;
+    --radius: 0.75rem;
   }
   .dark {
     /* Soft blue theme tokens (dark) */
@@ -53,13 +53,47 @@
   body {
     height: 100%;
   }
+  html {
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+      Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-synthesis: none;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply min-w-[320px] bg-background text-foreground antialiased;
+    font-feature-settings:
+      "kern" 1,
+      "liga" 1,
+      "calt" 1;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
   }
   *,
   ::before,
   ::after {
     @apply border-border;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 }
 

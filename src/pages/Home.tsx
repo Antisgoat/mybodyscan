@@ -194,10 +194,13 @@ const Home = () => {
       ),
     [rootProfile, sortedScans, statusTick]
   );
-  const plateauDismissKey = plateauAlert && user?.uid
-    ? `mbs:plateau-dismissed:${user.uid}:${plateauAlert.signature}`
-    : null;
-  const [dismissedPlateauKey, setDismissedPlateauKey] = useState<string | null>(null);
+  const plateauDismissKey =
+    plateauAlert && user?.uid
+      ? `mbs:plateau-dismissed:${user.uid}:${plateauAlert.signature}`
+      : null;
+  const [dismissedPlateauKey, setDismissedPlateauKey] = useState<string | null>(
+    null
+  );
   const showPlateauAlert = Boolean(
     subscriberFeaturesAvailable &&
       plateauAlert &&
@@ -322,25 +325,20 @@ const Home = () => {
   };
 
   return (
-    <main className="min-h-screen p-6 max-w-md mx-auto">
+    <div className="mx-auto w-full max-w-3xl space-y-6">
       <Seo
         title="Home – MyBodyScan"
         description="Your latest body scan and quick actions."
         canonical={window.location.href}
       />
-      <div className="mb-4 flex justify-center">
-        <Card className="w-40">
-          <CardContent className="p-4 text-center">
-            <img
-              src="/logo.svg"
-              alt="MyBodyScan Logo"
-              className="mx-auto h-10 w-auto max-w-full object-contain"
-            />
-          </CardContent>
-        </Card>
-      </div>
-      <header className="mb-6 text-center">
-        <h1 className="text-3xl font-semibold">MyBodyScan</h1>
+      <header>
+        <p className="text-sm font-semibold text-primary">Your dashboard</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
+          Your progress, at a glance
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
+          Review your latest result and keep your next useful action simple.
+        </p>
       </header>
       <section className="space-y-4">
         {showOnboardingNudge && (
@@ -368,10 +366,10 @@ const Home = () => {
               <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
                 <p className="text-sm font-semibold text-destructive">
                   Last scan failed
-
                 </p>
                 <p className="text-xs text-destructive/80">
-                  We could not complete this scan. Start a new scan or open history to retry.
+                  We could not complete this scan. Start a new scan or open
+                  history to retry.
                 </p>
                 <div className="mt-2">
                   {renderStartButton({ className: "w-full" })}
@@ -442,8 +440,14 @@ const Home = () => {
                     )}
                   </div>
                 )}
-                <div className="flex gap-2 pt-2">
-                  {renderStartButton()}
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {done ? (
+                    <Button onClick={() => navigate(`/results/${lastScan.id}`)}>
+                      View Report
+                    </Button>
+                  ) : (
+                    renderStartButton()
+                  )}
                   <Button
                     variant="secondary"
                     onClick={() => navigate("/history")}
@@ -465,15 +469,27 @@ const Home = () => {
             <CardContent className="space-y-3 text-sm">
               <p className="font-medium">Try a measured check-in:</p>
               <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-                <li>Review workout and nutrition consistency for the last two weeks.</li>
-                <li>Check sleep, recovery, and whether training is still progressing.</li>
-                <li>Change one small variable, then keep it consistent before rescanning.</li>
+                <li>
+                  Review workout and nutrition consistency for the last two
+                  weeks.
+                </li>
+                <li>
+                  Check sleep, recovery, and whether training is still
+                  progressing.
+                </li>
+                <li>
+                  Change one small variable, then keep it consistent before
+                  rescanning.
+                </li>
               </ul>
               <p className="text-xs text-muted-foreground">
-                Avoid extreme calorie cuts or sudden training jumps. If you feel unwell or have health concerns, talk with a qualified clinician.
+                Avoid extreme calorie cuts or sudden training jumps. If you feel
+                unwell or have health concerns, talk with a qualified clinician.
               </p>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => navigate("/plans")}>Review plan</Button>
+                <Button size="sm" onClick={() => navigate("/plans")}>
+                  Review plan
+                </Button>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -489,13 +505,15 @@ const Home = () => {
           </Card>
         )}
 
-        <div className="grid gap-3">
-          {renderStartButton({ className: "w-full" })}
+        <div className="grid gap-3 sm:grid-cols-3">
+          {renderStartButton({ className: "w-full sm:col-span-3" })}
           <a
             href={demo && !user ? "/auth" : onboardingCtaTarget}
-            className="block text-center text-sm text-slate-500 hover:text-slate-700 mt-2"
+            className="block min-h-11 content-center text-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:col-span-3"
           >
-            {demo && !user ? "Sign up to personalize results" : "Personalize results (1 min)"}
+            {demo && !user
+              ? "Sign up to personalize results"
+              : "Personalize results (1 min)"}
           </a>
           <Button variant="secondary" onClick={() => navigate("/history")}>
             History
@@ -508,7 +526,7 @@ const Home = () => {
           </Button>
         </div>
       </section>
-    </main>
+    </div>
   );
 };
 

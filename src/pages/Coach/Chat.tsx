@@ -8,7 +8,6 @@ import {
   query,
   serverTimestamp,
 } from "firebase/firestore";
-import { BottomNav } from "@/components/BottomNav";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -1251,7 +1250,6 @@ export default function CoachChatPage() {
             </div>
           </div>
         </main>
-        <BottomNav />
       </ErrorBoundary>
     </div>
   );

@@ -26,7 +26,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import { signOut } from "@/auth/mbs-auth";
@@ -54,7 +53,6 @@ import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
-import { DemoBanner } from "@/components/DemoBanner";
 import { requestAccountDeletion, requestExportIndex } from "@/lib/account";
 import { useCredits } from "@/hooks/useCredits";
 import HeaderEnvBadge from "@/components/HeaderEnvBadge";
@@ -677,7 +675,6 @@ const Settings = () => {
           title="Settings - MyBodyScan"
           description="Manage your preferences and data."
         />
-        <DemoBanner />
         {isDemoActive() && (
           <div className="rounded bg-muted p-2 text-center text-xs">
             Demo settings — sign up to save changes.
@@ -1385,7 +1382,6 @@ const Settings = () => {
           </DialogContent>
         </Dialog>
       </main>
-      <BottomNav />
     </div>
   );
 };

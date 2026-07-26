@@ -88,6 +88,7 @@ import NetBanner from "./components/NetBanner";
 import SkipLink from "./components/SkipLink";
 import GlobalA11yStyles from "./components/GlobalA11yStyles";
 import SetupBanner from "./components/SetupBanner";
+import { ScrollToTop } from "./components/ScrollToTop";
 import { initBackHandler } from "./lib/back";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useAuthUser } from "@/auth/mbs-auth";
@@ -204,11 +205,10 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
             <Sonner />
             <NetBanner />
             <BrowserRouter>
+              <ScrollToTop />
               <DemoModeProvider>
                 <DemoWireup />
-                <div id="main-content" role="main">
-                  {children}
-                </div>
+                <div id="main-content">{children}</div>
               </DemoModeProvider>
             </BrowserRouter>
           </AppCheckProvider>
