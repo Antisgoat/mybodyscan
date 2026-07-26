@@ -388,36 +388,45 @@ the current-state notes below say it was configured:
       internal-test install. No real card charge is required or acceptable for
       release verification.
 
-Current Android external state on 2026-07-24: the Firebase Android app exists
+Current Android external state on 2026-07-26: the Firebase Android app exists
 in `mybodyscan-f3daf` with package `com.mybodyscan.app`; its ignored
 `google-services.json`, local debug fingerprints, API-36 project, and debug APK
-are verified. Play Integrity registration is prepared but not saved because
-the account owner must accept the Google APIs and Play Integrity terms. The
-currently signed-in Google account still shows Play Console account creation,
-so the owner must either complete the correct ADLR Labs organization account
-or switch to the already-paid developer account. The current RevenueCat role
-cannot add app configurations, so an Owner/Admin must add the Google Play app
-and expose its public `goog_…` SDK key. No upload/app-signing key, product
-catalog, internal test build, or Android device acceptance test exists yet.
+are verified. `npm run android:build:debug` completed native sync, production
+credential guards, Java/Kotlin compilation, unit tests, Android lint, and APK
+assembly successfully. The Google Play app already exists in RevenueCat with
+package `com.mybodyscan.app`, and its public `goog_…` SDK key passes the native
+release guard. RevenueCat still has no Google service-account credentials or
+Real-Time Developer Notifications connection, so Play purchases cannot be
+accepted as release-verified.
 
-Current iOS external state on 2026-07-24: the App Store app record exists;
+Play Integrity registration is prepared but not saved because the account
+owner must accept the Google APIs and Play Integrity terms. The currently
+signed-in Google account still shows Play Console account creation and asks
+whether the owner is an organization or individual; ownership cannot be
+changed later. Do not complete that flow unless it is the intended ADLR Labs
+organization account. Otherwise switch to the already-paid developer account.
+No recoverable upload/app-signing key, Play product catalog, internal test
+build, or Android device acceptance test exists yet. The current RevenueCat
+role can inspect but cannot change app credentials; an Owner/Admin must upload
+the least-privileged Google service-account JSON and complete RTDN after the
+correct Play account and app exist.
+
+Current iOS external state on 2026-07-26: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode. Build 6 was the prior candidate with the RevenueCat paywall
-and redirect-hardening fixes. It was archived, validated,
-distribution-signed, accepted by Apple's upload service for TestFlight
-processing, installed on the paired iPhone 14 Pro Max, and launched
-successfully. Fresh iPhone and iPad simulator builds also install, launch, and
-render the reviewed responsive layouts. The native Firebase Authentication and
-App Check bridge work was added after build 6; therefore build 6 is superseded
-for final submission. The project is now build 7; it must be archived, uploaded,
-and device-tested. Build 5 was accepted by Apple's upload
-service but was superseded before device testing by the redirect-hardening fix.
-Build 4 must not be submitted because its native plan route bypassed the
-RevenueCat paywall. The real photo, purchase, restore, notification, and
-offline device checklist remains mandatory.
+Developer Mode. Build 7 was archived from commit `4b5d4bcc`, passed Apple's
+remote App Store validation, and was accepted by Apple's upload service for
+TestFlight processing. That exact archive was installed on the paired iPhone
+14 Pro Max, launched successfully, and remained running with bundle
+`com.mybodyscan.app`, version `1.0.0`, build `7`. App Store Connect processing
+and build selection have not yet been confirmed because the browser session
+expired after upload. Fresh iPhone and iPad simulator builds also install,
+launch, and render the reviewed responsive layouts. Builds 4 through 6 are
+superseded and must not be submitted. The real photo, purchase, restore,
+notification, authentication, cold-launch, and offline device checklist
+remains mandatory.
 
 Build 6 is still selected for App Store version 1.0 only as the prior metadata
-placeholder; replace it with verified build 7 before submission. Six
+placeholder; replace it with processed build 7 before submission. Six
 ordered 1242 × 2688 iPhone
 screenshots and six ordered 2064 × 2752 iPad screenshots are uploaded: body
 results, training, nutrition progress, meal planning, four-photo scanning, and
@@ -434,15 +443,32 @@ with status **Ready for Review**:
   regions.
 
 RevenueCat accepts in-app-purchase key `9Z23GBB5M7`; monthly and yearly are
-attached to `pro`; all three products are in the current/default offering.
+attached to `pro`; the single-scan consumable is not attached to `pro`; and all
+three production products are in the current/default offering. The legacy
+`ADLR LABS Pro` entitlement contains only Test Store products and does not
+grant access from a production Apple or Google purchase. RevenueCat's separate
+App Store Connect API key is still missing: neither downloaded local
+`AuthKey_*.p8` candidate authenticated against the App Store Connect API, so do
+not upload either by guess. An Apple Admin must create or identify the correct
+App Store Connect integration key, then enter its `.p8`, key ID, and issuer ID
+under RevenueCat → Apps → MyBodyScan iOS → App Store Connect API Key and verify
+that RevenueCat reports it as valid.
+
 The RevenueCat webhook Authorization header is synchronized with the deployed
-Firebase secret. A dashboard test on 2026-07-23 returned HTTP 200 with `[ok]`,
+Firebase secret. The webhook is active for all apps and all production and
+sandbox events, and targets
+`https://mybodyscanapp.com/api/revenuecat/webhook`. A dashboard test on
+2026-07-23 returned HTTP 200 with `[ok]`,
 and the corresponding Function invocation completed without an unexpected
 error. This verifies provider-to-Function connectivity but does not replace a
 real App Store sandbox purchase and renewal event. Native plan links open the
 RevenueCat purchase/restore paywall, while Settings opens Apple's
 subscription-management screen; native builds never open Stripe checkout.
 APNs key `9R5X23CQQ9` is uploaded to Firebase for development and production.
+RevenueCat currently reports no received Apple server-notification events.
+In App Store Connect → App Information → App Store Server Notifications, save
+RevenueCat's production URL for production and sandbox URL for sandbox, send a
+test notification, and confirm it appears in RevenueCat before submission.
 
 App Store metadata, age rating, categories, and the App Privacy answers are
 configured. App Store Connect will not add version 1.0 to the review draft
