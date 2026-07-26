@@ -14,10 +14,21 @@ const pngMetadata = (relativePath: string) => {
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
   );
 
+  let chunkOffset = 8;
+  let hasTransparencyChunk = false;
+  while (chunkOffset + 12 <= data.length) {
+    const chunkLength = data.readUInt32BE(chunkOffset);
+    const chunkType = data.toString("ascii", chunkOffset + 4, chunkOffset + 8);
+    hasTransparencyChunk ||= chunkType === "tRNS";
+    chunkOffset += chunkLength + 12;
+    if (chunkType === "IEND") break;
+  }
+
   return {
     width: data.readUInt32BE(16),
     height: data.readUInt32BE(20),
     colorType: data[25],
+    hasTransparencyChunk,
   };
 };
 
@@ -35,6 +46,7 @@ describe("marketing assets", () => {
       expect(metadata.width, relativePath).toBe(width);
       expect(metadata.height, relativePath).toBe(height);
       expect([4, 6], relativePath).not.toContain(metadata.colorType);
+      expect(metadata.hasTransparencyChunk, relativePath).toBe(false);
     }
   });
 
@@ -54,6 +66,7 @@ describe("marketing assets", () => {
       expect(metadata.width, relativePath).toBe(size);
       expect(metadata.height, relativePath).toBe(size);
       expect([4, 6], relativePath).not.toContain(metadata.colorType);
+      expect(metadata.hasTransparencyChunk, relativePath).toBe(false);
     }
   });
 
