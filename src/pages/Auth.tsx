@@ -582,15 +582,21 @@ const Auth = () => {
   }, []);
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-background p-6">
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background to-secondary/40 p-4 sm:p-6">
       <Seo
         title="Sign In · MyBodyScan"
         description="Access your MyBodyScan account to start and review scans."
         canonical={canonical}
       />
-      <Card className="w-full max-w-md shadow-md">
+      <Card className="w-full max-w-md">
         <CardHeader>
           <div className="text-center">
+            <img
+              src="/favicon.svg"
+              alt=""
+              className="mx-auto mb-4 h-10 w-10"
+              aria-hidden="true"
+            />
             <CardTitle className="text-2xl mb-2" onClick={handleDebugTap}>
               {mode === "signin" ? "Welcome back" : "Create your account"}
             </CardTitle>
@@ -651,24 +657,24 @@ const Auth = () => {
               </p>
             </div>
           ) : null}
-          <div className="flex justify-center gap-2 mb-4">
+          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1">
             <Button
               size="sm"
-              variant={mode === "signin" ? "default" : "outline"}
+              variant={mode === "signin" ? "default" : "ghost"}
               onClick={() => setMode("signin")}
             >
               Sign in
             </Button>
             <Button
               size="sm"
-              variant={mode === "signup" ? "default" : "outline"}
+              variant={mode === "signup" ? "default" : "ghost"}
               onClick={() => setMode("signup")}
             >
               Create account
             </Button>
           </div>
 
-          <div className="mb-4 p-4 bg-slate-50 rounded-lg">
+          <div className="mb-5 rounded-xl border border-border/70 bg-secondary/50 p-4">
             <div className="space-y-2 text-sm text-slate-700">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
@@ -707,11 +713,7 @@ const Auth = () => {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Button
-                type="submit"
-                className="mbs-btn mbs-btn-primary w-full"
-                disabled={loading}
-              >
+              <Button type="submit" className="w-full" disabled={loading}>
                 {loading
                   ? mode === "signin"
                     ? "Signing in..."
@@ -749,7 +751,7 @@ const Auth = () => {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
-                className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-input bg-card px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="btn-google"
               >
                 Continue with Google
@@ -760,7 +762,7 @@ const Auth = () => {
                 type="button"
                 onClick={handleAppleSignIn}
                 disabled={loading}
-                className="w-full rounded border px-3 py-2 text-sm font-medium hover:bg-muted focus:outline-none focus:ring inline-flex items-center justify-center gap-2"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-input bg-card px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 data-testid="btn-apple"
                 aria-label="Continue with Apple"
               >
@@ -815,7 +817,7 @@ const Auth = () => {
               <a href="/privacy" className="underline hover:no-underline">
                 Privacy
               </a>
-              <span>?</span>
+              <span aria-hidden="true">•</span>
               <a href="/terms" className="underline hover:no-underline">
                 Terms
               </a>

@@ -31,7 +31,6 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
-import { DemoBanner } from "@/components/DemoBanner";
 import { isDemo } from "@/lib/demoFlag";
 import { demoLatestScan } from "@/lib/demoDataset";
 import { scanStatusLabel } from "@/lib/scanStatus";
@@ -249,34 +248,33 @@ const Results = () => {
 
   if (!user && !demo && !loading) {
     return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
+      <div className="mx-auto min-h-[50vh] max-w-md p-6">
         <Button onClick={() => navigate("/auth")}>Sign In</Button>
-      </main>
+      </div>
     );
   }
 
   if (loading && !demo) {
     return (
-      <main className="min-h-screen p-6 max-w-md mx-auto">
+      <div className="mx-auto min-h-[50vh] max-w-md p-6">
         <Seo
           title="Results – MyBodyScan"
           description="Review scan results."
           canonical={window.location.href}
         />
         <Skeleton className="h-40 w-full" />
-      </main>
+      </div>
     );
   }
 
   if (error || !activeScan) {
     return (
-      <main className="min-h-screen p-6 max-w-md mx-auto space-y-4">
+      <div className="mx-auto min-h-[50vh] max-w-md space-y-4 p-6">
         <Seo
           title="Results – MyBodyScan"
           description="Review scan results."
           canonical={window.location.href}
         />
-        <DemoBanner />
         <Card>
           <CardContent className="pt-6">Unable to load results.</CardContent>
         </Card>
@@ -286,7 +284,7 @@ const Results = () => {
         >
           {readOnlyDemo ? "Sign in to start" : "Start a Scan"}
         </Button>
-      </main>
+      </div>
     );
   }
 
@@ -294,13 +292,12 @@ const Results = () => {
 
   if (vm.isFailedOrFallback) {
     return (
-      <main className="min-h-screen p-4 md:p-6 max-w-3xl mx-auto space-y-4">
+      <div className="mx-auto min-h-[50vh] max-w-3xl space-y-4 p-4 md:p-6">
         <Seo
           title="Scan recovery – MyBodyScan"
           description="Recover a failed scan."
           canonical={window.location.href}
         />
-        <DemoBanner />
         <Card className="border-destructive/30 bg-destructive/5">
           <CardHeader>
             <div className="flex items-center justify-between gap-2">
@@ -329,13 +326,13 @@ const Results = () => {
             </div>
           </CardContent>
         </Card>
-      </main>
+      </div>
     );
   }
 
   if (!vm.isValidResult) {
     return (
-      <main className="mx-auto min-h-screen max-w-3xl space-y-4 p-4 md:p-6">
+      <div className="mx-auto min-h-[50vh] max-w-3xl space-y-4 p-4 md:p-6">
         <Seo
           title="Scan processing – MyBodyScan"
           description="Your scan is still processing."
@@ -355,18 +352,17 @@ const Results = () => {
             </Button>
           </CardContent>
         </Card>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#090d10] text-zinc-100">
+    <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#090d10] text-zinc-100 shadow-2xl shadow-slate-950/15">
       <Seo
         title="Your Body Scan – MyBodyScan"
         description="Premium body composition results."
         canonical={window.location.href}
       />
-      <DemoBanner />
       <div className="mx-auto max-w-6xl space-y-5 p-4 pb-24 md:p-8">
         <header className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#132329] via-[#10171b] to-[#0b0f12] p-5 shadow-2xl shadow-black/30 md:p-8">
           <div className="flex items-start justify-between gap-4">
@@ -997,7 +993,7 @@ const Results = () => {
           </Button>
         </div>
       </div>
-    </main>
+    </div>
   );
 };
 

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -214,7 +213,6 @@ export default function Nutrition() {
             </CardContent>
           </Card>
         </main>
-        <BottomNav />
       </ErrorBoundary>
     </div>
   );

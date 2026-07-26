@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles, ChevronRight, CheckCircle2 } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -450,7 +449,6 @@ export default function ProgramsQuiz() {
           </Card>
         )}
       </main>
-      <BottomNav />
     </div>
   );
 }

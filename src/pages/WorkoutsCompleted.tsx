@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trophy } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent } from "@/components/ui/card";
 import { getWorkouts } from "@/lib/workouts";
@@ -55,7 +53,6 @@ export default function WorkoutsCompleted() {
         description="Review your recent workout momentum"
       />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
-        <DemoBanner />
         <div className="space-y-2 text-center">
           <Trophy className="mx-auto h-10 w-10 text-primary" />
           <h1 className="text-2xl font-semibold text-foreground">
@@ -108,7 +105,6 @@ export default function WorkoutsCompleted() {
           </div>
         )}
       </main>
-      <BottomNav />
     </div>
   );
 }

@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dumbbell, Plus } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -744,7 +742,6 @@ export default function Workouts() {
             </CardContent>
           </Card>
         </main>
-        <BottomNav />
       </div>
     );
   }
@@ -756,7 +753,6 @@ export default function Workouts() {
         description="Track your daily workout routine"
       />
       <main className="max-w-md mx-auto p-6 space-y-6">
-        <DemoBanner />
         {!demo && healthError ? (
           <Alert variant="destructive">
             <AlertTitle>System health unavailable</AlertTitle>
@@ -1078,7 +1074,6 @@ export default function Workouts() {
           </Card>
         )}
       </main>
-      <BottomNav />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { ArrowLeft, Search, Utensils } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -167,7 +166,6 @@ export default function MealPlan() {
           </AlertDescription>
         </Alert>
       </main>
-      <BottomNav />
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Timer } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { NotMedicalAdviceBanner } from "@/components/NotMedicalAdviceBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -461,7 +460,6 @@ export default function CoachDay() {
           <div className="h-6 w-1/2 animate-pulse rounded bg-muted/40" />
           <div className="h-6 w-2/3 animate-pulse rounded bg-muted/40" />
         </main>
-        <BottomNav />
       </div>
     );
   }
@@ -481,7 +479,6 @@ export default function CoachDay() {
             Back to Coach
           </Button>
         </main>
-        <BottomNav />
       </div>
     );
   }
@@ -733,7 +730,6 @@ export default function CoachDay() {
           </DialogContent>
         </Dialog>
       </main>
-      <BottomNav />
     </div>
   );
 }

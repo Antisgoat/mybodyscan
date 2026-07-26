@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { LibraryBig } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getWorkouts, type WorkoutDay } from "@/lib/workouts";
@@ -75,7 +73,6 @@ export default function WorkoutsLibrary() {
         description="Browse your plan and on-demand sessions"
       />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
-        <DemoBanner />
         <div className="space-y-2 text-center">
           <LibraryBig className="mx-auto h-10 w-10 text-primary" />
           <h1 className="text-2xl font-semibold text-foreground">
@@ -90,7 +87,12 @@ export default function WorkoutsLibrary() {
             <AlertTitle>Backend health unavailable</AlertTitle>
             <AlertDescription className="space-y-2">
               <div>{systemHealthError}</div>
-              <button className="underline" onClick={() => void refreshSystemHealth()}>Retry</button>
+              <button
+                className="underline"
+                onClick={() => void refreshSystemHealth()}
+              >
+                Retry
+              </button>
             </AlertDescription>
           </Alert>
         ) : null}
@@ -99,7 +101,12 @@ export default function WorkoutsLibrary() {
             <AlertTitle>Workouts unavailable</AlertTitle>
             <AlertDescription className="space-y-2">
               <div>{workoutsOfflineMessage}</div>
-              <button className="underline" onClick={() => void refreshSystemHealth()}>Retry</button>
+              <button
+                className="underline"
+                onClick={() => void refreshSystemHealth()}
+              >
+                Retry
+              </button>
             </AlertDescription>
           </Alert>
         ) : null}
@@ -215,7 +222,6 @@ export default function WorkoutsLibrary() {
           </Card>
         )}
       </main>
-      <BottomNav />
     </div>
   );
 }

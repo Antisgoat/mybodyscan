@@ -1,6 +1,4 @@
 import { HeartPulse, Smartphone, MonitorSmartphone } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
-import { DemoBanner } from "@/components/DemoBanner";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +40,6 @@ export default function HealthSync() {
         description="Link HealthKit or Health Connect"
       />
       <main className="mx-auto flex max-w-md flex-col gap-6 p-6">
-        <DemoBanner />
         <div className="space-y-2 text-center">
           <HeartPulse className="mx-auto h-10 w-10 text-primary" />
           <h1 className="text-2xl font-semibold text-foreground">
@@ -105,7 +102,6 @@ export default function HealthSync() {
           </CardContent>
         </Card>
       </main>
-      <BottomNav />
     </div>
   );
 }

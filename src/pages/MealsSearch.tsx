@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
-import { BottomNav } from "@/components/BottomNav";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -885,7 +884,6 @@ export default function MealsSearch() {
           </CardContent>
         </Card>
       </main>
-      <BottomNav />
 
       {selectedItem && (
         <ServingModal

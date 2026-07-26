@@ -18,7 +18,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { demoScanHistory } from "@/lib/demoDataset";
 import { toDateOrNull } from "@/lib/time";
 import { isSuccessfulPersistedScan } from "@/lib/scanContract";
-import { ImageOff } from "lucide-react";
+import { ScanLine } from "lucide-react";
 
 export default function HistoryPage() {
   const nav = useNavigate();
@@ -37,7 +37,11 @@ export default function HistoryPage() {
   useEffect(() => {
     if (demo && !user) {
       setItems(demoScanHistory as unknown as ScanItem[]);
-      setThumbs({});
+      setThumbs(
+        Object.fromEntries(
+          demoScanHistory.map((scan) => [String(scan.id), null])
+        )
+      );
       setError(null);
       return;
     }
@@ -150,8 +154,16 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl p-4">
-      <h1 className="text-lg font-semibold">History</h1>
+    <div className="mx-auto max-w-3xl">
+      <div>
+        <p className="text-sm font-semibold text-primary">Progress</p>
+        <h1 className="mt-1 text-3xl font-semibold">Scan history</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {demo && !user
+            ? "Open a sample report to explore the results experience."
+            : "Open a completed report or select two eligible scans to compare."}
+        </p>
+      </div>
       {authReady && !uid && !(demo && !user) && (
         <Alert className="mt-3 border-amber-200 bg-amber-50 text-amber-900">
           <AlertTitle>Sign in to view scans</AlertTitle>
@@ -170,7 +182,7 @@ export default function HistoryPage() {
       {items.length === 0 && (
         <p className="text-sm text-muted-foreground mt-2">No scans yet.</p>
       )}
-      <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((it) => {
           const metrics = extractScanMetrics(it as any);
           const summary = summarizeScanMetrics(metrics, units);
@@ -180,17 +192,19 @@ export default function HistoryPage() {
             it.status as string | undefined,
             (it as any)?.updatedAt ?? (it as any)?.completedAt ?? it.createdAt
           );
+          const showSummaryMetrics =
+            statusMeta.showMetrics && (comparable || (demo && !user));
           return (
             <li
               key={it.id}
-              className={`rounded border overflow-hidden ${sel ? "ring-2 ring-emerald-400" : ""}`}
+              className={`overflow-hidden rounded-2xl border border-border/80 bg-card shadow-[0_8px_24px_rgba(15,23,42,0.05)] transition-shadow hover:shadow-md ${sel ? "ring-2 ring-primary" : ""}`}
             >
               <button
                 className="block w-full text-left"
                 onClick={() => toggle(it.id, comparable)}
                 aria-label={`${comparable ? "Select" : "Open details for"} scan ${it.id}`}
               >
-                <div className="aspect-[3/4] bg-black/5 overflow-hidden">
+                <div className="aspect-[4/3] overflow-hidden bg-muted/60 sm:aspect-[3/2]">
                   {thumbs[it.id] ? (
                     <img
                       src={thumbs[it.id]!}
@@ -199,20 +213,27 @@ export default function HistoryPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : thumbs[it.id] === undefined ? (
-                    <div className="h-full w-full animate-pulse" />
+                    <div
+                      className="h-full w-full animate-pulse bg-gradient-to-br from-muted to-background"
+                      aria-label="Loading scan preview"
+                    />
                   ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
-                      <ImageOff className="h-6 w-6" aria-hidden="true" />
-                      <span className="text-xs">Preview unavailable</span>
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-blue-50 via-background to-cyan-50 text-muted-foreground">
+                      <span className="rounded-2xl border border-primary/15 bg-white/80 p-3 text-primary shadow-sm">
+                        <ScanLine className="h-7 w-7" aria-hidden="true" />
+                      </span>
+                      <span className="text-xs font-medium">
+                        Body scan report
+                      </span>
                     </div>
                   )}
                 </div>
-                <div className="p-2 space-y-1">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="truncate">
+                <div className="space-y-2 p-4">
+                  <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span className="truncate font-medium">
                       {(
                         toDateOrNull(it.createdAt) ?? new Date()
-                      ).toLocaleString()}
+                      ).toLocaleDateString()}
                     </span>
                     <span>
                       <span
@@ -228,7 +249,7 @@ export default function HistoryPage() {
                       </span>
                     </span>
                   </div>
-                  {statusMeta.showMetrics && comparable ? (
+                  {showSummaryMetrics ? (
                     <div className="text-sm font-medium">
                       {summary.bodyFatText !== "—"
                         ? `${summary.bodyFatText} BF`
@@ -244,7 +265,7 @@ export default function HistoryPage() {
                   )}
                 </div>
               </button>
-              <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-4">
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
@@ -255,14 +276,14 @@ export default function HistoryPage() {
                       }
                       nav(`/scans/${it.id}`);
                     }}
-                    className="text-[11px] underline"
+                    className="inline-flex min-h-10 items-center rounded-lg text-sm font-semibold text-primary underline-offset-4 hover:underline"
                   >
-                    Open
+                    Open report
                   </button>
                   {statusMeta.recommendRescan && (
                     <button
                       onClick={() => nav("/scan")}
-                      className="text-[11px] underline text-primary"
+                      className="inline-flex min-h-10 items-center rounded-lg text-sm font-semibold text-primary underline-offset-4 hover:underline"
                     >
                       Rescan
                     </button>
@@ -271,7 +292,7 @@ export default function HistoryPage() {
                 {!(demo && !user) ? (
                   <button
                     onClick={() => onDelete(it.id)}
-                    className="text-[11px] text-red-700 underline"
+                    className="inline-flex min-h-10 items-center rounded-lg text-sm font-semibold text-red-700 underline-offset-4 hover:underline"
                     disabled={busyDelete === it.id}
                   >
                     {busyDelete === it.id ? "Deleting…" : "Delete"}

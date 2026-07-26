@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import CreditBadge from "./CreditBadge";
 import BillingButtons from "./BillingButtons";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useClaims } from "@/lib/claims";
 import { useCredits } from "@/hooks/useCredits";
 import { useDemoMode } from "@/components/DemoModeProvider";
@@ -22,79 +24,6 @@ import { getLastPermissionDenied } from "@/lib/devDiagnostics";
 
 export type AppHeaderProps = {
   className?: string;
-};
-
-const wrap: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  padding: "10px 12px",
-  borderBottom: "1px solid #eee",
-  background: "white",
-  position: "sticky",
-  top: 0,
-  zIndex: 100,
-};
-
-const left: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-};
-
-const right: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  flexWrap: "wrap",
-  justifyContent: "flex-end",
-};
-
-const brand: React.CSSProperties = {
-  fontSize: 16,
-  fontWeight: 700,
-  color: "inherit",
-  textDecoration: "none",
-};
-
-const demoPill: React.CSSProperties = {
-  fontSize: 10,
-  padding: "2px 6px",
-  borderRadius: 999,
-  border: "1px solid #facc15",
-  background: "#fef3c7",
-  color: "#92400e",
-};
-
-const signedInAs: React.CSSProperties = {
-  fontSize: 12,
-  color: "#555",
-};
-
-const loginLink: React.CSSProperties = {
-  fontSize: 12,
-  color: "#333",
-  textDecoration: "underline",
-};
-
-const demoBtn: React.CSSProperties = {
-  padding: "8px 10px",
-  border: "1px solid #ddd",
-  borderRadius: 8,
-  background: "white",
-  cursor: "pointer",
-  fontSize: 12,
-};
-
-const devToolsButtonStyle: React.CSSProperties = {
-  padding: "8px 10px",
-  border: "1px solid #d0d7e2",
-  borderRadius: 8,
-  background: "#f8fafc",
-  cursor: "pointer",
-  fontSize: 12,
-  color: "#1f2937",
 };
 
 const drawerStyle: React.CSSProperties = {
@@ -293,7 +222,10 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
   const coachPaths = uid
     ? {
         coachThreads: coachThreadsCollectionPath(uid),
-        coachMessagesExample: coachThreadMessagesCollectionPath(uid, "THREAD_ID"),
+        coachMessagesExample: coachThreadMessagesCollectionPath(
+          uid,
+          "THREAD_ID"
+        ),
         coachLegacyChat: coachChatCollectionPath(uid),
       }
     : null;
@@ -317,74 +249,106 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
 
   return (
     <>
-      <header className={className} style={wrap} role="banner">
-        <div style={left}>
-          <a href="/" style={brand} aria-label="MyBodyScan Home">
-            MyBodyScan
-          </a>
-          <HeaderEnvBadge />
-          {demo && (
-            <span style={demoPill} aria-label="Demo mode active">
-              Demo
-            </span>
-          )}
-        </div>
-
-        <div style={right}>
-          {user ? (
-            <span style={signedInAs} title={formatUserLabel(user.email)}>
-              {formatUserLabel(user.email)}
-            </span>
-          ) : (
-            <a href="/login" style={loginLink} aria-label="Go to login">
-              Sign in
-            </a>
-          )}
-
-          <CreditBadge />
-          <BillingButtons />
-
-          {showDevTools && (
-            <button
-              type="button"
-              style={devToolsButtonStyle}
-              onClick={() => setDevToolsOpen((prev) => !prev)}
-              aria-expanded={devToolsOpen}
-              aria-controls="dev-tools-drawer"
+      <header
+        className={cn(
+          "sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85",
+          className
+        )}
+        role="banner"
+      >
+        <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-3 px-4 py-2 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Link
+              to="/"
+              className="flex min-h-11 items-center gap-2.5 rounded-lg font-semibold tracking-tight text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="MyBodyScan Home"
             >
-              {devToolsOpen ? "Close Dev Tools" : "Dev Tools"}
-            </button>
-          )}
+              <img
+                src="/favicon.svg"
+                alt=""
+                className="h-7 w-7 shrink-0"
+                aria-hidden="true"
+              />
+              <span className="truncate">MyBodyScan</span>
+            </Link>
+            <HeaderEnvBadge />
+            {demo && (
+              <span
+                className="hidden rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 sm:inline-flex"
+                aria-label="Demo mode active"
+              >
+                Demo
+              </span>
+            )}
+          </div>
 
-          {!user && !demo && (
-            <button
-              type="button"
-              onClick={onExploreDemo}
-              style={{
-                ...demoBtn,
-                opacity: pending ? 0.7 : 1,
-                pointerEvents: pending ? "none" : "auto",
-              }}
-              aria-label="Explore Demo"
-              disabled={pending}
-            >
-              {pending ? "Loading…" : "Explore Demo"}
-            </button>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {user ? (
+              <span
+                className="hidden max-w-48 truncate text-xs text-muted-foreground lg:inline"
+                title={formatUserLabel(user.email)}
+              >
+                {formatUserLabel(user.email)}
+              </span>
+            ) : (
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/login" aria-label="Go to login">
+                  Sign in
+                </Link>
+              </Button>
+            )}
 
-          {demo && (
-            <button
-              type="button"
-              onClick={() => {
-                disableDemoEverywhere();
-                navigate("/auth", { replace: true });
-              }}
-              style={demoBtn}
-              aria-label="Leave demo"
-            >
-              Leave demo
-            </button>
-          )}
+            {user ? (
+              <>
+                <CreditBadge />
+                <div className="hidden items-center gap-2 md:flex">
+                  <BillingButtons />
+                </div>
+              </>
+            ) : null}
+
+            {showDevTools && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="hidden sm:inline-flex"
+                onClick={() => setDevToolsOpen((prev) => !prev)}
+                aria-expanded={devToolsOpen}
+                aria-controls="dev-tools-drawer"
+              >
+                {devToolsOpen ? "Close Dev Tools" : "Dev Tools"}
+              </Button>
+            )}
+
+            {!user && !demo && (
+              <Button
+                type="button"
+                onClick={onExploreDemo}
+                variant="outline"
+                size="sm"
+                aria-label="Explore Demo"
+                disabled={pending}
+              >
+                {pending ? "Loading…" : "Explore Demo"}
+              </Button>
+            )}
+
+            {demo && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  disableDemoEverywhere();
+                  navigate("/auth", { replace: true });
+                }}
+                aria-label="Leave demo"
+              >
+                Leave demo
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -421,7 +385,9 @@ function AppHeaderComponent({ className }: AppHeaderProps) {
           <div style={drawerSectionStyle}>
             <div style={drawerSectionHeaderStyle}>System check</div>
             <div style={drawerBodyTextStyle}>uid: {uid ?? "—"}</div>
-            <div style={drawerBodyTextStyle}>entitlement: {entitlementTier}</div>
+            <div style={drawerBodyTextStyle}>
+              entitlement: {entitlementTier}
+            </div>
             <div style={drawerBodyTextStyle}>
               coach paths:
               <pre style={drawerPreStyle}>

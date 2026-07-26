@@ -45,21 +45,23 @@ describe("History page demo routing", () => {
     vi.restoreAllMocks();
   });
 
-  it("demo signed-out 'Open' does not navigate to /auth", () => {
+  it("demo signed-out 'Open report' does not navigate to /auth", () => {
     render(
       <MemoryRouter initialEntries={["/history"]}>
         <Routes>
           <Route path="/history" element={<HistoryPage />} />
-          <Route path="/results/:scanId" element={<div data-testid="results-route" />} />
+          <Route
+            path="/results/:scanId"
+            element={<div data-testid="results-route" />}
+          />
           <Route path="/auth" element={<div data-testid="auth-route" />} />
         </Routes>
       </MemoryRouter>
     );
 
-    fireEvent.click(screen.getByText("Open"));
+    fireEvent.click(screen.getByText("Open report"));
 
     expect(screen.getByTestId("results-route")).toBeTruthy();
     expect(screen.queryByTestId("auth-route")).toBeNull();
   });
 });
-
