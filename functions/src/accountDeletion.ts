@@ -56,6 +56,20 @@ export async function deleteStripeCustomerForUser(
   requestId: string,
   deps: StripeCustomerDeletionDeps = {}
 ): Promise<{ customerIds: string[]; deletedCount: number }> {
+  const usingProductionStripe =
+    deps.findCustomerIds === undefined && deps.deleteCustomer === undefined;
+  if (
+    process.env.FUNCTIONS_EMULATOR === "true" &&
+    usingProductionStripe
+  ) {
+    console.log("account_delete_stripe_skipped", {
+      uid,
+      requestId,
+      reason: "functions_emulator",
+    });
+    return { customerIds: [], deletedCount: 0 };
+  }
+
   const readCustomerId = deps.readCustomerId ?? readCachedStripeCustomerId;
   const findCustomerIds = deps.findCustomerIds ?? findStripeCustomerIds;
   const removeCustomer = deps.deleteCustomer ?? deleteStripeCustomer;

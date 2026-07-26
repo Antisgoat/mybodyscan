@@ -3,6 +3,24 @@ import test from "node:test";
 
 import { deleteStripeCustomerForUser } from "../lib/accountDeletion.js";
 
+test("does not access production Stripe from the Functions emulator", async () => {
+  const priorEmulatorValue = process.env.FUNCTIONS_EMULATOR;
+  process.env.FUNCTIONS_EMULATOR = "true";
+  try {
+    const result = await deleteStripeCustomerForUser(
+      "emulator-user",
+      "req-emulator"
+    );
+    assert.deepEqual(result, { customerIds: [], deletedCount: 0 });
+  } finally {
+    if (priorEmulatorValue === undefined) {
+      delete process.env.FUNCTIONS_EMULATOR;
+    } else {
+      process.env.FUNCTIONS_EMULATOR = priorEmulatorValue;
+    }
+  }
+});
+
 test("skips Stripe deletion when the user has no Stripe customer", async () => {
   let deleteCalls = 0;
   const result = await deleteStripeCustomerForUser("user-no-stripe", "req-1", {
