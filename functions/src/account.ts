@@ -6,6 +6,11 @@ import { getAuth, getFirestore, getStorage } from "./firebase.js";
 import { buildScanPhotoPath, isScanPose } from "./scan/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
 import { deletePushTokenOwnershipForUser } from "./pushTokenOwnership.js";
+import { deleteStripeCustomerForUser } from "./accountDeletion.js";
+import {
+  stripeSecretKeyParam,
+  stripeSecretParam,
+} from "./stripe/keys.js";
 
 const auth = getAuth();
 const db = getFirestore();
@@ -153,6 +158,7 @@ export const deleteMyAccount = onCallWithOptionalAppCheck(
     }
 
     try {
+      await deleteStripeCustomerForUser(uid, requestId);
       await deleteStorageUser(uid, requestId);
       await deleteFirestoreUser(uid, requestId);
       await auth.revokeRefreshTokens(uid);
@@ -168,7 +174,10 @@ export const deleteMyAccount = onCallWithOptionalAppCheck(
       throw new HttpsError("internal", "Unable to delete account right now.");
     }
   },
-  { region: "us-central1" }
+  {
+    region: "us-central1",
+    secrets: [stripeSecretParam, stripeSecretKeyParam],
+  }
 );
 
 export const exportMyData = onCallWithOptionalAppCheck(

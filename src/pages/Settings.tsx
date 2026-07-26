@@ -1360,8 +1360,9 @@ const Settings = () => {
                   <DialogDescription>
                     This will revoke access, delete scans, and erase uploads
                     immediately. You cannot undo this action. It does not cancel
-                    an Apple App Store or Stripe subscription; cancel the
-                    subscription first if you do not want it to renew.
+                    an Apple App Store or Google Play subscription. Cancel store
+                    subscriptions first if you do not want them to renew. A
+                    linked Stripe subscription is canceled during deletion.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
