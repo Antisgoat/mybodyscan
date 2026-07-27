@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { formatWeight, round0, round1, weightKgToLb, weightLbToKg } from "./units";
+import {
+  formatHeightFromCm,
+  formatWeight,
+  round0,
+  round1,
+  weightKgToLb,
+  weightLbToKg,
+} from "./units";
 
 describe("units weight conversions", () => {
   it("converts 188 lb -> 85.3 kg (rounded to 1 decimal)", () => {
@@ -36,3 +43,9 @@ describe("formatWeight (canonical: stored kg)", () => {
   });
 });
 
+describe("formatHeightFromCm", () => {
+  it("uses the selected display system", () => {
+    expect(formatHeightFromCm(182.9, "metric")).toBe("182.9 cm");
+    expect(formatHeightFromCm(182.9, "us")).toBe("6′ 0″");
+  });
+});

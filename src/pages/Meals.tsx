@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  BookOpen,
 } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -39,8 +40,12 @@ import {
   subscribeTemplates,
   saveTemplate,
   deleteTemplate,
+  subscribeCustomFoods,
+  subscribeRecipes,
   type FavoriteDocWithId,
   type TemplateDocWithId,
+  type CustomFoodDocWithId,
+  type RecipeDocWithId,
 } from "@/lib/nutritionCollections";
 import {
   calculateSelection,
@@ -67,6 +72,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
+import {
+  subscribeActiveWeeklyReview,
+  type WeeklyReviewDocument,
+} from "@/lib/weeklyReview";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
@@ -171,6 +180,10 @@ export default function Meals() {
   const [templates, setTemplates] = useState<TemplateDocWithId[]>(() =>
     demo ? DEMO_TEMPLATES : []
   );
+  const [customFoods, setCustomFoods] = useState<CustomFoodDocWithId[]>([]);
+  const [recipes, setRecipes] = useState<RecipeDocWithId[]>([]);
+  const [activeWeeklyReview, setActiveWeeklyReview] =
+    useState<WeeklyReviewDocument | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
@@ -247,6 +260,21 @@ export default function Meals() {
       setFavorites([]);
       return undefined;
     }
+  }, [demo, uid]);
+
+  useEffect(() => {
+    if (demo || !uid) {
+      setCustomFoods([]);
+      setRecipes([]);
+      setActiveWeeklyReview(null);
+      return;
+    }
+    const unsubscribers = [
+      subscribeCustomFoods(setCustomFoods, uid),
+      subscribeRecipes(setRecipes, uid),
+      subscribeActiveWeeklyReview(uid, setActiveWeeklyReview),
+    ];
+    return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [demo, uid]);
 
   useEffect(() => {
@@ -649,7 +677,15 @@ export default function Meals() {
     profile?.weight_kg,
   ]);
 
-  const targetCalories = computedGoals.calories || DEFAULT_DAILY_TARGET;
+  const weeklyCalorieDelta =
+    activeWeeklyReview?.status === "accepted" &&
+    Number.isFinite(activeWeeklyReview.activeCalorieDelta)
+      ? Number(activeWeeklyReview.activeCalorieDelta)
+      : 0;
+  const targetCalories = Math.max(
+    1200,
+    (computedGoals.calories || DEFAULT_DAILY_TARGET) + weeklyCalorieDelta
+  );
   const targetProtein = computedGoals.proteinGrams || 140;
   const targetCarbs = computedGoals.carbsGrams || 0;
   const targetFat = computedGoals.fatGrams || 0;
@@ -756,6 +792,12 @@ export default function Meals() {
               Open my 7-day meal plan
             </a>
           </Button>
+          <Button variant="outline" size="sm" asChild>
+            <a href="/meals/my-foods">
+              <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+              My foods & recipes
+            </a>
+          </Button>
         </div>
 
         {nutritionUnavailable && (
@@ -825,6 +867,15 @@ export default function Meals() {
                 {exerciseCalories} = Remaining{" "}
                 {remainingCalories.toLocaleString()}
               </div>
+              {weeklyCalorieDelta !== 0 ? (
+                <div className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-xs text-primary">
+                  Weekly review: {weeklyCalorieDelta > 0 ? "+" : ""}
+                  {weeklyCalorieDelta} kcal/day.{" "}
+                  <a className="underline" href="/weekly-review">
+                    Review or undo
+                  </a>
+                </div>
+              ) : null}
               <div className="mt-3 h-2 w-full overflow-hidden rounded bg-muted">
                 <div
                   className="h-full bg-primary transition-all"
@@ -1185,6 +1236,31 @@ export default function Meals() {
                   onClick={() => openEditor(item)}
                 >
                   {item.name}
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {(customFoods.length > 0 || recipes.length > 0) && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BookOpen className="h-4 w-4" /> My foods & recipes
+              </CardTitle>
+              <Button size="sm" variant="outline" asChild>
+                <a href="/meals/my-foods">Manage</a>
+              </Button>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+              {[...recipes, ...customFoods].map((entry) => (
+                <Button
+                  key={`${entry.item.source}-${entry.id}`}
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => openEditor(entry.item)}
+                >
+                  {entry.item.name}
                 </Button>
               ))}
             </CardContent>

@@ -1,8 +1,4 @@
-export type MealPlanDiet =
-  | "balanced"
-  | "lower_carb"
-  | "vegetarian"
-  | "vegan";
+export type MealPlanDiet = "balanced" | "lower_carb" | "vegetarian" | "vegan";
 
 export type MealPlanTargets = {
   calories: number;
@@ -26,7 +22,19 @@ export type WeeklyMealPlan = {
   diet: MealPlanDiet;
   dietLabel: string;
   days: MealPlanDay[];
+  allergyAdjusted: boolean;
 };
+
+type AllergenId =
+  | "milk"
+  | "egg"
+  | "fish"
+  | "crustacean_shellfish"
+  | "tree_nuts"
+  | "peanuts"
+  | "wheat"
+  | "soy"
+  | "sesame";
 
 const DAYS = [
   "Monday",
@@ -206,10 +214,7 @@ const LABELS: Record<MealPlanDiet, string> = {
 };
 
 function safeTarget(value: number, fallback: number, min: number): number {
-  return Math.max(
-    min,
-    Math.round(Number.isFinite(value) ? value : fallback)
-  );
+  return Math.max(min, Math.round(Number.isFinite(value) ? value : fallback));
 }
 
 function distribute(total: number): number[] {
@@ -217,6 +222,71 @@ function distribute(total: number): number[] {
   allocations[allocations.length - 1] +=
     total - allocations.reduce((sum, value) => sum + value, 0);
   return allocations;
+}
+
+const ALLERGEN_REPLACEMENTS: Record<AllergenId, Array<[RegExp, string]>> = {
+  milk: [
+    [/\bGreek yogurt\b/gi, "a verified dairy-free yogurt"],
+    [/\bsoy yogurt\b/gi, "a verified dairy-free yogurt"],
+    [/\byogurt\b/gi, "a verified dairy-free yogurt"],
+    [/\bcottage cheese\b/gi, "a verified dairy-free protein"],
+    [/\bstring cheese\b/gi, "a verified dairy-free protein"],
+    [/\bfeta\b/gi, "a verified dairy-free topping"],
+    [/\bcheese\b/gi, "a verified dairy-free topping"],
+    [/\bmilk\b/gi, "a verified dairy-free beverage"],
+  ],
+  egg: [
+    [/\beggs?\b/gi, "a verified egg-free protein"],
+    [/\bomelet\b/gi, "an egg-free breakfast"],
+  ],
+  fish: [
+    [/\bsalmon\b/gi, "chicken or a verified plant protein"],
+    [/\btuna\b/gi, "chicken or chickpeas"],
+    [/\bcod\b/gi, "chicken or a verified plant protein"],
+  ],
+  crustacean_shellfish: [
+    [/\bshrimp\b/gi, "chicken or a verified plant protein"],
+  ],
+  tree_nuts: [
+    [/\bwalnuts?\b/gi, "verified nut-free seeds"],
+    [/\balmonds?\b/gi, "verified nut-free seeds"],
+    [/\bpistachios?\b/gi, "verified nut-free seeds"],
+    [/\bnut butter\b/gi, "verified nut-free seed butter"],
+    [/\btrail mix\b/gi, "a verified nut-free snack mix"],
+  ],
+  peanuts: [
+    [/\bpeanut butter\b/gi, "verified peanut-free seed butter"],
+    [/\bpeanuts?\b/gi, "verified peanut-free seeds"],
+  ],
+  wheat: [
+    [/\bwhole-grain toast\b/gi, "verified wheat-free toast"],
+    [/\bwhole-grain waffles\b/gi, "verified wheat-free waffles"],
+    [/\bwhole-grain crackers\b/gi, "verified wheat-free crackers"],
+    [/\bwrap\b/gi, "verified wheat-free wrap"],
+    [/\bpasta\b/gi, "verified wheat-free pasta"],
+    [/\bpita\b/gi, "verified wheat-free flatbread"],
+    [/\bseitan\b/gi, "a verified wheat-free plant protein"],
+  ],
+  soy: [
+    [/\bsoy yogurt\b/gi, "a verified soy-free yogurt"],
+    [/\bsoy milk\b/gi, "a verified soy-free beverage"],
+    [/\btofu\b/gi, "lentils or a verified soy-free protein"],
+    [/\btempeh\b/gi, "lentils or a verified soy-free protein"],
+    [/\bedamame\b/gi, "green peas or a verified soy-free protein"],
+  ],
+  sesame: [
+    [/\btahini\b/gi, "a verified sesame-free herb sauce"],
+    [/\bhummus\b/gi, "a verified sesame-free bean dip"],
+  ],
+};
+
+function allergyAdjustedTitle(title: string, allergies: AllergenId[]): string {
+  return allergies.reduce((current, allergen) => {
+    return ALLERGEN_REPLACEMENTS[allergen].reduce(
+      (next, [pattern, replacement]) => next.replace(pattern, replacement),
+      current
+    );
+  }, title);
 }
 
 export function normalizeMealPlanDiet(value: unknown): MealPlanDiet {
@@ -238,7 +308,8 @@ export function normalizeMealPlanDiet(value: unknown): MealPlanDiet {
 
 export function buildWeeklyMealPlan(
   requestedTargets: MealPlanTargets,
-  requestedDiet?: unknown
+  requestedDiet?: unknown,
+  requestedAllergies?: unknown
 ): WeeklyMealPlan {
   const targets: MealPlanTargets = {
     calories: safeTarget(requestedTargets.calories, 2200, 1200),
@@ -247,6 +318,16 @@ export function buildWeeklyMealPlan(
     fatGrams: safeTarget(requestedTargets.fatGrams, 70, 0),
   };
   const diet = normalizeMealPlanDiet(requestedDiet);
+  const allergySet = new Set<string>(
+    Array.isArray(requestedAllergies)
+      ? requestedAllergies.filter(
+          (value): value is string => typeof value === "string"
+        )
+      : []
+  );
+  const allergies = Object.keys(ALLERGEN_REPLACEMENTS).filter((value) =>
+    allergySet.has(value)
+  ) as AllergenId[];
   const calories = distribute(targets.calories);
   const protein = distribute(targets.proteinGrams);
   const carbs = distribute(targets.carbsGrams);
@@ -255,12 +336,13 @@ export function buildWeeklyMealPlan(
   return {
     diet,
     dietLabel: LABELS[diet],
+    allergyAdjusted: allergies.length > 0,
     days: DAYS.map((day, dayIndex) => ({
       day,
       totals: targets,
       meals: SLOTS.map((slot, mealIndex) => ({
         slot,
-        title: MEALS[diet][slot][dayIndex],
+        title: allergyAdjustedTitle(MEALS[diet][slot][dayIndex], allergies),
         calories: calories[mealIndex],
         proteinGrams: protein[mealIndex],
         carbsGrams: carbs[mealIndex],

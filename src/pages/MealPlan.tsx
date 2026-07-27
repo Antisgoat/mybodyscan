@@ -8,14 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
 import { buildWeeklyMealPlan } from "@/lib/nutrition/mealPlan";
+import { useNutritionSafety } from "@/hooks/useNutritionSafety";
+import { useActiveWeeklyReview } from "@/hooks/useActiveWeeklyReview";
 
 export default function MealPlan() {
   const { plan, profile } = useUserProfile();
   const [selectedDay, setSelectedDay] = useState(0);
+  const { preferences: nutritionSafety } = useNutritionSafety();
+  const { calorieDelta } = useActiveWeeklyReview();
+  const allergies = nutritionSafety.allergies;
 
-  const goals = useMemo(
-    () =>
-      deriveNutritionGoals({
+  const goals = useMemo(() => {
+    const baseGoals = deriveNutritionGoals({
         weightKg: profile?.weight_kg ?? profile?.weightKg ?? null,
         heightCm: profile?.height_cm ?? profile?.heightCm ?? null,
         age: profile?.age ?? null,
@@ -28,12 +32,18 @@ export default function MealPlan() {
               : null,
         activityLevel: profile?.activity_level ?? null,
         overrides: {
-          calories: plan?.calorieTarget,
+          calories:
+            typeof plan?.calorieTarget === "number"
+              ? plan.calorieTarget
+              : undefined,
           proteinGrams: plan?.proteinFloor,
         },
-      }),
-    [plan?.calorieTarget, plan?.proteinFloor, profile]
-  );
+      });
+    return {
+      ...baseGoals,
+      calories: Math.max(1200, baseGoals.calories + calorieDelta),
+    };
+  }, [calorieDelta, plan?.calorieTarget, plan?.proteinFloor, profile]);
 
   const weeklyPlan = useMemo(
     () =>
@@ -44,9 +54,10 @@ export default function MealPlan() {
           carbsGrams: goals.carbsGrams,
           fatGrams: goals.fatGrams,
         },
-        profile?.diet_preference ?? profile?.diet
+        profile?.diet_preference ?? profile?.diet,
+        allergies
       ),
-    [goals, profile?.diet, profile?.diet_preference]
+    [allergies, goals, profile?.diet, profile?.diet_preference]
   );
   const activeDay = weeklyPlan.days[selectedDay] ?? weeklyPlan.days[0];
 
@@ -102,6 +113,32 @@ export default function MealPlan() {
             ))}
           </CardContent>
         </Card>
+
+        {weeklyPlan.allergyAdjusted ? (
+          <Alert>
+            <AlertTitle>Adjusted for saved allergy selections</AlertTitle>
+            <AlertDescription>
+              Obvious matching ingredients were replaced with general
+              alternatives. This is not an allergen-safety guarantee—verify
+              every current label and cross-contact warning.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {calorieDelta !== 0 ? (
+          <Alert>
+            <AlertTitle>Weekly review is active</AlertTitle>
+            <AlertDescription>
+              Your accepted adjustment changes this outline by{" "}
+              {calorieDelta > 0 ? "+" : ""}
+              {calorieDelta} kcal per day. You can review or undo it from the{" "}
+              <a className="underline" href="/weekly-review">
+                weekly review
+              </a>
+              .
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
         <div
           className="flex gap-2 overflow-x-auto pb-1"

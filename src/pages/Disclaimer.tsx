@@ -29,6 +29,13 @@ const Disclaimer = () => {
           emergency care for chest pain, fainting, severe dizziness, trouble
           breathing, or other serious symptoms.
         </p>
+        <p>
+          Food and allergen information can be incomplete or outdated, and
+          manufacturers may change ingredients or cross-contact practices. Saved
+          allergy preferences do not guarantee that a food is safe. Always check
+          the current package label and contact the manufacturer or a qualified
+          clinician when uncertain.
+        </p>
       </article>
     </>
   );

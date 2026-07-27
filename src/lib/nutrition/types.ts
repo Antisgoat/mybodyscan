@@ -1,4 +1,8 @@
-export type NutritionSource = "USDA" | "Open Food Facts";
+export type NutritionSource =
+  | "USDA"
+  | "Open Food Facts"
+  | "User label"
+  | "User recipe";
 
 export interface MacroBreakdown {
   kcal: number;

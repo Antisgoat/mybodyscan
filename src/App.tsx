@@ -78,6 +78,8 @@ import MealsHistory from "./pages/MealsHistory";
 import ScanTips from "./pages/ScanTips";
 import WorkoutsLibrary from "./pages/WorkoutsLibrary";
 import WorkoutsCompleted from "./pages/WorkoutsCompleted";
+import WeeklyReview from "./pages/WeeklyReview";
+import FoodBuilder from "./pages/FoodBuilder";
 import HealthSync from "./pages/HealthSync";
 import { RouteBoundary } from "./components/RouteBoundary";
 import { FeatureGate } from "./components/FeatureGate";
@@ -100,7 +102,6 @@ import { useToast } from "@/hooks/use-toast";
 
 const loadPublicLayout = () => import("./components/PublicLayout");
 const PublicLayout = lazy(loadPublicLayout);
-const OnboardingMBS = lazy(() => import("./pages/OnboardingMBS"));
 const DevAudit = lazy(() => import("./pages/DevAudit"));
 const Scan = lazy(() => import("./pages/Scan"));
 const Plans = lazy(() => import("./pages/Plans"));
@@ -599,6 +600,44 @@ const App = () => (
                   <AuthedLayout>
                     <RouteBoundary>
                       <WorkoutsCompleted />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/weekly-review"
+          element={
+            <FeatureGate
+              name="coach"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <WeeklyReview />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
+        />
+        <Route
+          path="/meals/my-foods"
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <FoodBuilder />
                     </RouteBoundary>
                   </AuthedLayout>
                 </PersonalizationGate>
@@ -1311,14 +1350,9 @@ const App = () => (
         {allowInternalTools && (
           <Route path="/debug/health" element={<DebugHealth />} />
         )}
-        {/* MBS Onboarding */}
         <Route
           path="/onboarding-mbs"
-          element={
-            <PageSuspense>
-              <OnboardingMBS />
-            </PageSuspense>
-          }
+          element={<Navigate to="/onboarding" replace />}
         />
         {/* Friendly not-found route and wildcard */}
         <Route path="/not-found" element={<NotFound />} />

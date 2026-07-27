@@ -174,6 +174,7 @@ export default function CoachChatPage() {
   );
   const [pending, setPending] = useState(false);
   const [input, setInput] = useState("");
+  const appliedPrefillRef = useRef(false);
   const [regenerating, setRegenerating] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
   const [hydratingHistory, setHydratingHistory] = useState(false);
@@ -200,6 +201,14 @@ export default function CoachChatPage() {
   });
   const coachInteractive = coachAvailable && coachEntitled;
   const { totals, latestScan } = useCoachTodayAtAGlance();
+
+  useEffect(() => {
+    if (appliedPrefillRef.current) return;
+    const prefill = new URLSearchParams(location.search).get("prefill");
+    if (!prefill?.trim()) return;
+    appliedPrefillRef.current = true;
+    setInput(prefill.trim().slice(0, 1200));
+  }, [location.search]);
 
   const startListening = () => {
     if (!supportsSpeech || listening) return;

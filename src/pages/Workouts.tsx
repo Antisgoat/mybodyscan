@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dumbbell, Plus } from "lucide-react";
+import {
+  Dumbbell,
+  HeartPulse,
+  Play,
+  Plus,
+  Repeat2,
+  Square,
+  Timer,
+} from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { useI18n } from "@/lib/i18n";
 import {
@@ -12,6 +20,7 @@ import {
   markExerciseDone,
   getWeeklyCompletion,
   logWorkoutExercise,
+  updateWorkoutPlanRemote,
 } from "@/lib/workouts";
 import { isDemoActive } from "@/lib/demoFlag";
 import { track } from "@/lib/analytics";
@@ -36,6 +45,18 @@ import {
   isPR,
   progressionTip,
 } from "@/lib/workoutsProgression";
+import {
+  calculateWorkoutVolume,
+  formatSessionTime,
+  suggestExerciseSwaps,
+} from "@/lib/workoutSession";
+import { useUnits } from "@/hooks/useUnits";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -48,11 +69,16 @@ function localDateKey(date = new Date()) {
 
 export default function Workouts() {
   const { user } = useAuthUser();
+  const { units } = useUnits();
   const { t } = useI18n();
   const demo = isDemoActive();
   const location = useLocation();
   const nav = useNavigate();
-  const searchParams = new URLSearchParams(location.search);
+  const searchParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search]
+  );
+  const userUid = user?.uid ?? null;
   const requestedPlanId = searchParams.get("plan");
   const startedParam = searchParams.get("started") === "1";
   const fromPlanStartParam = searchParams.get("fromPlanStart") === "1";
@@ -107,6 +133,24 @@ export default function Workouts() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activationPending, setActivationPending] = useState(false);
   const [showPlanStartHint, setShowPlanStartHint] = useState(false);
+  const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [restDuration, setRestDuration] = useState(90);
+  const [restRemaining, setRestRemaining] = useState(0);
+  const [sessionSummary, setSessionSummary] = useState<{
+    durationSeconds: number;
+    completedExercises: number;
+    totalExercises: number;
+    volume: number;
+    volumeUnit: "lb" | "kg";
+    includedExercises: number;
+  } | null>(null);
+  const [swapTarget, setSwapTarget] = useState<{
+    dayIndex: number;
+    exerciseIndex: number;
+    exercise: WorkoutExercise;
+  } | null>(null);
+  const [swapping, setSwapping] = useState(false);
   const { health: systemHealth, error: healthError } = useSystemHealth();
   const { workoutsConfigured, workoutAdjustConfigured } = demo
     ? { workoutsConfigured: true, workoutAdjustConfigured: true }
@@ -125,13 +169,41 @@ export default function Workouts() {
   const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
   const completedCount = completed.length;
   const totalCount = todayExercises.length;
+  const swapSuggestions = useMemo(
+    () =>
+      swapTarget?.exercise.name
+        ? suggestExerciseSwaps(swapTarget.exercise.name, 6)
+        : [],
+    [swapTarget]
+  );
+  const restTimerActive = restRemaining > 0;
+
+  useEffect(() => {
+    if (sessionStartedAt == null) return;
+    const update = () => {
+      setElapsedSeconds(
+        Math.max(0, Math.round((Date.now() - sessionStartedAt) / 1000))
+      );
+    };
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [sessionStartedAt]);
+
+  useEffect(() => {
+    if (!restTimerActive) return;
+    const interval = window.setInterval(() => {
+      setRestRemaining((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [restTimerActive]);
 
   const loadProgress = useCallback(
     async (p: WorkoutPlan, isCancelled?: () => boolean) => {
       if (!workoutsConfigured || !p || !Array.isArray(p.days)) return;
       const idx = p.days.findIndex((d) => d.day === todayName);
       if (idx < 0) return;
-      const uid = user?.uid ?? null;
+      const uid = userUid;
       if (!uid) return;
       try {
         const snap = await getDoc(
@@ -164,13 +236,13 @@ export default function Workouts() {
         }
       }
     },
-    [todayISO, todayName, workoutsConfigured]
+    [todayISO, todayName, userUid, workoutsConfigured]
   );
 
   const loadRecentLogs = useCallback(
     async (p: WorkoutPlan, isCancelled?: () => boolean) => {
       if (!p?.id) return;
-      const uid = user?.uid ?? null;
+      const uid = userUid;
       if (!uid) return;
       try {
         const col = collection(
@@ -266,7 +338,7 @@ export default function Workouts() {
         }
       }
     },
-    [todayISO]
+    [todayISO, userUid]
   );
 
   const logKey = useCallback(
@@ -446,7 +518,88 @@ export default function Workouts() {
     void hydrate();
 
     return cleanup;
-  }, [loadProgress, requestedPlanId, workoutsConfigured]);
+  }, [loadProgress, loadRecentLogs, requestedPlanId, workoutsConfigured]);
+
+  const startSession = () => {
+    setSessionStartedAt(Date.now());
+    setElapsedSeconds(0);
+    setRestRemaining(0);
+    setSessionSummary(null);
+    track("workout_session_start", { planId: plan?.id ?? null });
+  };
+
+  const finishSession = () => {
+    if (sessionStartedAt == null) return;
+    const durationSeconds = Math.max(
+      elapsedSeconds,
+      Math.round((Date.now() - sessionStartedAt) / 1000)
+    );
+    const volume = calculateWorkoutVolume(todayExercises, exerciseLogs, units);
+    setSessionSummary({
+      durationSeconds,
+      completedExercises: completed.length,
+      totalExercises: totalCount,
+      volume: volume.value,
+      volumeUnit: volume.unit,
+      includedExercises: volume.includedExercises,
+    });
+    setSessionStartedAt(null);
+    setRestRemaining(0);
+    track("workout_session_finish", {
+      planId: plan?.id ?? null,
+      durationSeconds,
+      completedExercises: completed.length,
+      totalExercises: totalCount,
+    });
+  };
+
+  const completeSwap = async (replacementName: string) => {
+    if (!plan || !swapTarget) return;
+    setSwapping(true);
+    try {
+      await updateWorkoutPlanRemote({
+        planId: plan.id,
+        op: {
+          type: "update_exercise",
+          dayIndex: swapTarget.dayIndex,
+          exerciseIndex: swapTarget.exerciseIndex,
+          name: replacementName,
+        },
+      });
+      setPlan((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          days: current.days.map((day, dayIndex) =>
+            dayIndex !== swapTarget.dayIndex
+              ? day
+              : {
+                  ...day,
+                  exercises: day.exercises.map((exercise, exerciseIndex) =>
+                    exerciseIndex === swapTarget.exerciseIndex
+                      ? { ...exercise, name: replacementName }
+                      : exercise
+                  ),
+                }
+          ),
+        };
+      });
+      toast({
+        title: "Exercise swapped",
+        description:
+          "The movement changed while this exercise slot kept its log history.",
+      });
+      setSwapTarget(null);
+    } catch (error) {
+      toast({
+        title: "Unable to swap exercise",
+        description: error instanceof Error ? error.message : "Try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSwapping(false);
+    }
+  };
 
   const handleToggle = async (exerciseId: string) => {
     if (!plan || !Array.isArray(plan.days)) return;
@@ -463,13 +616,24 @@ export default function Workouts() {
     const done = !completed.includes(exerciseId);
     try {
       const res = await markExerciseDone(plan.id, idx, exerciseId, done);
-      setCompleted(
-        done
-          ? [...completed, exerciseId]
-          : completed.filter((id) => id !== exerciseId)
-      );
+      const nextCompleted = done
+        ? Array.from(new Set([...completed, exerciseId]))
+        : completed.filter((id) => id !== exerciseId);
+      setCompleted(nextCompleted);
       setRatio(res.ratio);
-      if (done) track("workout_mark_done", { exerciseId });
+      if (done) {
+        track("workout_mark_done", { exerciseId });
+        if (sessionStartedAt == null) {
+          setSessionStartedAt(Date.now());
+          setElapsedSeconds(0);
+          setSessionSummary(null);
+        }
+        if (nextCompleted.length < totalCount) {
+          setRestRemaining(restDuration);
+        }
+      } else {
+        setRestRemaining(0);
+      }
       if (isDemoActive()) toast({ title: "Sign up to save your progress." });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "";
@@ -818,6 +982,102 @@ export default function Workouts() {
             style={{ width: `${ratio * 100}%` }}
           />
         </div>
+        <Card className="border-primary/20">
+          <CardContent className="space-y-3 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 font-medium">
+                  <Timer className="h-4 w-4 text-primary" aria-hidden="true" />
+                  Workout session
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {sessionStartedAt != null
+                    ? `Elapsed ${formatSessionTime(elapsedSeconds)}`
+                    : "Start the clock when you begin your first working set."}
+                </p>
+              </div>
+              {sessionStartedAt == null ? (
+                <Button
+                  onClick={startSession}
+                  disabled={!todayExercises.length}
+                >
+                  <Play className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Start workout
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={finishSession}>
+                  <Square className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Finish
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Rest timer:</span>
+              {[60, 90, 120].map((seconds) => (
+                <Button
+                  key={seconds}
+                  size="sm"
+                  variant={restDuration === seconds ? "default" : "outline"}
+                  onClick={() => setRestDuration(seconds)}
+                >
+                  {seconds}s
+                </Button>
+              ))}
+              {restRemaining > 0 ? (
+                <span
+                  className="rounded-full bg-primary/10 px-3 py-1 font-semibold tabular-nums text-primary"
+                  role="timer"
+                  aria-live={restRemaining <= 5 ? "polite" : "off"}
+                >
+                  Rest {formatSessionTime(restRemaining)}
+                </span>
+              ) : null}
+            </div>
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-left"
+              onClick={() =>
+                nav(
+                  "/coach/chat?prefill=Something%20hurts%20during%20today%27s%20workout.%20Help%20me%20choose%20a%20pain-free%20alternative%20without%20diagnosing%20the%20cause."
+                )
+              }
+            >
+              <HeartPulse className="mr-2 h-4 w-4" aria-hidden="true" />
+              Something hurts — ask Coach for a safer alternative
+            </Button>
+          </CardContent>
+        </Card>
+
+        {sessionSummary ? (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="text-lg">Session complete</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Duration</p>
+                <p className="font-semibold">
+                  {formatSessionTime(sessionSummary.durationSeconds)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Exercises</p>
+                <p className="font-semibold">
+                  {sessionSummary.completedExercises} /{" "}
+                  {sessionSummary.totalExercises}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Logged volume</p>
+                <p className="font-semibold">
+                  {sessionSummary.includedExercises > 0
+                    ? `${sessionSummary.volume.toLocaleString()} ${sessionSummary.volumeUnit}`
+                    : "Add weight + reps"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         {todayExercises.length > 0 ? (
           <div className="space-y-4">
             {today?.coachGuidance ? (
@@ -922,8 +1182,62 @@ export default function Workouts() {
                             >
                               Copy last
                             </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                const dayIndex = plan.days.findIndex(
+                                  (day) => day.day === todayName
+                                );
+                                const exerciseIndex = todayExercises.findIndex(
+                                  (exercise) => exercise.id === ex.id
+                                );
+                                if (dayIndex >= 0 && exerciseIndex >= 0) {
+                                  setSwapTarget({
+                                    dayIndex,
+                                    exerciseIndex,
+                                    exercise: ex,
+                                  });
+                                }
+                              }}
+                            >
+                              <Repeat2
+                                className="mr-2 h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              Swap
+                            </Button>
                           </div>
-                        ) : null}
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={() => {
+                              const dayIndex = plan.days.findIndex(
+                                (day) => day.day === todayName
+                              );
+                              const exerciseIndex = todayExercises.findIndex(
+                                (exercise) => exercise.id === ex.id
+                              );
+                              if (dayIndex >= 0 && exerciseIndex >= 0) {
+                                setSwapTarget({
+                                  dayIndex,
+                                  exerciseIndex,
+                                  exercise: ex,
+                                });
+                              }
+                            }}
+                          >
+                            <Repeat2
+                              className="mr-2 h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            Swap
+                          </Button>
+                        )}
                         {tip ? (
                           <p className="mt-2 text-xs text-muted-foreground">
                             {tip}
@@ -935,7 +1249,7 @@ export default function Workouts() {
                             placeholder={
                               lastLog?.load
                                 ? `Weight (last: ${lastLog.load})`
-                                : "Weight (e.g. 135lb)"
+                                : `Weight (e.g. ${units === "metric" ? "60 kg" : "135 lb"})`
                             }
                             value={current.load ?? ""}
                             onChange={(e) => {
@@ -1011,6 +1325,12 @@ export default function Workouts() {
                 </Card>
               );
             })}
+            {sessionStartedAt != null ? (
+              <Button className="w-full" onClick={finishSession}>
+                <Square className="mr-2 h-4 w-4" aria-hidden="true" />
+                Finish workout
+              </Button>
+            ) : null}
             <Card>
               <CardContent className="p-4 space-y-3">
                 <div className="font-medium text-foreground">
@@ -1074,6 +1394,60 @@ export default function Workouts() {
           </Card>
         )}
       </main>
+      <Dialog
+        open={Boolean(swapTarget)}
+        onOpenChange={(open) => {
+          if (!open && !swapping) setSwapTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Swap exercise</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Replace {swapTarget?.exercise.name ?? "this exercise"} with the
+              same broad movement pattern. The exercise slot keeps its ID, so
+              your prior log history stays connected.
+            </p>
+            {swapSuggestions.length ? (
+              <div className="grid gap-2">
+                {swapSuggestions.map((suggestion) => (
+                  <Button
+                    key={suggestion.id}
+                    variant="outline"
+                    className="min-h-11 justify-start text-left"
+                    disabled={swapping}
+                    onClick={() => completeSwap(suggestion.name)}
+                  >
+                    <span>
+                      <span className="block font-medium">
+                        {suggestion.name}
+                      </span>
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {suggestion.equipment.join(", ")} ·{" "}
+                        {suggestion.difficulty}
+                      </span>
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            ) : (
+              <Alert>
+                <AlertTitle>No automatic match</AlertTitle>
+                <AlertDescription>
+                  Use Customize plan to pick from the full exercise library, or
+                  ask Coach for a pain-free alternative.
+                </AlertDescription>
+              </Alert>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Stop any movement that causes sharp, severe, or worsening pain.
+              Exercise swaps are general wellness suggestions, not a diagnosis.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

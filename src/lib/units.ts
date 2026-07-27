@@ -67,7 +67,11 @@ export function formatWeight(
     | number
     | null
     | undefined
-    | { kg: number | null | undefined; preferredUnit: WeightUnit; digits?: number },
+    | {
+        kg: number | null | undefined;
+        preferredUnit: WeightUnit;
+        digits?: number;
+      },
   b?: WeightUnit,
   c?: number
 ): { value: number | null; label: WeightUnit; unitLabel: WeightUnit } {
@@ -94,7 +98,9 @@ export function formatWeight(
   }
   const raw = normalized.preferredUnit === "kg" ? kg : kgToLb(kg);
   const factor = Math.pow(10, digits);
-  const rounded = Number.isFinite(raw) ? Math.round(raw * factor) / factor : NaN;
+  const rounded = Number.isFinite(raw)
+    ? Math.round(raw * factor) / factor
+    : NaN;
   const value = Number.isFinite(rounded) ? rounded : null;
   return {
     value,
@@ -112,11 +118,17 @@ export function formatWeightFromKg(
   if (kg == null) return "—";
   const preferredUnit: WeightUnit = units === "metric" ? "kg" : "lb";
   const formatted = formatWeight({ kg, preferredUnit, digits });
-  return formatted.value != null ? `${formatted.value.toFixed(digits)} ${formatted.unitLabel}` : "—";
+  return formatted.value != null
+    ? `${formatted.value.toFixed(digits)} ${formatted.unitLabel}`
+    : "—";
 }
 
-export function formatHeightFromCm(cm?: number): string {
+export function formatHeightFromCm(
+  cm?: number,
+  units: DisplayUnits = "us"
+): string {
   if (cm == null) return "—";
+  if (units === "metric") return `${round1(cm)} cm`;
   const { ft, inches } = inToFtIn(cmToIn(cm));
   return `${ft}′ ${inches}″`;
 }

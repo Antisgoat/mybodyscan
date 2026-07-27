@@ -1,6 +1,12 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { doc, serverTimestamp } from "firebase/firestore";
+import { useAuthUser } from "@/auth/mbs-auth";
+import { db } from "@/lib/firebase";
+import { setDoc } from "@/lib/dbWrite";
 
-const KEY = "mbs_policy_ok_v1";
+// Bump when materially new data/health terms require renewed acknowledgment.
+const KEY = "mbs_policy_ok_v2";
+const POLICY_VERSION = "2026-07-27";
 
 function hasAcceptedPolicies(): boolean {
   if (typeof window === "undefined") return true;
@@ -12,11 +18,34 @@ function hasAcceptedPolicies(): boolean {
 }
 
 export default function PolicyGate(_props: { children?: React.ReactNode }) {
+  const { user } = useAuthUser();
   const [accepted, setAccepted] = useState(hasAcceptedPolicies);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
   const allAccepted = acceptedTerms && acceptedPrivacy && acceptedDisclaimer;
+  const syncedUserRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!accepted || !user?.uid) return;
+    const syncKey = `${user.uid}:${POLICY_VERSION}`;
+    if (syncedUserRef.current === syncKey) return;
+    syncedUserRef.current = syncKey;
+    void setDoc(
+      doc(db, "users", user.uid, "settings", "legalConsent"),
+      {
+        version: POLICY_VERSION,
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        acceptedDisclaimer: true,
+        acceptedAt: serverTimestamp(),
+      },
+      { merge: true }
+    ).catch((error) => {
+      syncedUserRef.current = null;
+      console.warn("policy_consent_sync_failed", error);
+    });
+  }, [accepted, user?.uid]);
 
   function onAccept() {
     if (!allAccepted) return;

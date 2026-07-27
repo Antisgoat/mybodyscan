@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Effective date: July 22, 2026**
+**Effective date: July 27, 2026**
 
 These Terms of Service ("Terms") govern your access to and use of MyBodyScan, which is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). By creating an account, purchasing a product, or using the service, you agree to these Terms.
 
@@ -24,7 +24,9 @@ These Terms of Service ("Terms") govern your access to and use of MyBodyScan, wh
 - Body composition, weight, nutrition, barcode, and other outputs are estimates or calculations based on the information and images available. They may be incomplete or inaccurate and must not be treated as exact measurements.
 - Visual observations describe visible image features without claiming exact regional fat amounts. A transformation preview is an optional motivational illustration—not a prediction, clinical simulation, or guarantee of future appearance or results.
 - Food scores and alternatives use MyBodyScan's own disclosed product-insight method. They are informational, may rely on third-party data, and are not endorsements or medical nutrition advice.
+- Allergy and ingredient information may be incomplete, outdated, or affected by recipe changes and cross-contact. Saved allergy preferences help personalize warnings but are not a guarantee that a food is safe. You are responsible for checking the current package label and contacting the manufacturer or a qualified clinician when uncertain.
 - Exercise and nutrition involve risk. Consult a qualified professional before making material changes, particularly if you are pregnant, under 18, have an eating-disorder history, take medication, recently had surgery, or have a medical condition. Stop and seek appropriate care for concerning symptoms.
+- Weekly plan adjustments are conservative wellness suggestions. You decide whether to accept them and can undo them; do not use them as treatment or train through sharp, severe, or worsening pain.
 
 ## Your Content
 

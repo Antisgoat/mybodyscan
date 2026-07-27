@@ -39,6 +39,6 @@ describe("PolicyGate", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeNull();
     });
-    expect(window.localStorage.getItem("mbs_policy_ok_v1")).toBe("1");
+    expect(window.localStorage.getItem("mbs_policy_ok_v2")).toBe("1");
   });
 });

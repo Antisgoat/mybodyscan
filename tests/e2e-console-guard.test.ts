@@ -46,4 +46,21 @@ describe("live E2E console guard", () => {
       )
     ).toBe(false);
   });
+
+  it("allows Firestore offline fallback only in local preview", () => {
+    const message =
+      "@firebase/firestore: Firestore (11.10.0): Could not reach Cloud Firestore backend.";
+    expect(
+      isBenignConsoleError(
+        message,
+        "http://127.0.0.1:4173/assets/firebase.js"
+      )
+    ).toBe(true);
+    expect(
+      isBenignConsoleError(
+        message,
+        "https://mybodyscanapp.com/assets/firebase.js"
+      )
+    ).toBe(false);
+  });
 });

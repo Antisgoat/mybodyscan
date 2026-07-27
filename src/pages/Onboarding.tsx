@@ -23,6 +23,11 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  MAJOR_ALLERGENS,
+  normalizeAllergens,
+  type MajorAllergen,
+} from "@/lib/nutrition/allergens";
 
 const STEP_TITLES = [
   "About You",
@@ -67,6 +72,8 @@ type OnboardingForm = {
   diet?: Diet;
   likes?: string;
   notifications?: boolean;
+  allergies?: MajorAllergen[];
+  allergyNotes?: string;
 };
 
 type OnboardingPayload = {
@@ -82,6 +89,8 @@ type OnboardingPayload = {
   diet?: Diet;
   likes?: string;
   notifications?: boolean;
+  allergies?: MajorAllergen[];
+  allergyNotes?: string;
 };
 
 type PersistMetaPayload = Partial<{
@@ -203,6 +212,8 @@ const coerceFormFromStored = (raw: unknown): OnboardingForm => {
       typeof data.notifications === "boolean"
         ? (data.notifications as boolean)
         : undefined,
+    allergies: normalizeAllergens(data.allergies),
+    allergyNotes: sanitizeText(data.allergyNotes),
   };
 };
 
@@ -253,6 +264,9 @@ const normalizeForm = (form: OnboardingForm): OnboardingPayload => {
   if (likes) payload.likes = likes;
   if (typeof form.notifications === "boolean")
     payload.notifications = form.notifications;
+  payload.allergies = normalizeAllergens(form.allergies);
+  const allergyNotes = sanitizeText(form.allergyNotes);
+  if (allergyNotes) payload.allergyNotes = allergyNotes;
   return payload;
 };
 
@@ -820,6 +834,59 @@ export default function Onboarding() {
                     updateForm({ likes: event.target.value })
                   }
                 />
+              </div>
+              <fieldset className="space-y-2">
+                <legend className="text-sm font-medium">
+                  Major food allergies (select all that apply)
+                </legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {MAJOR_ALLERGENS.map((allergen) => {
+                    const selected = (form.allergies ?? []).includes(
+                      allergen.id
+                    );
+                    return (
+                      <label
+                        key={allergen.id}
+                        className="flex min-h-11 items-center gap-2 rounded-md border p-2 text-sm"
+                      >
+                        <Checkbox
+                          checked={selected}
+                          onCheckedChange={(checked) =>
+                            updateForm({
+                              allergies:
+                                checked === true
+                                  ? [...(form.allergies ?? []), allergen.id]
+                                  : (form.allergies ?? []).filter(
+                                      (value) => value !== allergen.id
+                                    ),
+                            })
+                          }
+                        />
+                        {allergen.label}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              <div>
+                <Label htmlFor="allergy-notes">
+                  Other allergies, dietary restrictions, or cross-contact
+                  concerns
+                </Label>
+                <Input
+                  id="allergy-notes"
+                  placeholder="Optional"
+                  value={form.allergyNotes ?? ""}
+                  maxLength={280}
+                  onChange={(event) =>
+                    updateForm({ allergyNotes: event.target.value })
+                  }
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Recommendations may rely on incomplete third-party label data.
+                  Always verify the current package label and manufacturer
+                  guidance.
+                </p>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox

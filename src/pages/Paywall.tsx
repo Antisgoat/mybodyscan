@@ -217,10 +217,11 @@ export default function PaywallPage() {
           <ul className="space-y-2 text-sm">
             {[
               "Source-labeled four-photo body reports",
-              "Personalized workout plans and progression",
-              "Personalized 7-day meal plans, targets, and meal logging",
-              "MBS Product Insight and same-category alternatives",
-              "Scan comparisons, AI Coach, and opt-in plateau check-ins",
+              "Workout sessions, progress logging, timers, and smart swaps",
+              "7-day meal plans, nutrition tracking, recipes, and saved foods",
+              "Barcode insights, label context, and same-category alternatives",
+              "AI Coach plus approval-based weekly plan reviews",
+              "Scan comparisons and opt-in plateau check-ins",
               "Process-based daily Momentum without appearance rankings",
               "Optional adult Transformation Previews",
             ].map((feature) => (

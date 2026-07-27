@@ -98,7 +98,9 @@ function hasAnyPerServingMacro(item: FoodItem): boolean {
     item.per_serving?.carbs_g,
     item.per_serving?.fat_g,
   ];
-  return values.some((value) => value != null && Number.isFinite(Number(value)));
+  return values.some(
+    (value) => value != null && Number.isFinite(Number(value))
+  );
 }
 
 export function availableServingUnits(item: FoodItem): ServingUnit[] {
@@ -175,8 +177,7 @@ function gramsForSelection(
       return qty * GRAMS_PER_OUNCE;
     case "ml":
       return null;
-    case "serving":
-    {
+    case "serving": {
       // A labeled liquid serving has valid per-serving nutrients but no known
       // mass. Do not silently substitute the generic 100 g option.
       if (
@@ -216,10 +217,7 @@ export function calculateSelection(
   // Guardrail: if upstream items are missing per-serving macros, treat as unknown (nulls),
   // never throw during render.
   const perServing = (item as any)?.per_serving ?? null;
-  const hasPer100Field = Object.prototype.hasOwnProperty.call(
-    item,
-    "per_100g"
-  );
+  const hasPer100Field = Object.prototype.hasOwnProperty.call(item, "per_100g");
   const per100 = hasPer100Field
     ? ((item as any)?.per_100g ?? null)
     : item.basePer100g
@@ -300,7 +298,11 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): FoodItem {
     source:
       snapshot.source === "Open Food Facts" || snapshot.source === "OFF"
         ? "Open Food Facts"
-        : "USDA",
+        : snapshot.source === "User label"
+          ? "User label"
+          : snapshot.source === "User recipe"
+            ? "User recipe"
+            : "USDA",
     basePer100g: snapshot.per_100g
       ? {
           kcal: snapshot.per_100g.kcal ?? 0,
