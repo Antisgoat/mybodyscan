@@ -175,7 +175,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0"
+                    className="h-11 w-11 p-0"
                     aria-label="Open account menu"
                   >
                     <Avatar className="h-8 w-8">
@@ -206,7 +206,7 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0"
+                    className="h-11 w-11 p-0"
                     aria-label="Open navigation menu"
                   >
                     <Menu className="h-4 w-4" />
