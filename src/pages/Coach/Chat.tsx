@@ -46,6 +46,7 @@ import { canUseCoach } from "@/lib/entitlements";
 import { recordPermissionDenied } from "@/lib/devDiagnostics";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { isNative } from "@/lib/platform";
+import { Mic, MicOff } from "lucide-react";
 
 declare global {
   interface Window {
@@ -944,7 +945,7 @@ export default function CoachChatPage() {
       data-testid="route-coach"
     >
       <Seo
-        title="Coach Chat ? MyBodyScan"
+        title="Coach Chat | MyBodyScan"
         description="Talk to your AI coach and refresh your weekly plan."
       />
       <ErrorBoundary
@@ -966,7 +967,7 @@ export default function CoachChatPage() {
           ) : null}
           {showPlanMissing ? (
             <Alert variant="default" data-testid="coach-plan-missing">
-              <AlertTitle>No plan yet ? create one</AlertTitle>
+              <AlertTitle>No plan yet — create one</AlertTitle>
               <AlertDescription>
                 Start a conversation or regenerate the weekly plan below to get
                 your first program.
@@ -976,7 +977,7 @@ export default function CoachChatPage() {
           {initializing && (
             <Card className="border border-dashed border-primary/40 bg-primary/5">
               <CardContent className="text-sm text-primary">
-                Preparing secure chat? replies will appear once verification
+                Preparing secure chat; replies will appear once verification
                 completes.
               </CardContent>
             </Card>
@@ -1052,7 +1053,7 @@ export default function CoachChatPage() {
                       {formattedMessages.map((message) => (
                         <div key={message.id} className="space-y-2">
                           <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                            {message.role === "user" ? "You" : "Coach"} ?{" "}
+                            {message.role === "user" ? "You" : "Coach"} ·{" "}
                             {formatDistanceToNow(message.createdAt, {
                               addSuffix: true,
                             })}
@@ -1155,12 +1156,24 @@ export default function CoachChatPage() {
                           !coachInteractive
                         }
                         data-testid="coach-mic"
+                        aria-label={
+                          supportsSpeech
+                            ? listening
+                              ? "Stop voice input"
+                              : "Start voice input"
+                            : "Voice input unavailable"
+                        }
                       >
+                        {listening ? (
+                          <MicOff className="mr-2 h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <Mic className="mr-2 h-4 w-4" aria-hidden="true" />
+                        )}
                         {supportsSpeech
                           ? listening
-                            ? "? Stop"
-                            : "?? Speak"
-                          : "?? N/A"}
+                            ? "Stop"
+                            : "Speak"
+                          : "Unavailable"}
                       </Button>
                       {pending ? (
                         <Button disabled data-testid="coach-send-button">
@@ -1196,8 +1209,8 @@ export default function CoachChatPage() {
                   <CardTitle className="text-xl">Weekly plan</CardTitle>
                   {plan ? (
                     <p className="text-sm text-muted-foreground">
-                      {plan.days} days ? {plan.split} ? Protein ?{" "}
-                      {plan.proteinFloor} g ? Calories ? {plan.calorieTarget}
+                      {plan.days} days · {plan.split} · Protein{" "}
+                      {plan.proteinFloor} g · Calories {plan.calorieTarget}
                     </p>
                   ) : (
                     <p className="text-sm text-muted-foreground">
@@ -1231,7 +1244,7 @@ export default function CoachChatPage() {
                     <div className="space-y-3 text-sm text-muted-foreground">
                       <p>
                         {plan.disclaimer ??
-                          "Training guidance for educational use only. Estimates only ? not medical advice."}
+                          "Training guidance for educational use only. Estimates only — not medical advice."}
                       </p>
                       <div className="space-y-3">
                         {plan.sessions.slice(0, plan.days).map((session) => (
@@ -1242,7 +1255,7 @@ export default function CoachChatPage() {
                   ) : (
                     <p className="text-sm text-muted-foreground">
                       Tap regenerate after onboarding to receive a day-by-day
-                      split with sets ? reps and RPE.
+                      split with sets × reps and RPE.
                     </p>
                   )}
                 </CardContent>

@@ -5,11 +5,15 @@ const DIRECT_ENDPOINT_MAP: Record<string, string> = {
   "/api/health": "/health",
   "/api/system/health": "/systemHealth",
   "/api/system/bootstrap": "/systemBootstrap",
-  "/api/coach/chat": "/coachChat",
-  "/api/nutrition/search": "/nutritionSearch",
-  "/api/nutrition/barcode": "/nutritionBarcode",
-  "/api/nutrition/daily-log": "/getDailyLog",
-  "/api/nutrition/history": "/getNutritionHistory",
+  // Coach and nutrition expose ordinary JSON routes through the aggregate
+  // `api` HTTP function. Do not point native fetches at their standalone
+  // callable functions: callable endpoints require a `{ data: ... }` envelope
+  // and reject normal REST payloads before the application handler runs.
+  "/api/coach/chat": "/api/coach/chat",
+  "/api/nutrition/search": "/api/nutrition/search",
+  "/api/nutrition/barcode": "/api/nutrition/barcode",
+  "/api/nutrition/daily-log": "/api/nutrition/daily-log",
+  "/api/nutrition/history": "/api/nutrition/history",
   "/api/scan/start": "/startScanSession",
   "/api/scan/upload": "/scanUpload",
   "/api/scan/submit": "/submitScan",
@@ -17,6 +21,10 @@ const DIRECT_ENDPOINT_MAP: Record<string, string> = {
   "/api/createCheckout": "/createCheckoutHttp",
   "/api/createCustomerPortal": "/createCustomerPortal",
   "/api/account/delete": "/deleteAccount",
+  // Legacy callers of the retrying HTTP client omit `/api`.
+  "/system/health": "/systemHealth",
+  "/system/bootstrap": "/systemBootstrap",
+  "/coach/chat": "/api/coach/chat",
 };
 
 function splitPathAndQuery(path: string): { pathOnly: string; query: string } {

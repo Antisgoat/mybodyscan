@@ -291,8 +291,10 @@ const Home = () => {
     props: {
       variant?: "default" | "secondary" | "outline";
       className?: string;
+      label?: string;
     } = {}
   ) => {
+    const label = props.label ?? "Start a Scan";
     if (!demo || user) {
       return (
         <Button
@@ -300,7 +302,7 @@ const Home = () => {
           className={props.className}
           onClick={() => navigate("/scan/new")}
         >
-          Start a Scan
+          {label}
         </Button>
       );
     }
@@ -315,7 +317,7 @@ const Home = () => {
         <TooltipTrigger asChild>
           <span className={spanClass} onClick={() => demoToast()}>
             <Button variant={props.variant} disabled className={buttonClass}>
-              Start a Scan
+              {label}
             </Button>
           </span>
         </TooltipTrigger>
@@ -371,9 +373,6 @@ const Home = () => {
                   We could not complete this scan. Start a new scan or open
                   history to retry.
                 </p>
-                <div className="mt-2">
-                  {renderStartButton({ className: "w-full" })}
-                </div>
               </div>
             )}
             {showLatestStuckNotice && (
@@ -429,15 +428,6 @@ const Home = () => {
                     <p className="text-xs text-muted-foreground">
                       {statusMeta?.helperText ?? "Check History for progress."}
                     </p>
-                    {statusMeta?.recommendRescan && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => navigate("/scan")}
-                      >
-                        Rescan
-                      </Button>
-                    )}
                   </div>
                 )}
                 <div className="flex flex-wrap gap-2 pt-2">
@@ -446,7 +436,11 @@ const Home = () => {
                       View Report
                     </Button>
                   ) : (
-                    renderStartButton()
+                    renderStartButton({
+                      label: statusMeta?.recommendRescan
+                        ? "Try Scan Again"
+                        : "Start a Scan",
+                    })
                   )}
                   <Button
                     variant="secondary"
@@ -506,7 +500,8 @@ const Home = () => {
         )}
 
         <div className="grid gap-3 sm:grid-cols-3">
-          {renderStartButton({ className: "w-full sm:col-span-3" })}
+          {(!lastScan || done) &&
+            renderStartButton({ className: "w-full sm:col-span-3" })}
           <a
             href={demo && !user ? "/auth" : onboardingCtaTarget}
             className="block min-h-11 content-center text-center text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:col-span-3"
