@@ -4,7 +4,7 @@ import type { Request } from "express";
 import { verifyAppCheckStrict } from "./http.js";
 import { consumeCredit } from "./credits.js";
 import { hasUnlimitedCreditsMirror } from "./lib/unlimitedCredits.js";
-import { hasProEntitlement } from "./lib/proEntitlements.js";
+import { shouldBypassScanCredits } from "./lib/scanCreditAccess.js";
 
 type UseCreditContext = Pick<CallableRequest<unknown>, "auth" | "rawRequest">;
 
@@ -22,18 +22,16 @@ export async function useCreditHandler(
   if (!uid) {
     throw new HttpsError("unauthenticated", "Authentication required");
   }
-  const tokenEmail = context.auth?.token?.email;
-  const email = typeof tokenEmail === "string" ? tokenEmail : null;
-
   const rawRequest = context.rawRequest as Request | undefined;
   if (rawRequest) {
     await verifyAppCheckStrict(rawRequest);
   }
 
-  const unlimitedCredits =
-    hasUnlimited(context) ||
-    (await hasUnlimitedCreditsMirror(uid)) ||
-    (await hasProEntitlement(uid, email));
+  const unlimitedCredits = shouldBypassScanCredits({
+    staff: false,
+    unlimitedClaim: hasUnlimited(context),
+    unlimitedMirror: await hasUnlimitedCreditsMirror(uid),
+  });
   if (unlimitedCredits) {
     // Bypass credit consumption for whitelisted users
     return { ok: true, remaining: Infinity };

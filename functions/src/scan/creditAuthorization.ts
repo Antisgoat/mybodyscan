@@ -2,7 +2,7 @@ import type { Transaction } from "firebase-admin/firestore";
 import { Timestamp, getFirestore } from "../firebase.js";
 import { isStaff } from "../claims.js";
 import { hasUnlimitedCreditsMirror } from "../lib/unlimitedCredits.js";
-import { hasProEntitlement } from "../lib/proEntitlements.js";
+import { shouldBypassScanCredits } from "../lib/scanCreditAccess.js";
 import { consumeCreditBuckets } from "./creditUtils.js";
 import { HttpsError } from "firebase-functions/v2/https";
 
@@ -14,13 +14,15 @@ export async function resolveScanCreditAccess(
   uid: string,
   claims: any
 ): Promise<ScanCreditAccess> {
-  const tokenEmail = claims?.email;
-  const email = typeof tokenEmail === "string" ? tokenEmail : null;
-  const bypass =
-    (await isStaff(uid)) ||
-    claims?.unlimitedCredits === true ||
-    (await hasUnlimitedCreditsMirror(uid)) ||
-    (await hasProEntitlement(uid, email));
+  const [staff, unlimitedMirror] = await Promise.all([
+    isStaff(uid),
+    hasUnlimitedCreditsMirror(uid),
+  ]);
+  const bypass = shouldBypassScanCredits({
+    staff,
+    unlimitedClaim: claims?.unlimitedCredits === true,
+    unlimitedMirror,
+  });
   return { bypass };
 }
 

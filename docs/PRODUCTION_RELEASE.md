@@ -109,7 +109,10 @@ surface.
 The fail-closed iOS product IDs are committed in both client and Functions
 configuration: `com.mybodyscan.pro.monthly` (3 credits per renewal),
 `com.mybodyscan.pro.yearly` (36 credits per annual renewal), and
-`com.mybodyscan.scan.single` (one consumable credit). RevenueCat events for any
+`com.mybodyscan.scan.single` (one consumable credit). Subscription events grant
+Pro feature access and the documented credit bucket; Pro by itself must never
+bypass scan metering. Only staff or accounts explicitly marked with unlimited
+credits bypass the credit bucket and debit ledger. RevenueCat events for any
 other product are recorded as ignored and cannot grant Pro or credits.
 
 ### Product access boundary
