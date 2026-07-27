@@ -436,21 +436,29 @@ exist.
 
 Current iOS external state on 2026-07-27: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode. Build 8 was archived from merged `main` commit `21dda06`,
-exported with App Store distribution signing, and uploaded successfully.
-App Store Connect completed processing without an upload rejection and reports
-version `1.0.0`, build `8` as **Ready to Submit**. Build 8 is selected and saved
-for App Store version 1.0; the final **Add for Review** action was intentionally
-not taken. The exact archive was installed on the paired iPhone 14 Pro Max,
-reports bundle `com.mybodyscan.app`, version `1.0.0`, build `8`, launched
-successfully, and remained running. The exported signature passed
-`codesign --verify --deep --strict`; its provisioning entitlements include
-production APNs, Sign in with Apple, TestFlight beta reporting, and
-`get-task-allow=false`. Fresh iPhone and iPad simulator builds also install,
-launch, and render the reviewed responsive layouts. Builds 2 through 7 are
-superseded and must not be submitted. The real photo, purchase, restore,
+Developer Mode. Build 9 was archived from reviewed PR head `a35a005` (the same
+source merged as `3db674c`), exported with App Store distribution signing, and
+uploaded successfully. App Store Connect completed processing without an
+upload rejection and reports version `1.0.0`, build `9` as **Ready to Submit**.
+Build 9 is selected and saved for App Store version 1.0; build 8 was removed
+from that version, and the final **Add for Review** action was intentionally not
+taken. The exact archive was installed on the paired iPhone 14 Pro Max, reports
+bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched successfully,
+and remained running. App Store Connect accepted the upload and Xcode completed
+archive and export validation. Fresh iPhone and iPad simulator builds also
+install, launch, and render the reviewed responsive layouts. Builds 2 through 8
+are superseded and must not be submitted. The real photo, purchase, restore,
 notification, authentication, cold-launch, and offline device checklist
 remains mandatory.
+
+Build 9 replaces the native request routing used in the device screenshots:
+scan start/submit/delete now resolve to their HTTP Functions, while Coach and
+nutrition resolve to the aggregate authenticated REST API rather than sending
+plain JSON to Firebase callable endpoints. The same fix is deployed on Firebase
+Hosting from merge `3db674c`; guarded deployment run `30284768932`, disposable
+production probes, Capacitor CORS preflights, and public Hosting/Auth/App Check
+browser smokes all passed. Hosting rollback channel `rollback-3db674c` preserves
+the pre-release Hosting state until 2026-08-03.
 
 Six ordered 1242 × 2688 iPhone
 screenshots and six ordered 2064 × 2752 iPad screenshots are uploaded: body
