@@ -110,7 +110,7 @@ The scan flow uploads four prepared JPEG photos to Firebase Storage and then ask
 Set these **required** values in Functions/Hosting (`.env.*` or runtime config):
 
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL` (e.g., `gpt-4o-mini`)
+- `OPENAI_MODEL` (production default: `gpt-5.6-luna`)
 - `OPENAI_PROVIDER` (e.g., `openai`)
 - `OPENAI_BASE_URL` (e.g., `https://api.openai.com`)
 - `STORAGE_BUCKET` (canonical bucket, `*.appspot.com`)

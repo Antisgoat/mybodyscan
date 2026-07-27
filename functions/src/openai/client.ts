@@ -11,8 +11,8 @@ const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_TIMEOUT_MS = 8_000;
 const DEFAULT_TEXT_TEMPERATURE = 0.6;
 const MAX_TOKENS_CAP = 4_096;
-const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
-const FALLBACK_OPENAI_MODEL = "gpt-4.1-mini";
+const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
+const FALLBACK_OPENAI_MODEL = "gpt-5.6-terra";
 const MAX_TRANSIENT_RETRIES = 1;
 const TRANSIENT_RETRY_DELAY_MS = 250;
 
@@ -185,11 +185,42 @@ function buildChatBodies(
   request: ChatRequest
 ): Record<string, unknown>[] {
   const maxTokens = clampMaxTokens(request.maxTokens);
+  const isGpt56 = /^gpt-5\.6(?:-|$)/.test(model);
   const base: Record<string, unknown> = {
     model,
     messages: normalizeMessages(request.messages),
   };
-  if (request.user) base.user = request.user;
+  if (request.user) {
+    if (isGpt56) {
+      base.safety_identifier = request.user;
+    } else {
+      base.user = request.user;
+    }
+  }
+
+  // GPT-5.6 defaults to medium reasoning. The retired GPT-4o/4.1 mini
+  // models used here were non-reasoning, latency-sensitive routes, so keep
+  // their effective behavior explicit during the family migration.
+  if (isGpt56) {
+    const current: Record<string, unknown> = {
+      ...base,
+      reasoning_effort: "none",
+    };
+    if (typeof maxTokens === "number") {
+      current.max_completion_tokens = maxTokens;
+    }
+    if (request.responseFormat === "json_object") {
+      current.response_format = { type: "json_object" };
+    }
+
+    const candidates = [current];
+    if (request.responseFormat === "json_object") {
+      const withoutResponseFormat = { ...current };
+      delete withoutResponseFormat.response_format;
+      candidates.push(withoutResponseFormat);
+    }
+    return candidates;
+  }
 
   const withTemperature: Record<string, unknown> = {
     ...base,
