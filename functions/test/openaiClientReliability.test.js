@@ -22,7 +22,7 @@ test("retries a transient provider error on the same model", async () => {
   const requestedModels = [];
   let calls = 0;
 
-  process.env.OPENAI_MODEL = "gpt-4o-mini";
+  process.env.OPENAI_MODEL = "gpt-5.6-luna";
   globalThis.fetch = async (_url, init) => {
     calls += 1;
     requestedModels.push(JSON.parse(init.body).model);
@@ -35,11 +35,11 @@ test("retries a transient provider error on the same model", async () => {
   try {
     const result = await chatOnce("Give me one safe recovery tip.", {
       apiKey: "test-key",
-      model: "gpt-4o-mini",
+      model: "gpt-5.6-luna",
     });
 
     assert.equal(result, "recovered");
-    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-4o-mini"]);
+    assert.deepEqual(requestedModels, ["gpt-5.6-luna", "gpt-5.6-luna"]);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalModel == null) delete process.env.OPENAI_MODEL;
@@ -47,7 +47,7 @@ test("retries a transient provider error on the same model", async () => {
   }
 });
 
-test("falls back to a current image-capable model when the primary is unavailable", async () => {
+test("falls back from a retired override to the current image-capable model", async () => {
   const originalFetch = globalThis.fetch;
   const originalModel = process.env.OPENAI_MODEL;
   const requestedModels = [];
@@ -84,6 +84,7 @@ test("falls back to a current image-capable model when the primary is unavailabl
       maxTokens: 128,
       apiKey: "test-key",
       model: "gpt-4o-mini",
+      userId: "firebase-user-123",
       validate(payload) {
         assert.deepEqual(payload, { estimate: "ok" });
         return payload;
@@ -91,8 +92,13 @@ test("falls back to a current image-capable model when the primary is unavailabl
     });
 
     assert.deepEqual(result.data, { estimate: "ok" });
-    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-4.1-mini"]);
+    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-5.6-luna"]);
     assert.equal(requestBodies[1].messages[1].content[1].type, "image_url");
+    assert.equal(requestBodies[1].reasoning_effort, "none");
+    assert.equal(requestBodies[1].max_completion_tokens, 128);
+    assert.equal(requestBodies[1].temperature, undefined);
+    assert.equal(requestBodies[1].safety_identifier, "firebase-user-123");
+    assert.equal(requestBodies[1].user, undefined);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalModel == null) delete process.env.OPENAI_MODEL;

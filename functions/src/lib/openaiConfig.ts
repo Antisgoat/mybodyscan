@@ -9,7 +9,7 @@ export type OpenAIEnvConfig = {
   provider: string;
 };
 
-export const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+export const DEFAULT_OPENAI_MODEL = "gpt-5.6-luna";
 const openAiModelParam = defineString("OPENAI_MODEL");
 const openAiBaseUrlParam = defineString("OPENAI_BASE_URL");
 const openAiProviderParam = defineString("OPENAI_PROVIDER");

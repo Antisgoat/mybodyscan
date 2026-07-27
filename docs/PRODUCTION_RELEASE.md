@@ -97,8 +97,8 @@ Non-secret runtime configuration is committed in
 Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
 feature flags, and the effective Coach and nutrition rate limits.
 The shared OpenAI client uses the configured model (currently
-`gpt-4o-mini`), retries one transient 429/5xx response on that model, and then
-falls back to the current `gpt-4.1-mini` alias. Both models must pass an
+`gpt-5.6-luna`), retries one transient 429/5xx response on that model, and then
+falls back to `gpt-5.6-terra`. Both models must pass an
 image-input plus structured-JSON account smoke test before release. Do not add
 an old dated model snapshot as a fallback without verifying that the production
 OpenAI project can still access it.
@@ -188,9 +188,10 @@ request health-data permissions. Do not advertise health sync until native
 connectors, privacy disclosures, least-privilege permissions, and physical
 device tests have passed a separate release review.
 
-The OpenAI scan pipeline defaults to `gpt-4o-mini`; do not
-override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless the
-replacement has passed the scan reliability suite.
+The OpenAI scan pipeline defaults to `gpt-5.6-luna` with explicit
+`reasoning_effort=none` to preserve the former low-latency mini-model behavior.
+Do not override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless
+the replacement has passed the scan reliability suite.
 
 The optional adult-only Transformation Preview uses the same
 `OPENAI_API_KEY` with the fixed `gpt-image-2` image-edit model. The OpenAI

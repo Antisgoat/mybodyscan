@@ -76,7 +76,7 @@ const expectedFunctionValues = {
   HOST_BASE_URL: "https://mybodyscanapp.com",
   NUTRITION_RPM: "20",
   OPENAI_BASE_URL: "https://api.openai.com/v1",
-  OPENAI_MODEL: "gpt-4o-mini",
+  OPENAI_MODEL: "gpt-5.6-luna",
   OPENAI_PROVIDER: "openai",
   REVENUECAT_ENTITLEMENT_ID: "pro",
   REVENUECAT_MONTHLY_PRODUCT_ID: "com.mybodyscan.pro.monthly",
