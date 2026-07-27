@@ -111,10 +111,13 @@ function resolveEndpoint(customBaseUrl?: string): string {
   const base =
     (customBaseUrl || process.env.OPENAI_BASE_URL || "").trim() ||
     OPENAI_ENDPOINT;
-  if (base.includes("/v1/chat/completions")) {
-    return base;
-  }
   const trimmed = base.replace(/\/+$/, "");
+  if (trimmed.endsWith("/v1/chat/completions")) {
+    return trimmed;
+  }
+  if (trimmed.endsWith("/v1")) {
+    return `${trimmed}/chat/completions`;
+  }
   return `${trimmed}/v1/chat/completions`;
 }
 

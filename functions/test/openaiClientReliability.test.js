@@ -52,10 +52,12 @@ test("falls back from a retired override to the current image-capable model", as
   const originalModel = process.env.OPENAI_MODEL;
   const requestedModels = [];
   const requestBodies = [];
+  const requestedUrls = [];
 
   process.env.OPENAI_MODEL = "gpt-4o-mini";
-  globalThis.fetch = async (_url, init) => {
+  globalThis.fetch = async (url, init) => {
     const body = JSON.parse(init.body);
+    requestedUrls.push(String(url));
     requestBodies.push(body);
     requestedModels.push(body.model);
     if (body.model === "gpt-4o-mini") {
@@ -85,6 +87,7 @@ test("falls back from a retired override to the current image-capable model", as
       apiKey: "test-key",
       model: "gpt-4o-mini",
       userId: "firebase-user-123",
+      baseUrl: "https://api.openai.com/v1/",
       validate(payload) {
         assert.deepEqual(payload, { estimate: "ok" });
         return payload;
@@ -99,6 +102,10 @@ test("falls back from a retired override to the current image-capable model", as
     assert.equal(requestBodies[1].temperature, undefined);
     assert.equal(requestBodies[1].safety_identifier, "firebase-user-123");
     assert.equal(requestBodies[1].user, undefined);
+    assert.deepEqual(requestedUrls, [
+      "https://api.openai.com/v1/chat/completions",
+      "https://api.openai.com/v1/chat/completions",
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalModel == null) delete process.env.OPENAI_MODEL;
