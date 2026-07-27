@@ -86,9 +86,16 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
   const user = await getCurrentUser();
   if (!user) throw new Error("Sign in required");
 
-  const weightKg = asNumber(raw.weight_kg ?? raw.weightKg ?? raw.current_weight_kg);
+  const weightKg = asNumber(
+    raw.weight_kg ?? raw.weightKg ?? raw.current_weight_kg
+  );
   const heightCm = asNumber(raw.height_cm ?? raw.heightCm);
-  const trainingDays = clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4);
+  const trainingDays = clamp(
+    raw.training_days_per_week ?? raw.daysPerWeek,
+    2,
+    6,
+    4
+  );
   const injuries = asStringArray(raw.injuries ?? raw.medical_flags);
   const goal = asString(raw.goal, "lose_fat");
   const activityLevel = asString(raw.activity_level, "light");
@@ -200,7 +207,6 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
       {
         onboardingCompleted: true,
         onboarding: {
-          completed: true,
           completedAt: serverTimestamp(),
           version: 2,
         },

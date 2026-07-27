@@ -7,5 +7,9 @@ describe("demo allowed paths", () => {
     expect(isPathAllowedInDemo("/workouts/library")).toBe(true);
     expect(isPathAllowedInDemo("/workouts/completed")).toBe(true);
   });
-});
 
+  it("allows the adaptive weekly review and private food builder previews", () => {
+    expect(isPathAllowedInDemo("/weekly-review")).toBe(true);
+    expect(isPathAllowedInDemo("/meals/my-foods")).toBe(true);
+  });
+});

@@ -26,6 +26,19 @@ export function isBenignConsoleError(
     return true;
   }
 
+  // Local browser checks can run without outbound network access. Firestore's
+  // SDK reports that environment-level outage as a console error while safely
+  // switching to its offline cache. Keep the exception local-only so the same
+  // message still fails a production smoke test.
+  if (
+    isLocalPreview &&
+    /@firebase\/firestore: Firestore .*Could not reach Cloud Firestore backend/.test(
+      text
+    )
+  ) {
+    return true;
+  }
+
   let source: URL | undefined;
   try {
     source = new URL(sourceUrl);

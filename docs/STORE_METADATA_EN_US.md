@@ -37,22 +37,27 @@ TURN INSIGHT INTO A PLAN
 
 Build a workout plan around your goal, experience, schedule, available
 equipment, and stated limitations. Track completed sessions and adjust the plan
-as your routine changes.
+as your routine changes. Use a workout and rest timer, log sets, reps, load, and
+effort, and swap an exercise for the same movement pattern when needed.
 
 MAKE NUTRITION PRACTICAL
 
 Follow personalized calorie and macro targets, use a seven-day meal outline,
 log meals in the units you prefer, search food databases, and scan supported
 barcodes. Product insights explain the available label data and can suggest
-higher-scoring choices in the same category when the data supports them.
+higher-scoring choices in the same category when the data supports them. Save
+private custom foods, recipes, and reusable meals. Saved allergy selections can
+surface stronger warnings, but users must always verify the current label.
 
 GET ADAPTIVE SUPPORT
 
 Subscribers can use AI Coach to discuss training, recovery, schedule changes,
-and nutrition. Optional plateau check-ins and Momentum milestones focus on
-consistent actions—not appearance. Eligible adults can also request a
-conservative motivational Transformation Preview. It is a visualization, not
-a promise or prediction.
+and nutrition. A weekly review considers recovery, consistency, and trend,
+shows a conservative recommendation, and changes nothing without approval.
+Optional plateau check-ins and Momentum milestones focus on consistent
+actions—not appearance. Eligible adults can also request a conservative
+motivational Transformation Preview. It is a visualization, not a promise or
+prediction.
 
 CHOOSE THE ACCESS THAT FITS
 

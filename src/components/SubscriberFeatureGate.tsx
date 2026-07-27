@@ -12,6 +12,7 @@ const SUBSCRIBER_PREFIXES = [
   "/programs",
   "/nutrition",
   "/workouts",
+  "/weekly-review",
   "/meals",
   "/barcode",
   "/health",
@@ -30,11 +31,7 @@ export function isSubscriberOnlyPath(pathname: string): boolean {
   );
 }
 
-export function SubscriberFeatureGate({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function SubscriberFeatureGate({ children }: { children: ReactNode }) {
   const location = useLocation();
   const demo = useDemoMode();
   const { entitlements, loading } = useEntitlements();

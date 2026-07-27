@@ -29,6 +29,9 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { deriveProductInsight } from "@/lib/productInsight";
 import { deriveProductAlternatives } from "@/lib/productAlternatives";
+import { useNutritionSafety } from "@/hooks/useNutritionSafety";
+import { allergenLabel } from "@/lib/nutrition/allergens";
+import { matchSavedAllergens } from "@/lib/nutritionSafety";
 
 async function loadZXing() {
   try {
@@ -46,6 +49,7 @@ export default function BarcodeScan() {
   const zxingControlsRef = useRef<{ stop?: () => void } | null>(null);
   const scanningRef = useRef(false);
   const demo = useDemoMode();
+  const { preferences: nutritionSafety } = useNutritionSafety();
   const { health: systemHealth } = useSystemHealth();
   const { nutritionConfigured } = computeFeatureStatuses(
     systemHealth ?? undefined
@@ -76,6 +80,13 @@ export default function BarcodeScan() {
   const alternatives = useMemo(
     () => (item ? deriveProductAlternatives(item, alternativeCandidates) : []),
     [alternativeCandidates, item]
+  );
+  const savedAllergenMatches = useMemo(
+    () =>
+      insight
+        ? matchSavedAllergens(insight.allergens, nutritionSafety.allergies)
+        : [],
+    [insight, nutritionSafety.allergies]
   );
 
   const unavailableMessage = "Scanner unavailable — enter barcode manually.";
@@ -593,6 +604,21 @@ export default function BarcodeScan() {
                       Confidence: {insight.confidence}. Missing:{" "}
                       {insight.missing.join(", ")}.
                     </p>
+                  )}
+
+                  {savedAllergenMatches.length > 0 && (
+                    <Alert variant="destructive">
+                      <ShieldAlert className="h-4 w-4" />
+                      <AlertTitle>
+                        Matches your saved allergy profile
+                      </AlertTitle>
+                      <AlertDescription>
+                        Reported data includes{" "}
+                        {savedAllergenMatches.map(allergenLabel).join(", ")}. Do
+                        not rely on this lookup for safety—check the current
+                        package label and manufacturer cross-contact statement.
+                      </AlertDescription>
+                    </Alert>
                   )}
 
                   {(insight.allergens.length > 0 ||

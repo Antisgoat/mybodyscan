@@ -44,7 +44,7 @@ export function nextProgressionHint(exercise: Exercise): string {
       ? ` Keep rest about ${Math.round(restSec / 30) * 30} sec.`
       : "";
   const tempoText = tempo ? ` Control tempo (${tempo}).` : "";
-  return `Add 2.5–5 lb next week if all sets hit ${reps}.${rirText}${restText}${tempoText}`.trim();
+  return `Add the smallest available load increment next week if all sets hit ${reps}.${rirText}${restText}${tempoText}`.trim();
 }
 
 function parseRepRange(
@@ -165,7 +165,10 @@ export function computeNextTargets(params: {
 
   if (allMetUpper) {
     if (isCompoundLift(exerciseName)) {
-      return { suggestion: "+5 lb if all sets completed" };
+      return {
+        suggestion:
+          "increase by the smallest load increment if all sets completed",
+      };
     }
     return { suggestion: "+1 rep if all sets completed" };
   }

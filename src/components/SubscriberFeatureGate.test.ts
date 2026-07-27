@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { isSubscriberOnlyPath } from "./SubscriberFeatureGate";
 
 describe("subscriber-only route policy", () => {
+  it("keeps adaptive weekly reviews behind Pro", () => {
+    expect(isSubscriberOnlyPath("/weekly-review")).toBe(true);
+  });
   it("gates recurring coaching, tracking, and Momentum routes", () => {
     [
       "/today",

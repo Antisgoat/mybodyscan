@@ -11,7 +11,7 @@ const Refund = () => {
       <article className="prose prose-neutral dark:prose-invert max-w-none p-6">
         <h1>Refund Policy</h1>
         <p>
-          <strong>Effective date: July 22, 2026</strong>
+          <strong>Effective date: July 27, 2026</strong>
         </p>
         <p>
           MyBodyScan is operated by ADLR Labs. Except where required by law,

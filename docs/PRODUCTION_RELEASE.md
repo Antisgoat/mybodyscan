@@ -135,6 +135,13 @@ subscription signal, and native builds do not bypass this check.
 
 ### Adaptive coaching and nutrition behavior
 
+- The Pro-only weekly review collects hunger, energy, sleep, soreness, stress,
+  adherence, and trend. It creates a deterministic, conservative suggestion:
+  at most 100 kcal/day and one training intensity/volume step. It never changes
+  anything until the user selects **Accept changes**. **Keep current plan** is a
+  no-op, and **Undo accepted changes** removes only the date-scoped adjustment
+  created by that review. Low adherence blocks calorie changes; severe soreness
+  adds a stop-and-seek-guidance warning.
 - A Pro user’s soreness, fatigue, or extra-activity message can create a
   date-scoped workout adjustment. The base program remains intact; the affected
   day is overlaid with conservative set and intensity/RPE guidance and is
@@ -154,6 +161,19 @@ subscription signal, and native builds do not bypass this check.
   conflicting values from different providers or claim that a crowd-sourced
   record is manufacturer-verified. Prefer a matching branded/manufacturer
   record, then a verified USDA record, and show the user when data is incomplete.
+- Pro users can create private label-based foods and recipes. Nutrition values
+  are preserved per labeled serving; mass units are enabled only when the user
+  supplies serving grams. Recipes total the actual selected servings before
+  dividing by recipe yield. Saved major-allergen selections are compared with
+  supported product records and used to replace obvious meal-plan ingredients,
+  but every surface must continue to say that this is not an allergen-safety
+  guarantee and that the current package label and cross-contact statement are
+  authoritative.
+- The active workout screen includes a session/rest timer, mixed-unit-safe
+  volume summary, persistent exercise logging, and same-movement-pattern swaps.
+  A swap keeps the exercise slot ID so prior history remains connected. Pain
+  language routes to conservative Coach guidance and must never be framed as a
+  diagnosis.
 
 FatSecret Search v5 is the evaluated third-provider candidate because it adds
 international branded coverage and localized serving data. Its standard
@@ -190,6 +210,16 @@ The existing Health screens must remain labeled **coming soon** and must not
 request health-data permissions. Do not advertise health sync until native
 connectors, privacy disclosures, least-privilege permissions, and physical
 device tests have passed a separate release review.
+
+For version 1.1, implement HealthKit and Health Connect as a separate reviewed
+change: request only the individual activity/workout fields needed for an
+explicit feature, explain each use before the system prompt, keep access
+optional, provide disconnect/delete controls, and test denial, partial
+permission, revocation, account switching, and cold launch on physical devices.
+Do not use health data for advertising or write inferred body-composition data
+back to a health store. Apple Watch support follows through HealthKit; it does
+not require delaying version 1.0 when all health-sync copy remains “coming
+soon.”
 
 The OpenAI scan pipeline defaults to `gpt-5.6-luna` with explicit
 `reasoning_effort=none` to preserve the former low-latency mini-model behavior.
@@ -310,7 +340,7 @@ the current-state notes below say it was configured:
    other repository/ref, but the matching GitHub environment restriction is a
    second independent guard.
 8. The product owner approved the customer-facing brand `MyBodyScan`, operator
-   name `ADLR Labs`, a July 22, 2026 effective date, and a no-refund policy
+   name `ADLR Labs`, a July 27, 2026 effective date, and a no-refund policy
    subject to mandatory consumer law. Static and in-app Privacy, Terms, Refund,
    and Health Disclaimer copy use those decisions, explain AI/media processing,
    opt-in notifications, deletion, wellness estimates, and transformation
@@ -319,6 +349,15 @@ the current-state notes below say it was configured:
    legal identity and notice address, Florida governing-law language, age and
    parental-consent approach, international privacy disclosures, and mobile
    app-store purchase terms. Do not invent an LLC/Inc. suffix in the meantime.
+   The app records the current policy version locally for every visitor and in
+   `users/{uid}/settings/legalConsent` for signed-in users. This helps document
+   acceptance but does not guarantee that a waiver, limitation, or other term
+   is enforceable. Qualified counsel must review the complete flow and copy
+   before broad commercial launch; do not advertise “lawsuit-proof” terms.
+   Maintain an incident-response owner and current contact list. If identifiable
+   wellness data is breached, preserve evidence, contain access, determine
+   whether the FTC Health Breach Notification Rule or another law applies, and
+   send required user/regulator notices within the applicable deadline.
 9. Firebase Console → Project settings → Cloud Messaging:
    - Web Push certificates contains an active key pair for project
      `mybodyscan-f3daf`; copy only its public key to

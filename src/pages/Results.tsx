@@ -44,7 +44,7 @@ import { useUnits } from "@/hooks/useUnits";
 import { demoToast } from "@/lib/demoToast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { isSuccessfulPersistedScan } from "@/lib/scanContract";
-import { kgToLb } from "@/lib/units";
+import { formatHeightFromCm, kgToLb } from "@/lib/units";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { isNative } from "@/lib/platform";
@@ -592,7 +592,7 @@ const Results = () => {
                 {vm.composition.heightCm != null && (
                   <Metric
                     label="Height"
-                    value={`${vm.composition.heightCm} cm`}
+                    value={formatHeightFromCm(vm.composition.heightCm, units)}
                     source="user input"
                   />
                 )}

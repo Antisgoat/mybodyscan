@@ -51,7 +51,7 @@ service cloud.firestore {
     }
 
     function onboardingFieldKeys() {
-      return ['age', 'sex', 'height', 'goal', 'timeline', 'equipment', 'injuries', 'activities', 'experience', 'diet', 'likes', 'notifications', 'completedAt', 'version'];
+      return ['age', 'sex', 'height', 'goal', 'timeline', 'equipment', 'injuries', 'activities', 'experience', 'diet', 'likes', 'notifications', 'allergies', 'allergyNotes', 'completedAt', 'version'];
     }
 
     function isSexValue(value) {
@@ -88,6 +88,8 @@ service cloud.firestore {
         && (!data.keys().hasAny(['injuries']) || data.injuries is string)
         && (!data.keys().hasAny(['activities']) || data.activities is string)
         && (!data.keys().hasAny(['likes']) || data.likes is string)
+        && (!data.keys().hasAny(['allergies']) || (data.allergies is list && data.allergies.size() <= 9))
+        && (!data.keys().hasAny(['allergyNotes']) || (data.allergyNotes is string && data.allergyNotes.size() <= 280))
         && (!data.keys().hasAny(['notifications']) || data.notifications is bool)
         && (!data.keys().hasAny(['completedAt']) || data.completedAt is timestamp)
         && (!data.keys().hasAny(['version']) || data.version is int);
@@ -308,6 +310,11 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /weeklyReviews/{reviewId} {
+        allow read: if hasActivePro(uid);
+        allow write: if false;
+      }
+
       match /nutritionLogs/{day} {
         allow read: if hasActivePro(uid);
         allow create: if !isDemoUser() && hasActivePro(uid) && isValidClientNutritionWrite();
@@ -343,6 +350,16 @@ service cloud.firestore {
       }
 
       match /nutritionTemplates/{docId} {
+        allow read: if hasActivePro(uid);
+        allow write: if !isDemoUser() && hasActivePro(uid);
+      }
+
+      match /nutritionCustomFoods/{docId} {
+        allow read: if hasActivePro(uid);
+        allow write: if !isDemoUser() && hasActivePro(uid);
+      }
+
+      match /nutritionRecipes/{docId} {
         allow read: if hasActivePro(uid);
         allow write: if !isDemoUser() && hasActivePro(uid);
       }

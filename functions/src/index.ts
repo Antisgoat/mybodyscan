@@ -39,6 +39,7 @@ export {
   setWorkoutPlanStatus,
   updateWorkoutPlan,
 } from "./workouts.js";
+export { weeklyReview } from "./weeklyReview.js";
 export { stripeWebhook } from "./stripeWebhook.js";
 export { revenueCatWebhook } from "./revenueCatWebhook.js";
 export { legacyCreateCheckout } from "./createCheckout.js";
@@ -217,6 +218,7 @@ function registerLegacyPostRoute(path: string, fnName: string) {
   "setWorkoutPlanStatus",
   "markExerciseDone",
   "logWorkoutExercise",
+  "weeklyReview",
   "addMeal",
   "deleteMeal",
 ].forEach((name) => registerLegacyPostRoute(`/${name}`, name));

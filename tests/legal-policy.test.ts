@@ -20,7 +20,7 @@ describe("production legal policy consistency", () => {
       const content = read(file);
       expect(content, file).toContain("MyBodyScan");
       expect(content, file).toContain("ADLR Labs");
-      expect(content, file).toContain("July 22, 2026");
+      expect(content, file).toContain("July 27, 2026");
       expect(content, file).not.toContain("ADLR Labs LLC");
     }
 

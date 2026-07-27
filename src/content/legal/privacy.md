@@ -1,13 +1,13 @@
 # Privacy Policy
 
-**Effective date: July 22, 2026**
+**Effective date: July 27, 2026**
 
 MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This Privacy Policy explains what information we collect, why we use it, how it is shared, and the choices available to you.
 
 ## Information We Collect
 
 - **Account and contact information:** your email address, display name, authentication provider, and messages you send to support.
-- **Scan media and wellness information you provide:** body photos, goals, preferences, equipment, dietary restrictions, workout and meal logs, and other information you choose to enter.
+- **Scan media and wellness information you provide:** body photos, goals, preferences, equipment, allergy and dietary-restriction selections, workout and meal logs, weekly recovery check-ins, custom foods and recipes, and other information you choose to enter.
 - **Results and generated content:** scan estimates, visual observations, calculated values, plans, check-ins, food insights, and optional transformation-preview images.
 - **Device and usage information:** app version, device/browser type, IP-derived security information, crash and performance diagnostics, feature interactions, and push-notification tokens when you opt in.
 - **Purchase information:** products purchased, subscription status, credit balance, transaction identifiers, and limited billing metadata. Payment processors handle full payment-card details; MyBodyScan does not store full card numbers.
@@ -19,6 +19,12 @@ MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This P
 - Secure, troubleshoot, measure, and improve the service, including fraud and abuse prevention.
 - Send service notices and, only when you opt in, progress or plateau notifications. You can turn optional notifications off in Settings or your device settings.
 - Comply with law and enforce our Terms of Service.
+
+Allergy preferences and weekly recovery check-ins are treated as sensitive wellness information. They are used to personalize your experience and safety notices, not for targeted advertising.
+
+## Health Data Breach Response
+
+MyBodyScan maintains incident-response procedures for unauthorized access to identifiable wellness information. Where the Federal Trade Commission Health Breach Notification Rule or another applicable law applies, we will provide required notices to affected people and regulators within the required time.
 
 ## Scan Media and AI Processing
 

@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { kgToLb, lbToKg, cmToIn, inToFtIn } from "@/lib/units";
+import {
+  kgToLb,
+  lbToKg,
+  cmToIn,
+  formatHeightFromCm,
+  formatWeightFromKg,
+  inToFtIn,
+} from "@/lib/units";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +16,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { ChevronRight, Target, Clock, User } from "lucide-react";
 import HeightInputUS from "@/components/HeightInputUS";
 import { completeCoachOnboarding } from "@/lib/onboarding/coachOnboarding";
+import { useUnits } from "@/hooks/useUnits";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -36,6 +44,7 @@ const CoachOnboarding = () => {
   });
   const [plan, setPlan] = useState<any>(null);
   const navigate = useNavigate();
+  const { units } = useUnits();
 
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
@@ -44,7 +53,7 @@ const CoachOnboarding = () => {
     const heightCm = form.height_cm ?? 0;
     const weightKg = form.weight_kg ?? 0;
     const { ft, inches: inch } = inToFtIn(cmToIn(heightCm));
-    payload.units = "us";
+    payload.units = units;
     payload.height_ft = ft;
     payload.height_in = inch;
     payload.weight_lb = kgToLb(weightKg);
@@ -204,21 +213,47 @@ const CoachOnboarding = () => {
               <label className="block">
                 <span className="text-sm font-medium">Height</span>
                 <div className="mt-1">
-                  <HeightInputUS
-                    valueCm={form.height_cm}
-                    onChangeCm={(cm) => update("height_cm", cm)}
-                  />
+                  {units === "metric" ? (
+                    <Input
+                      type="number"
+                      min="90"
+                      max="260"
+                      aria-label="Height in centimeters"
+                      value={form.height_cm ?? ""}
+                      onChange={(event) =>
+                        update(
+                          "height_cm",
+                          event.target.value
+                            ? Number(event.target.value)
+                            : undefined
+                        )
+                      }
+                    />
+                  ) : (
+                    <HeightInputUS
+                      valueCm={form.height_cm}
+                      onChangeCm={(cm) => update("height_cm", cm)}
+                    />
+                  )}
                 </div>
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium">Weight (lb)</span>
+                <span className="text-sm font-medium">
+                  Weight ({units === "metric" ? "kg" : "lb"})
+                </span>
                 <Input
                   type="number"
-                  min="70"
-                  max="600"
+                  min={units === "metric" ? "32" : "70"}
+                  max={units === "metric" ? "272" : "600"}
                   value={
-                    form.weight_kg ? Math.round(kgToLb(form.weight_kg)) : ""
+                    form.weight_kg
+                      ? Math.round(
+                          units === "metric"
+                            ? form.weight_kg
+                            : kgToLb(form.weight_kg)
+                        )
+                      : ""
                   }
                   onChange={(e) => {
                     if (e.target.value === "") {
@@ -227,7 +262,10 @@ const CoachOnboarding = () => {
                     }
                     const value = Number(e.target.value);
                     if (Number.isNaN(value)) return;
-                    update("weight_kg", lbToKg(value));
+                    update(
+                      "weight_kg",
+                      units === "metric" ? value : lbToKg(value)
+                    );
                   }}
                   className="mt-1"
                 />
@@ -260,11 +298,15 @@ const CoachOnboarding = () => {
             </label>
 
             <label className="block">
-              <span className="text-sm font-medium">Training days per week</span>
+              <span className="text-sm font-medium">
+                Training days per week
+              </span>
               <select
                 className="mt-1 w-full p-2 border rounded-md"
                 value={form.training_days_per_week}
-                onChange={(e) => update("training_days_per_week", Number(e.target.value))}
+                onChange={(e) =>
+                  update("training_days_per_week", Number(e.target.value))
+                }
               >
                 {[2, 3, 4, 5, 6].map((days) => (
                   <option key={days} value={days}>
@@ -445,10 +487,8 @@ const CoachOnboarding = () => {
             </div>
 
             <div className="text-center text-sm text-muted-foreground">
-              <div>Weight: {Math.round(plan.weight_lb)} lb</div>
-              <div>
-                Height: {plan.height_ft}ft {plan.height_in}in
-              </div>
+              <div>Weight: {formatWeightFromKg(form.weight_kg, 0, units)}</div>
+              <div>Height: {formatHeightFromCm(form.height_cm, units)}</div>
             </div>
 
             {plan.needs_clearance && (

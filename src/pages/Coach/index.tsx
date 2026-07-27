@@ -37,6 +37,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 import { formatDistanceToNow } from "date-fns";
 import { deriveNutritionGoals } from "@/lib/nutritionGoals";
+import { useActiveWeeklyReview } from "@/hooks/useActiveWeeklyReview";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
 
@@ -86,6 +87,7 @@ export default function CoachOverview() {
   const readOnlyDemo = demo && !user;
   const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
   const { totals, latestScan } = useCoachTodayAtAGlance();
+  const { calorieDelta: weeklyCalorieDelta } = useActiveWeeklyReview();
   const computedGoals = useMemo(() => {
     const overrides: { calories?: number; proteinGrams?: number } = {};
     if (
@@ -122,7 +124,10 @@ export default function CoachOverview() {
     profile?.weight_kg,
   ]);
 
-  const todayCaloriesGoal = computedGoals.calories;
+  const todayCaloriesGoal = Math.max(
+    1200,
+    computedGoals.calories + weeklyCalorieDelta
+  );
   const todayProteinGoalGrams = computedGoals.proteinGrams;
 
   useEffect(() => {
@@ -412,6 +417,28 @@ export default function CoachOverview() {
               <CardContent className="text-sm text-primary">
                 Initializing secure coach services… Your plans will appear
                 shortly.
+              </CardContent>
+            </Card>
+          )}
+          {!readOnlyDemo && (
+            <Card className="border-primary/20">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold">
+                    Weekly adaptive review
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Check hunger, recovery, adherence, and progress. Review each
+                    conservative suggestion before it changes your plan.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate("/weekly-review")}
+                >
+                  Start review
+                </Button>
               </CardContent>
             </Card>
           )}

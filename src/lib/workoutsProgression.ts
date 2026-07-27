@@ -55,7 +55,8 @@ export function formatLogSummary(params: {
 }): string {
   const parts: string[] = [];
   const load = typeof params.load === "string" ? params.load.trim() : "";
-  const reps = typeof params.repsDone === "string" ? params.repsDone.trim() : "";
+  const reps =
+    typeof params.repsDone === "string" ? params.repsDone.trim() : "";
   if (load) parts.push(load);
   if (reps) parts.push(`${reps} reps`);
   if (typeof params.rpe === "number" && Number.isFinite(params.rpe)) {
@@ -82,7 +83,11 @@ export function isPR(params: {
   if (prevLoad && curLoad && prevLoad.unit === curLoad.unit) {
     if (curLoad.value > prevLoad.value) return true;
     if (curLoad.value < prevLoad.value) return false;
-    if (Number.isFinite(prevReps) && Number.isFinite(curReps) && curReps > prevReps) {
+    if (
+      Number.isFinite(prevReps) &&
+      Number.isFinite(curReps) &&
+      curReps > prevReps
+    ) {
       return true;
     }
     return false;
@@ -107,7 +112,11 @@ export function progressionTip(params: {
   const isAccessory = Boolean(tags.has("accessory")) && !isPrimaryCompound;
 
   const range = parseRepRange(params.targetReps);
-  const rangeText = range ? `${range.min}-${range.max}` : typeof params.targetReps === "string" ? params.targetReps : "a controlled rep range";
+  const rangeText = range
+    ? `${range.min}-${range.max}`
+    : typeof params.targetReps === "string"
+      ? params.targetReps
+      : "a controlled rep range";
 
   // Default autoregulation guidance
   const rpeText =
@@ -121,15 +130,13 @@ export function progressionTip(params: {
   });
 
   if (hitTop) {
-    const inc =
-      isPrimaryCompound
-        ? "add 2.5–5 lb next time"
-        : isAccessory
-          ? "add a small amount next time"
-          : "add 2.5 lb next time";
+    const inc = isPrimaryCompound
+      ? "add the smallest available load increment next time"
+      : isAccessory
+        ? "add a small amount next time"
+        : "increase the load slightly next time";
     return `Progression: stay in ${rangeText} reps${rpeText}. If you can hit the top of the range with solid form, ${inc}.`;
   }
 
   return `Progression: stay in ${rangeText} reps${rpeText}. Add reps week to week until you reach the top of the range, then increase load slightly and repeat.`;
 }
-

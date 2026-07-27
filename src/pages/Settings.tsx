@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import HeightInputUS from "@/components/HeightInputUS";
 import {
   Select,
@@ -43,6 +45,7 @@ import {
   Shield,
   ExternalLink,
   CreditCard,
+  ShieldAlert,
 } from "lucide-react";
 import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
@@ -78,6 +81,8 @@ import {
   loadNotificationPreferences,
   releasePushSession,
 } from "@/lib/pushNotifications";
+import { useNutritionSafety } from "@/hooks/useNutritionSafety";
+import { MAJOR_ALLERGENS, type MajorAllergen } from "@/lib/nutrition/allergens";
 
 const Settings = () => {
   const DEVELOPER_EMAIL = "developer@adlrlabs.com";
@@ -90,6 +95,14 @@ const Settings = () => {
   const [plateauPush, setPlateauPush] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(true);
+  const {
+    preferences: nutritionSafety,
+    loading: nutritionSafetyLoading,
+    save: saveNutritionSafety,
+  } = useNutritionSafety();
+  const [allergySelection, setAllergySelection] = useState<MajorAllergen[]>([]);
+  const [allergyNotes, setAllergyNotes] = useState("");
+  const [savingAllergies, setSavingAllergies] = useState(false);
   const [deleteStep, setDeleteStep] = useState<0 | 1 | 2>(0);
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const { t, language, changeLanguage, availableLanguages } = useI18n();
@@ -174,6 +187,36 @@ const Settings = () => {
   const canSeeAdminTools =
     typeof user?.email === "string" &&
     user.email.trim().toLowerCase() === DEVELOPER_EMAIL;
+
+  useEffect(() => {
+    if (nutritionSafetyLoading) return;
+    setAllergySelection(nutritionSafety.allergies);
+    setAllergyNotes(nutritionSafety.allergyNotes);
+  }, [nutritionSafety, nutritionSafetyLoading]);
+
+  const handleSaveAllergies = async () => {
+    setSavingAllergies(true);
+    try {
+      await saveNutritionSafety({
+        allergies: allergySelection,
+        allergyNotes,
+      });
+      toast({
+        title: "Nutrition safety profile saved",
+        description:
+          "Meal ideas and supported product lookups will compare against these selections.",
+      });
+    } catch (error) {
+      toast({
+        title: "Unable to save allergy profile",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAllergies(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -790,12 +833,14 @@ const Settings = () => {
                 Saved securely to improve scan estimates.
               </p>
               {formatHeightFromCm(
-                heightInputCm ?? profile?.heightCm ?? profile?.height_cm
+                heightInputCm ?? profile?.heightCm ?? profile?.height_cm,
+                units
               ) ? (
                 <p className="text-xs text-muted-foreground">
                   Current:{" "}
                   {formatHeightFromCm(
-                    heightInputCm ?? profile?.heightCm ?? profile?.height_cm
+                    heightInputCm ?? profile?.heightCm ?? profile?.height_cm,
+                    units
                   )}
                 </p>
               ) : null}
@@ -1038,6 +1083,79 @@ const Settings = () => {
               when you enable them. Other reminder types are not advertised
               until delivery is implemented.
             </p>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Nutrition safety profile">
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50/60 p-3 text-sm dark:bg-amber-950/20">
+              <ShieldAlert
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-700"
+                aria-hidden="true"
+              />
+              <p>
+                Save known allergies so supported meal ideas and product lookups
+                can show stronger warnings. MyBodyScan cannot certify a product
+                or recipe as allergen-free. Always verify the current label and
+                cross-contact statement.
+              </p>
+            </div>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">
+                FDA major food allergens
+              </legend>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {MAJOR_ALLERGENS.map((allergen) => {
+                  const checked = allergySelection.includes(allergen.id);
+                  return (
+                    <label
+                      key={allergen.id}
+                      className="flex min-h-11 items-center gap-2 rounded-md border p-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={(value) =>
+                          setAllergySelection((current) =>
+                            value === true
+                              ? [...current, allergen.id]
+                              : current.filter((id) => id !== allergen.id)
+                          )
+                        }
+                      />
+                      {allergen.label}
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+            <div className="space-y-2">
+              <Label htmlFor="allergy-notes">
+                Other allergies or cross-contact notes
+              </Label>
+              <Textarea
+                id="allergy-notes"
+                value={allergyNotes}
+                onChange={(event) =>
+                  setAllergyNotes(event.target.value.slice(0, 280))
+                }
+                maxLength={280}
+                placeholder="Optional—tell us what recommendations should avoid."
+              />
+              <p className="text-xs text-muted-foreground">
+                {allergyNotes.length}/280. Free-text notes are saved for
+                context; automatic matching is limited to the selections above.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={() => void handleSaveAllergies()}
+              disabled={nutritionSafetyLoading || savingAllergies || !user?.uid}
+            >
+              {savingAllergies ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save nutrition safety profile
+            </Button>
           </div>
         </SectionCard>
 

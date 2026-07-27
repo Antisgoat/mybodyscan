@@ -20,9 +20,9 @@ describe("weekly meal plan", () => {
       expect(day.meals.reduce((sum, meal) => sum + meal.calories, 0)).toBe(
         targets.calories
       );
-      expect(
-        day.meals.reduce((sum, meal) => sum + meal.proteinGrams, 0)
-      ).toBe(targets.proteinGrams);
+      expect(day.meals.reduce((sum, meal) => sum + meal.proteinGrams, 0)).toBe(
+        targets.proteinGrams
+      );
       expect(day.meals.reduce((sum, meal) => sum + meal.carbsGrams, 0)).toBe(
         targets.carbsGrams
       );
@@ -37,8 +37,8 @@ describe("weekly meal plan", () => {
     expect(normalizeMealPlanDiet("keto")).toBe("lower_carb");
     expect(normalizeMealPlanDiet("unknown")).toBe("balanced");
 
-    const veganText = buildWeeklyMealPlan(targets, "vegan").days
-      .flatMap((day) => day.meals)
+    const veganText = buildWeeklyMealPlan(targets, "vegan")
+      .days.flatMap((day) => day.meals)
       .map((meal) => meal.title)
       .join(" ");
     expect(veganText).not.toMatch(
@@ -58,5 +58,20 @@ describe("weekly meal plan", () => {
     );
     expect(plan.days[0].totals.calories).toBe(2200);
     expect(plan.diet).toBe("balanced");
+  });
+
+  it("replaces obvious saved allergens without claiming safety", () => {
+    const plan = buildWeeklyMealPlan(targets, "balanced", [
+      "milk",
+      "tree_nuts",
+      "wheat",
+    ]);
+    const text = plan.days
+      .flatMap((day) => day.meals.map((meal) => meal.title))
+      .join(" ");
+    expect(plan.allergyAdjusted).toBe(true);
+    expect(text).not.toMatch(
+      /Greek yogurt|cottage cheese|walnuts|whole-grain toast/i
+    );
   });
 });

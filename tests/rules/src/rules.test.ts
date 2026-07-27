@@ -130,6 +130,76 @@ d("Firestore security rules", () => {
     );
   });
 
+  it("allows Pro users to manage private foods and recipes but not weekly-review server records", async () => {
+    const uid = "adaptive-pro";
+    const freeUid = "adaptive-free";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      const admin = ctx.firestore();
+      await admin
+        .doc(`users/${uid}/entitlements/current`)
+        .set({ pro: true, source: "stripe" });
+      await admin
+        .doc(`users/${freeUid}/entitlements/current`)
+        .set({ pro: false, source: "stripe" });
+      await admin
+        .doc(`users/${uid}/weeklyReviews/review1`)
+        .set({ status: "pending" });
+    });
+    const pro = testEnv.authenticatedContext(uid).firestore();
+    await assertSucceeds(
+      pro
+        .doc(`users/${uid}/nutritionCustomFoods/food1`)
+        .set({ name: "Private label food" })
+    );
+    await assertSucceeds(
+      pro
+        .doc(`users/${uid}/nutritionRecipes/recipe1`)
+        .set({ name: "Private recipe" })
+    );
+    await assertSucceeds(pro.doc(`users/${uid}/weeklyReviews/review1`).get());
+    await assertFails(
+      pro.doc(`users/${uid}/weeklyReviews/review2`).set({ status: "accepted" })
+    );
+
+    const free = testEnv.authenticatedContext(freeUid).firestore();
+    await assertFails(
+      free
+        .doc(`users/${freeUid}/nutritionCustomFoods/food1`)
+        .set({ name: "Not allowed" })
+    );
+    await assertFails(free.doc(`users/${uid}/nutritionRecipes/recipe1`).get());
+  });
+
+  it("validates saved allergy onboarding fields", async () => {
+    const uid = "allergy-profile";
+    const authed = testEnv.authenticatedContext(uid).firestore();
+    await assertSucceeds(
+      authed.doc(`users/${uid}`).set({
+        onboarding: {
+          allergies: ["milk", "sesame"],
+          allergyNotes: "Avoid shared fryers.",
+          version: 2,
+        },
+      })
+    );
+    await assertFails(
+      authed.doc(`users/${uid}`).set({
+        onboarding: {
+          allergies: Array.from({ length: 10 }, (_, index) => `item-${index}`),
+          version: 2,
+        },
+      })
+    );
+    await assertFails(
+      authed.doc(`users/${uid}`).set({
+        onboarding: {
+          allergyNotes: "x".repeat(281),
+          version: 2,
+        },
+      })
+    );
+  });
+
   it("allows Pro owner to read transformation previews but blocks all client writes", async () => {
     const uid = "alice";
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {

@@ -21,8 +21,38 @@ test.describe("Demo experience", () => {
     await acceptPoliciesIfShown(page);
     await expect(page).toHaveURL(/\/demo/);
     await expect(
-      page.getByRole("heading", { name: "MyBodyScan", exact: true })
+      page.getByRole("heading", {
+        level: 1,
+        name: "Your progress, at a glance",
+      })
     ).toBeVisible();
+    await expect(page.getByText("MyBodyScan", { exact: true })).toBeVisible();
     await expect(page.getByText(/Demo preview.*read-only/i)).toBeVisible();
+  });
+
+  test("previews new subscriber features without horizontal overflow", async ({
+    page,
+  }) => {
+    await page.goto("/demo");
+    await acceptPoliciesIfShown(page);
+
+    await page.getByRole("button", { name: "Weekly review" }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Weekly review" })
+    ).toBeVisible();
+
+    await page.goto("/meals/my-foods");
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "My foods & recipes",
+      })
+    ).toBeVisible();
+
+    const widths = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    expect(widths.content).toBeLessThanOrEqual(widths.viewport + 1);
   });
 });

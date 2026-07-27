@@ -481,8 +481,8 @@ const Home = () => {
                 unwell or have health concerns, talk with a qualified clinician.
               </p>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => navigate("/plans")}>
-                  Review plan
+                <Button size="sm" onClick={() => navigate("/weekly-review")}>
+                  Start weekly review
                 </Button>
                 <Button
                   size="sm"
@@ -495,6 +495,27 @@ const Home = () => {
                   Dismiss
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {subscriberFeaturesAvailable && (
+          <Card className="border-primary/20">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold">Keep your plan responsive</p>
+                <p className="text-sm text-muted-foreground">
+                  A two-minute weekly check-in can suggest a small nutrition or
+                  training adjustment. Nothing changes until you approve it.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="shrink-0"
+                onClick={() => navigate("/weekly-review")}
+              >
+                Weekly review
+              </Button>
             </CardContent>
           </Card>
         )}
