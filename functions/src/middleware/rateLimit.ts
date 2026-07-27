@@ -10,9 +10,22 @@ interface RateLimitConfig {
   windowMs: number;
 }
 
+export function rateLimitDocumentPath(uid: string, key: string): string {
+  const safeKey = String(key || "")
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "_");
+  if (!uid || uid.includes("/") || !safeKey) {
+    throw new HttpsError("internal", "rate_limit_key_invalid");
+  }
+  // Firestore document paths must have an even number of segments. Keep rate
+  // limit state in a server-only document under the existing `private`
+  // collection instead of the invalid `private/rateLimits/{key}` shape.
+  return `users/${uid}/private/rateLimits_${safeKey}`;
+}
+
 export async function enforceRateLimit(config: RateLimitConfig): Promise<void> {
   const { uid, key, limit, windowMs } = config;
-  const ref = db.doc(`users/${uid}/private/rateLimits/${key}`);
+  const ref = db.doc(rateLimitDocumentPath(uid, key));
   const now = Timestamp.now();
   const windowStart = now.toMillis() - windowMs;
 
