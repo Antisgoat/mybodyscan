@@ -5,6 +5,7 @@ import {
   noteWorkingUrl,
   looksLikeHtml,
 } from "@/lib/api/urls";
+import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
 
 export type FallbackKey =
   | "systemHealth"
@@ -39,7 +40,9 @@ export class ApiError extends Error {
 
 async function getAuthHeaders() {
   const [idToken, appCheckHeaders] = await Promise.all([
-    getIdToken({ forceRefresh: false }).then((t) => t || "").catch(() => ""),
+    getIdToken({ forceRefresh: false })
+      .then((t) => t || "")
+      .catch(() => ""),
     getAppCheckTokenHeader().catch(() => ({})),
   ]);
   const h: Record<string, string> = { ...appCheckHeaders };
@@ -87,6 +90,10 @@ export async function apiFetch<T = any>(
   const authHeaders = await getAuthHeaders();
   const { headers: bodyHdr, payload } = toJsonBody(body);
   const merged = { ...authHeaders, ...bodyHdr, ...headers };
+  // Browser callers use Hosting rewrites. Capacitor has no same-origin
+  // Hosting server, so resolve the same route to its direct HTTPS Function
+  // endpoint before fetching.
+  const endpoint = resolveEndpoint(url);
 
   let attempt = 0;
   let lastErr: any = null;
@@ -99,11 +106,13 @@ export async function apiFetch<T = any>(
       if (signal) {
         if (signal.aborted) {
           clearTimeout(t);
-          throw Object.assign(new Error("Request aborted."), { name: "AbortError" });
+          throw Object.assign(new Error("Request aborted."), {
+            name: "AbortError",
+          });
         }
         signal.addEventListener("abort", abortFromExternal, { once: true });
       }
-      const res = await fetch(url, {
+      const res = await fetch(endpoint, {
         method,
         headers: merged,
         body: payload,
