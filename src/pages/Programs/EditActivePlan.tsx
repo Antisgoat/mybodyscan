@@ -72,7 +72,10 @@ export default function EditActivePlan() {
   ) => {
     setLocalPlan((prev: any) => {
       if (!prev?.days) return prev;
-      const days = prev.days.map((d: any) => ({ ...d, exercises: [...(d.exercises || [])] }));
+      const days = prev.days.map((d: any) => ({
+        ...d,
+        exercises: [...(d.exercises || [])],
+      }));
       const day = days[dayIndex];
       const ex = day?.exercises?.[exerciseIndex];
       if (!day || !ex) return prev;
@@ -85,7 +88,11 @@ export default function EditActivePlan() {
     });
   };
 
-  const reorderExerciseLocal = (dayIndex: number, fromIndex: number, toIndex: number) => {
+  const reorderExerciseLocal = (
+    dayIndex: number,
+    fromIndex: number,
+    toIndex: number
+  ) => {
     setLocalPlan((prev: any) => {
       const day = prev?.days?.[dayIndex];
       if (!day?.exercises?.length) return prev;
@@ -110,7 +117,10 @@ export default function EditActivePlan() {
       const fromDay = prev?.days?.[fromDayIndex];
       const toDay = prev?.days?.[toDayIndex];
       if (!fromDay?.exercises?.length || !toDay) return prev;
-      const days = prev.days.map((d: any) => ({ ...d, exercises: [...(d.exercises || [])] }));
+      const days = prev.days.map((d: any) => ({
+        ...d,
+        exercises: [...(d.exercises || [])],
+      }));
       const [item] = days[fromDayIndex].exercises.splice(fromIndex, 1);
       if (!item) return prev;
       days[toDayIndex].exercises.push(item);
@@ -125,7 +135,10 @@ export default function EditActivePlan() {
       const used = new Set(prev.days.map((d: any) => String(d.day || "")));
       used.delete(current);
       if (used.has(day)) {
-        toast({ title: "Day already used", description: "Pick a different day." });
+        toast({
+          title: "Day already used",
+          description: "Pick a different day.",
+        });
         return prev;
       }
       const days = prev.days.map((d: any, idx: number) =>
@@ -159,10 +172,17 @@ export default function EditActivePlan() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Edit plan – MyBodyScan" description="Update your active plan." />
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <Seo
+        title="Edit plan – MyBodyScan"
+        description="Update your active plan."
+      />
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-0 py-1 sm:gap-6 sm:p-2">
         <div className="flex items-center justify-between gap-3">
-          <Button variant="ghost" className="w-fit" onClick={() => nav("/programs")}>
+          <Button
+            variant="ghost"
+            className="w-fit"
+            onClick={() => nav("/programs")}
+          >
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Plans
           </Button>
           <div className="flex gap-2">
@@ -204,14 +224,18 @@ export default function EditActivePlan() {
                 {plan.title || "Active plan"}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Edit exercises, sets/reps, and re-order workouts. Changes save instantly.
+                Edit exercises, sets/reps, and re-order workouts. Changes save
+                instantly.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {Array.isArray(plan.days) &&
                 plan.days.map((day: any, dayIndex: number) => (
-                  <Card key={`${day.day}-${dayIndex}`} className="border bg-background/60">
-                    <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                  <Card
+                    key={`${day.day}-${dayIndex}`}
+                    className="border bg-background/60"
+                  >
+                    <CardHeader className="flex flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-1">
                         <div className="text-xs uppercase tracking-wide text-muted-foreground">
                           Workout day
@@ -227,9 +251,15 @@ export default function EditActivePlan() {
                             variant={day.day === d ? "default" : "outline"}
                             onClick={() => {
                               setDayNameLocal(dayIndex, d);
-                              void runOp({ type: "set_day_name", dayIndex, day: d });
+                              void runOp({
+                                type: "set_day_name",
+                                dayIndex,
+                                day: d,
+                              });
                             }}
-                            disabled={savingOp || (usedDays.has(d) && day.day !== d)}
+                            disabled={
+                              savingOp || (usedDays.has(d) && day.day !== d)
+                            }
                           >
                             {d}
                           </Button>
@@ -238,13 +268,20 @@ export default function EditActivePlan() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                       {(day.exercises ?? []).map((ex: any, exIdx: number) => (
-                        <div key={`${ex.id || exIdx}`} className="rounded-md border p-3">
+                        <div
+                          key={`${ex.id || exIdx}`}
+                          className="rounded-md border p-3"
+                        >
                           <div className="grid gap-3 md:grid-cols-[1fr_90px_120px_auto] md:items-end">
                             <div className="space-y-1">
                               <Label className="text-xs">Exercise</Label>
                               <Input
                                 value={ex.name ?? ""}
-                                onChange={(e) => updateExerciseLocal(dayIndex, exIdx, { name: e.target.value })}
+                                onChange={(e) =>
+                                  updateExerciseLocal(dayIndex, exIdx, {
+                                    name: e.target.value,
+                                  })
+                                }
                                 onBlur={(e) =>
                                   void runOp({
                                     type: "update_exercise",
@@ -264,7 +301,9 @@ export default function EditActivePlan() {
                                 max={10}
                                 value={Number(ex.sets ?? 3)}
                                 onChange={(e) =>
-                                  updateExerciseLocal(dayIndex, exIdx, { sets: Number(e.target.value) })
+                                  updateExerciseLocal(dayIndex, exIdx, {
+                                    sets: Number(e.target.value),
+                                  })
                                 }
                                 onBlur={(e) =>
                                   void runOp({
@@ -281,7 +320,11 @@ export default function EditActivePlan() {
                               <Label className="text-xs">Reps</Label>
                               <Input
                                 value={String(ex.reps ?? "")}
-                                onChange={(e) => updateExerciseLocal(dayIndex, exIdx, { reps: e.target.value })}
+                                onChange={(e) =>
+                                  updateExerciseLocal(dayIndex, exIdx, {
+                                    reps: e.target.value,
+                                  })
+                                }
                                 onBlur={(e) =>
                                   void runOp({
                                     type: "update_exercise",
@@ -293,67 +336,92 @@ export default function EditActivePlan() {
                                 disabled={savingOp}
                               />
                             </div>
-                            <div className="flex flex-wrap gap-2 md:justify-end">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  reorderExerciseLocal(dayIndex, exIdx, exIdx - 1);
-                                  void runOp({
-                                    type: "reorder_exercise",
-                                    dayIndex,
-                                    fromIndex: exIdx,
-                                    toIndex: exIdx - 1,
-                                  });
-                                }}
-                                disabled={savingOp || exIdx === 0}
-                              >
-                                Up
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  reorderExerciseLocal(dayIndex, exIdx, exIdx + 1);
-                                  void runOp({
-                                    type: "reorder_exercise",
-                                    dayIndex,
-                                    fromIndex: exIdx,
-                                    toIndex: exIdx + 1,
-                                  });
-                                }}
-                                disabled={savingOp || exIdx === (day.exercises?.length ?? 1) - 1}
-                              >
-                                Down
-                              </Button>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Move to</span>
-                                <div className="flex flex-wrap gap-2">
-                                  {(plan.days ?? []).map((d2: any, idx2: number) => (
-                                    <Button
-                                      key={`${d2.day}-${idx2}`}
-                                      type="button"
-                                      size="sm"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        moveExerciseToDayLocal(dayIndex, exIdx, idx2);
-                                        void runOp({
-                                          type: "move_exercise",
-                                          fromDayIndex: dayIndex,
-                                          fromIndex: exIdx,
-                                          toDayIndex: idx2,
-                                          toIndex: Number.isFinite(plan.days?.[idx2]?.exercises?.length)
-                                            ? plan.days[idx2].exercises.length
-                                            : 0,
-                                        });
-                                      }}
-                                      disabled={savingOp || idx2 === dayIndex}
-                                    >
-                                      {d2.day}
-                                    </Button>
-                                  ))}
+                            <div className="flex flex-col gap-3 md:items-end">
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    reorderExerciseLocal(
+                                      dayIndex,
+                                      exIdx,
+                                      exIdx - 1
+                                    );
+                                    void runOp({
+                                      type: "reorder_exercise",
+                                      dayIndex,
+                                      fromIndex: exIdx,
+                                      toIndex: exIdx - 1,
+                                    });
+                                  }}
+                                  disabled={savingOp || exIdx === 0}
+                                >
+                                  Up
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    reorderExerciseLocal(
+                                      dayIndex,
+                                      exIdx,
+                                      exIdx + 1
+                                    );
+                                    void runOp({
+                                      type: "reorder_exercise",
+                                      dayIndex,
+                                      fromIndex: exIdx,
+                                      toIndex: exIdx + 1,
+                                    });
+                                  }}
+                                  disabled={
+                                    savingOp ||
+                                    exIdx === (day.exercises?.length ?? 1) - 1
+                                  }
+                                >
+                                  Down
+                                </Button>
+                              </div>
+                              <div className="w-full space-y-1 md:w-auto">
+                                <span className="block text-xs text-muted-foreground">
+                                  Move to day
+                                </span>
+                                <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap sm:gap-2">
+                                  {(plan.days ?? []).map(
+                                    (d2: any, idx2: number) => (
+                                      <Button
+                                        key={`${d2.day}-${idx2}`}
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="min-w-0 px-2"
+                                        onClick={() => {
+                                          moveExerciseToDayLocal(
+                                            dayIndex,
+                                            exIdx,
+                                            idx2
+                                          );
+                                          void runOp({
+                                            type: "move_exercise",
+                                            fromDayIndex: dayIndex,
+                                            fromIndex: exIdx,
+                                            toDayIndex: idx2,
+                                            toIndex: Number.isFinite(
+                                              plan.days?.[idx2]?.exercises
+                                                ?.length
+                                            )
+                                              ? plan.days[idx2].exercises.length
+                                              : 0,
+                                          });
+                                        }}
+                                        disabled={savingOp || idx2 === dayIndex}
+                                      >
+                                        {d2.day}
+                                      </Button>
+                                    )
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -374,4 +442,3 @@ export default function EditActivePlan() {
     </div>
   );
 }
-

@@ -3,6 +3,11 @@ import { submitScanClient } from "@/lib/api/scan";
 
 const apiFetchMock = vi.fn();
 const fetchMock = vi.fn();
+const platform = vi.hoisted(() => ({ native: false }));
+
+vi.mock("@/lib/platform/isNative", () => ({
+  isCapacitorNative: () => platform.native,
+}));
 
 vi.mock("@/lib/http", () => {
   class ApiError extends Error {
@@ -44,9 +49,16 @@ vi.mock("@/auth/mbs-auth", () => {
   };
 });
 
+vi.mock("@/lib/appCheck", () => ({
+  getAppCheckTokenHeader: vi.fn(async () => ({
+    "X-Firebase-AppCheck": "app-check-token",
+  })),
+}));
+
 describe("submitScanClient on Safari", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    platform.native = false;
     (globalThis as any).fetch = fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ scanId: "scan-1", status: "queued" }), {
         status: 200,
@@ -80,5 +92,34 @@ describe("submitScanClient on Safari", () => {
     expect(result.ok).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(apiFetchMock).not.toHaveBeenCalled();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/scan/upload");
+    expect(init.headers).toMatchObject({
+      Authorization: "Bearer token",
+      "X-Firebase-AppCheck": "app-check-token",
+    });
+  });
+
+  it("resolves the multipart upload to the direct HTTPS function in Capacitor", async () => {
+    platform.native = true;
+    const file = new File([new Uint8Array([1, 2, 3])], "front.jpg", {
+      type: "image/jpeg",
+    });
+
+    const result = await submitScanClient({
+      scanId: "scan-native",
+      photos: { front: file, back: file, left: file, right: file },
+      currentWeightKg: 70,
+      goalWeightKg: 65,
+      unit: "kg",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "https://us-central1-mybodyscan-f3daf.cloudfunctions.net/scanUpload"
+    );
+    expect(init.credentials).toBe("omit");
   });
 });

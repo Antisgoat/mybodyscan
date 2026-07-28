@@ -1,28 +1,28 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import http from 'node:http';
+import test from "node:test";
+import assert from "node:assert/strict";
+import http from "node:http";
 
-const { apiAppForTest } = await import('../lib/index.js');
+const { apiAppForTest } = await import("../lib/index.js");
 
 function postJson(base, path, body = {}) {
   return fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body)
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
 }
 
-test('api router returns json for legacy workout endpoints on / and /api aliases', async () => {
+test("api router returns json for legacy workout endpoints on / and /api aliases", async () => {
   const originalFetch = global.fetch;
   global.fetch = async (url, init) => {
     const u = String(url);
-    if (u.startsWith('http://127.0.0.1:')) {
+    if (u.startsWith("http://127.0.0.1:")) {
       return originalFetch(url, init);
     }
-    const fnName = u.split('/').pop();
+    const fnName = u.split("/").pop();
     return new Response(JSON.stringify({ ok: true, fnName }), {
       status: 200,
-      headers: { 'content-type': 'application/json' },
+      headers: { "content-type": "application/json" },
     });
   };
 
@@ -33,16 +33,16 @@ test('api router returns json for legacy workout endpoints on / and /api aliases
 
   try {
     for (const path of [
-      '/getPlan',
-      '/api/getPlan',
-      '/getWorkouts',
-      '/api/getWorkouts',
-      '/applyCatalogPlan',
-      '/api/applyCatalogPlan',
+      "/getPlan",
+      "/api/getPlan",
+      "/getWorkouts",
+      "/api/getWorkouts",
+      "/applyCatalogPlan",
+      "/api/applyCatalogPlan",
     ]) {
       const res = await postJson(base, path);
       assert.equal(res.status, 200);
-      assert.match(res.headers.get('content-type') || '', /application\/json/);
+      assert.match(res.headers.get("content-type") || "", /application\/json/);
       const payload = await res.json();
       assert.equal(payload.ok, true);
       assert.ok(payload.data);
@@ -50,16 +50,58 @@ test('api router returns json for legacy workout endpoints on / and /api aliases
 
     const billing = await postJson(
       base,
-      '/api/billing/create-checkout-session',
-      { priceId: 'price_1TwQ1OQQU5vuhlNj5peGUJbZ', plan: 'one' },
+      "/api/billing/create-checkout-session",
+      { priceId: "price_1TwQ1OQQU5vuhlNj5peGUJbZ", plan: "one" }
     );
     assert.equal(billing.status, 401);
     assert.deepEqual(await billing.json(), {
-      error: 'auth_required',
-      code: 'auth_required',
+      error: "auth_required",
+      code: "auth_required",
     });
   } finally {
     global.fetch = originalFetch;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("api preflight allows every header sent by the native client", async () => {
+  const server = http.createServer(apiAppForTest);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const address = server.address();
+  const base = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const res = await fetch(`${base}/api/coach/chat`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "capacitor://localhost",
+        "access-control-request-method": "POST",
+        "access-control-request-headers":
+          "authorization,content-type,x-firebase-appcheck,x-correlation-id,x-request-id,x-tz-offset-mins",
+      },
+    });
+    assert.equal(res.status, 204);
+    assert.equal(
+      res.headers.get("access-control-allow-origin"),
+      "capacitor://localhost"
+    );
+    const allowedHeaders = String(
+      res.headers.get("access-control-allow-headers") || ""
+    ).toLowerCase();
+    for (const header of [
+      "authorization",
+      "content-type",
+      "x-firebase-appcheck",
+      "x-correlation-id",
+      "x-request-id",
+      "x-tz-offset-mins",
+    ]) {
+      assert.match(
+        allowedHeaders,
+        new RegExp(`(?:^|,\\s*)${header}(?:\\s*,|$)`)
+      );
+    }
+  } finally {
     await new Promise((resolve) => server.close(resolve));
   }
 });

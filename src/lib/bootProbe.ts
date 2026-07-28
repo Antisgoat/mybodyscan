@@ -7,6 +7,7 @@ import {
   SW_ENABLED,
   APPCHECK_SITE_KEY,
 } from "./flags";
+import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
 
 if (isWeb()) {
   (async () => {
@@ -22,7 +23,9 @@ if (isWeb()) {
       const params = new URLSearchParams();
       if (key) params.set("clientKey", key);
       const response = await fetch(
-        `/systemHealth${params.size ? `?${params.toString()}` : ""}`,
+        resolveEndpoint(
+          `/system/health${params.size ? `?${params.toString()}` : ""}`
+        ),
         {
           cache: "no-store",
         }

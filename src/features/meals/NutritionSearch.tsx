@@ -27,6 +27,7 @@ import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
 import { toast } from "@/hooks/use-toast";
 import { demoToast } from "@/lib/demoToast";
 import type { FoodItem as RichFoodItem } from "@/lib/nutrition/types";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 type NutritionSearchProps = {
   onMealLogged?: (item: FoodItem) => void;
@@ -146,7 +147,9 @@ export default function NutritionSearch({
   const scannerWarning =
     nutritionEnabled && !liveScannerSupported
       ? scannerBlocked
-        ? "Camera access is blocked for this site. Enable camera permissions or enter the UPC manually."
+        ? isCapacitorNative()
+          ? "Camera permission is off. Enable Camera in Settings > Apps > MyBodyScan, or enter the UPC manually."
+          : "Camera access is blocked for this site. Enable camera permissions or enter the UPC manually."
         : "Live barcode scanning isn't available on this browser. Enter the UPC manually."
       : null;
 

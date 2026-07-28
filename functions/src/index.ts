@@ -109,7 +109,7 @@ function applyGatewayCors(req: Request, res: Response) {
   }
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Authorization, Content-Type, X-Firebase-AppCheck"
+    "Authorization, Content-Type, X-Firebase-AppCheck, X-Correlation-Id, X-Request-Id, X-TZ-Offset-Mins"
   );
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
 }

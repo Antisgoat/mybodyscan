@@ -7,8 +7,11 @@ test.describe("Auth flows (smoke)", () => {
   }) => {
     const appCheckRequest = page
       .waitForRequest(
-        (request) => request.url().includes("google.com/recaptcha"),
-        { timeout: 10_000 }
+        (request) =>
+          /google\.com\/recaptcha\/enterprise|firebaseappcheck\.googleapis\.com/i.test(
+            request.url()
+          ),
+        { timeout: 20_000 }
       )
       .catch(() => null);
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -18,6 +21,9 @@ test.describe("Auth flows (smoke)", () => {
         name: "See your progress. Know what to do next.",
       })
     ).toBeVisible();
+    // The landing page initializes App Check lazily. System Check requests a
+    // token and therefore proves the configured Enterprise provider can run.
+    await page.goto("/system-check", { waitUntil: "domcontentloaded" });
     expect(await appCheckRequest).not.toBeNull();
   });
 });

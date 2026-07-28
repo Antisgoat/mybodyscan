@@ -745,7 +745,7 @@ export default function Meals() {
         title="Meals - MyBodyScan"
         description="Track your daily nutrition"
       />
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+      <main className="mx-auto flex max-w-5xl flex-col gap-5 px-0 py-1 sm:gap-6 sm:p-2">
         <div className="space-y-2 text-center">
           <Utensils className="mx-auto h-10 w-10 text-primary" />
           <h1 className="text-3xl font-semibold text-foreground">Diary</h1>

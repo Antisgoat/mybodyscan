@@ -44,7 +44,7 @@ function applyCors(res: Response): boolean {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Content-Type,Authorization,X-Firebase-AppCheck,X-UAT"
+    "Content-Type,Authorization,X-Firebase-AppCheck,X-Correlation-Id,X-Request-Id,X-TZ-Offset-Mins,X-UAT"
   );
   res.setHeader("Vary", "Origin");
 

@@ -43,12 +43,17 @@ function allowedEquipmentFromPrefs(prefs: CustomPlanPrefs): {
   mode: "full_gym" | "minimal";
   allowed: Set<Equipment>;
 } {
-  const eq = new Set((prefs.equipment ?? []).map((s) => String(s).toLowerCase()));
+  const eq = new Set(
+    (prefs.equipment ?? []).map((s) => String(s).toLowerCase())
+  );
   const minimal =
     prefs.trainingStyle === "minimal_equipment" ||
     (!eq.has("gym") && (eq.has("dumbbells") || eq.has("bodyweight")));
   if (minimal) {
-    return { mode: "minimal", allowed: new Set<Equipment>(["dumbbell", "bodyweight"]) };
+    return {
+      mode: "minimal",
+      allowed: new Set<Equipment>(["dumbbell", "bodyweight"]),
+    };
   }
   return {
     mode: "full_gym",
@@ -91,12 +96,20 @@ export default function CustomizeProgram() {
   const fromActive = searchParams.get("fromActive") === "1";
 
   const [goal, setGoal] = useState<CustomPlanGoal>("build_muscle");
-  const [experience, setExperience] = useState<CustomPlanExperience>("beginner");
-  const [trainingStyle, setTrainingStyle] = useState<CustomPlanStyle>("balanced");
+  const [experience, setExperience] =
+    useState<CustomPlanExperience>("beginner");
+  const [trainingStyle, setTrainingStyle] =
+    useState<CustomPlanStyle>("balanced");
   const [focus, setFocus] = useState<CustomPlanFocus>("full_body");
   const [daysPerWeek, setDaysPerWeek] = useState<number>(4);
-  const [preferredDays, setPreferredDays] = useState<DayName[]>(["Mon", "Tue", "Thu", "Fri"]);
-  const [timePerWorkout, setTimePerWorkout] = useState<CustomPlanPrefs["timePerWorkout"]>("45");
+  const [preferredDays, setPreferredDays] = useState<DayName[]>([
+    "Mon",
+    "Tue",
+    "Thu",
+    "Fri",
+  ]);
+  const [timePerWorkout, setTimePerWorkout] =
+    useState<CustomPlanPrefs["timePerWorkout"]>("45");
   const [equipment, setEquipment] = useState<string[]>(["bodyweight"]);
   const [emphasis, setEmphasis] = useState<string[]>([]);
   const [injuries, setInjuries] = useState<string>("");
@@ -104,11 +117,16 @@ export default function CustomizeProgram() {
   const [cardioPreference, setCardioPreference] = useState<string>("none");
 
   const [title, setTitle] = useState<string>("My custom plan");
-  const [generatedDays, setGeneratedDays] = useState<CatalogPlanDay[] | null>(null);
+  const [generatedDays, setGeneratedDays] = useState<CatalogPlanDay[] | null>(
+    null
+  );
   const [generating, setGenerating] = useState(false);
   const [starting, setStarting] = useState(false);
   const [generationVariant, setGenerationVariant] = useState<number>(0);
-  const [swapTarget, setSwapTarget] = useState<{ dayIndex: number; exerciseIndex: number } | null>(null);
+  const [swapTarget, setSwapTarget] = useState<{
+    dayIndex: number;
+    exerciseIndex: number;
+  } | null>(null);
   const [swapQuery, setSwapQuery] = useState<string>("");
 
   const prefs: CustomPlanPrefs = useMemo(
@@ -124,7 +142,9 @@ export default function CustomizeProgram() {
       emphasis,
       injuries: injuries.trim() ? injuries.trim() : null,
       avoidExercises: avoidExercises.trim() ? avoidExercises.trim() : null,
-      cardioPreference: cardioPreference.trim() ? cardioPreference.trim() : null,
+      cardioPreference: cardioPreference.trim()
+        ? cardioPreference.trim()
+        : null,
     }),
     [
       goal,
@@ -148,7 +168,8 @@ export default function CustomizeProgram() {
     const ex = day?.exercises?.[swapTarget.exerciseIndex];
     const currentName = typeof ex?.name === "string" ? ex.name : "";
     const inferred = currentName ? getExerciseByExactName(currentName) : null;
-    const inferredPattern: MovementPattern | null = inferred?.movementPattern ?? null;
+    const inferredPattern: MovementPattern | null =
+      inferred?.movementPattern ?? null;
     const inferredTags = inferred?.tags ?? [];
     const equip = allowedEquipmentFromPrefs(prefs);
     return {
@@ -197,17 +218,26 @@ export default function CustomizeProgram() {
     if (!q) {
       return candidates
         .slice()
-        .sort((a, b) => normalizeExerciseName(a.name).localeCompare(normalizeExerciseName(b.name)))
+        .sort((a, b) =>
+          normalizeExerciseName(a.name).localeCompare(
+            normalizeExerciseName(b.name)
+          )
+        )
         .slice(0, 30);
     }
     return candidates.slice(0, 30);
   }, [swapContext, swapQuery]);
 
-  const preferredDaySet = useMemo(() => new Set(preferredDays), [preferredDays]);
+  const preferredDaySet = useMemo(
+    () => new Set(preferredDays),
+    [preferredDays]
+  );
 
   const togglePreferredDay = (day: DayName) => {
     setPreferredDays((prev) => {
-      const next = prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day];
+      const next = prev.includes(day)
+        ? prev.filter((d) => d !== day)
+        : [...prev, day];
       return ensureUniqueDays(next, normalizeDaysPerWeek(daysPerWeek));
     });
   };
@@ -243,7 +273,10 @@ export default function CustomizeProgram() {
       setTitle(res.title);
       const days = Array.isArray(res.days) ? res.days : [];
       setGeneratedDays(days);
-      toast({ title: "Plan generated", description: "Review and customize before starting." });
+      toast({
+        title: "Plan generated",
+        description: "Review and customize before starting.",
+      });
     } catch (err: any) {
       toast({
         title: "Unable to generate",
@@ -255,7 +288,11 @@ export default function CustomizeProgram() {
     }
   };
 
-  const updateExercise = (dayIndex: number, exerciseIndex: number, patch: Partial<{ name: string; sets: number; reps: string }>) => {
+  const updateExercise = (
+    dayIndex: number,
+    exerciseIndex: number,
+    patch: Partial<{ name: string; sets: number; reps: string }>
+  ) => {
     setGeneratedDays((prev) => {
       if (!prev) return prev;
       const days = prev.map((d) => ({ ...d, exercises: [...d.exercises] }));
@@ -272,7 +309,11 @@ export default function CustomizeProgram() {
     });
   };
 
-  const moveExercise = (dayIndex: number, fromIndex: number, toIndex: number) => {
+  const moveExercise = (
+    dayIndex: number,
+    fromIndex: number,
+    toIndex: number
+  ) => {
     setGeneratedDays((prev) => {
       if (!prev) return prev;
       const days = prev.map((d) => ({ ...d, exercises: [...d.exercises] }));
@@ -286,7 +327,11 @@ export default function CustomizeProgram() {
     });
   };
 
-  const moveExerciseToDay = (fromDayIndex: number, exerciseIndex: number, toDayIndex: number) => {
+  const moveExerciseToDay = (
+    fromDayIndex: number,
+    exerciseIndex: number,
+    toDayIndex: number
+  ) => {
     setGeneratedDays((prev) => {
       if (!prev) return prev;
       const days = prev.map((d) => ({ ...d, exercises: [...d.exercises] }));
@@ -307,7 +352,10 @@ export default function CustomizeProgram() {
       const current = prev[dayIndex]?.day;
       if (current) used.delete(current);
       if (used.has(day)) {
-        toast({ title: "Day already used", description: "Pick a different day." });
+        toast({
+          title: "Day already used",
+          description: "Pick a different day.",
+        });
         return prev;
       }
       const days = prev.map((d) => ({ ...d, exercises: [...d.exercises] }));
@@ -324,7 +372,11 @@ export default function CustomizeProgram() {
     }
     const validationError = validateWorkoutPlanDays(generatedDays);
     if (validationError) {
-      toast({ title: "Fix plan issues", description: validationError, variant: "destructive" });
+      toast({
+        title: "Fix plan issues",
+        description: validationError,
+        variant: "destructive",
+      });
       return;
     }
     setStarting(true);
@@ -350,8 +402,11 @@ export default function CustomizeProgram() {
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <Seo title="Customize plan – MyBodyScan" description="Build a workout plan that fits you." />
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+      <Seo
+        title="Customize plan – MyBodyScan"
+        description="Build a workout plan that fits you."
+      />
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-0 py-1 sm:gap-6 sm:p-2">
         <div className="flex items-center justify-between gap-3">
           <Button
             variant="ghost"
@@ -368,7 +423,9 @@ export default function CustomizeProgram() {
             <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-primary">
               <Sparkles className="h-4 w-4" /> Customize plan
             </div>
-            <CardTitle className="text-3xl font-semibold">Build your plan</CardTitle>
+            <CardTitle className="text-3xl font-semibold">
+              Build your plan
+            </CardTitle>
             <p className="text-sm text-muted-foreground">
               A few choices, then a plan you can tweak before starting.
             </p>
@@ -387,14 +444,21 @@ export default function CustomizeProgram() {
             <section className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Goal</Label>
-                <RadioGroup value={goal} onValueChange={(v) => setGoal(v as CustomPlanGoal)} className="grid gap-2">
+                <RadioGroup
+                  value={goal}
+                  onValueChange={(v) => setGoal(v as CustomPlanGoal)}
+                  className="grid gap-2"
+                >
                   {[
                     ["lose_fat", "Lose fat"],
                     ["build_muscle", "Build muscle"],
                     ["recomp", "Recomposition"],
                     ["performance", "Performance"],
                   ].map(([value, label]) => (
-                    <Label key={value} className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary">
+                    <Label
+                      key={value}
+                      className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary"
+                    >
                       <span className="font-medium">{label}</span>
                       <RadioGroupItem value={value} />
                     </Label>
@@ -404,13 +468,22 @@ export default function CustomizeProgram() {
 
               <div className="space-y-2">
                 <Label>Experience</Label>
-                <RadioGroup value={experience} onValueChange={(v) => setExperience(v as CustomPlanExperience)} className="grid gap-2">
+                <RadioGroup
+                  value={experience}
+                  onValueChange={(v) =>
+                    setExperience(v as CustomPlanExperience)
+                  }
+                  className="grid gap-2"
+                >
                   {[
                     ["beginner", "Beginner"],
                     ["intermediate", "Intermediate"],
                     ["advanced", "Advanced"],
                   ].map(([value, label]) => (
-                    <Label key={value} className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary">
+                    <Label
+                      key={value}
+                      className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary"
+                    >
                       <span className="font-medium">{label}</span>
                       <RadioGroupItem value={value} />
                     </Label>
@@ -422,7 +495,11 @@ export default function CustomizeProgram() {
             <section className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Training style</Label>
-                <RadioGroup value={trainingStyle} onValueChange={(v) => setTrainingStyle(v as CustomPlanStyle)} className="grid gap-2">
+                <RadioGroup
+                  value={trainingStyle}
+                  onValueChange={(v) => setTrainingStyle(v as CustomPlanStyle)}
+                  className="grid gap-2"
+                >
                   {[
                     ["balanced", "Balanced"],
                     ["strength", "Strength"],
@@ -430,7 +507,10 @@ export default function CustomizeProgram() {
                     ["athletic", "Athletic"],
                     ["minimal_equipment", "Minimal equipment"],
                   ].map(([value, label]) => (
-                    <Label key={value} className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary">
+                    <Label
+                      key={value}
+                      className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary"
+                    >
                       <span className="font-medium">{label}</span>
                       <RadioGroupItem value={value} />
                     </Label>
@@ -439,7 +519,11 @@ export default function CustomizeProgram() {
               </div>
               <div className="space-y-2">
                 <Label>Focus</Label>
-                <RadioGroup value={focus} onValueChange={(v) => setFocus(v as CustomPlanFocus)} className="grid gap-2">
+                <RadioGroup
+                  value={focus}
+                  onValueChange={(v) => setFocus(v as CustomPlanFocus)}
+                  className="grid gap-2"
+                >
                   {[
                     ["full_body", "Full body"],
                     ["upper_lower", "Upper / Lower"],
@@ -447,7 +531,10 @@ export default function CustomizeProgram() {
                     ["bro_split", "Bro split"],
                     ["custom_emphasis", "Custom emphasis"],
                   ].map(([value, label]) => (
-                    <Label key={value} className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary">
+                    <Label
+                      key={value}
+                      className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary"
+                    >
                       <span className="font-medium">{label}</span>
                       <RadioGroupItem value={value} />
                     </Label>
@@ -486,7 +573,10 @@ export default function CustomizeProgram() {
                     className="grid grid-cols-2 gap-2"
                   >
                     {["30", "45", "60", "75+"].map((v) => (
-                      <Label key={v} className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-3 py-2 text-sm hover:border-primary">
+                      <Label
+                        key={v}
+                        className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-3 py-2 text-sm hover:border-primary"
+                      >
                         <span>{v === "75+" ? "75+" : `${v} min`}</span>
                         <RadioGroupItem value={v} />
                       </Label>
@@ -503,7 +593,10 @@ export default function CustomizeProgram() {
                         key={d}
                         className="flex cursor-pointer items-center gap-2 rounded-md border bg-card px-2 py-2 text-xs hover:border-primary"
                       >
-                        <Checkbox checked={preferredDaySet.has(d)} onCheckedChange={() => togglePreferredDay(d)} />
+                        <Checkbox
+                          checked={preferredDaySet.has(d)}
+                          onCheckedChange={() => togglePreferredDay(d)}
+                        />
                         <span>{d}</span>
                       </Label>
                     ))}
@@ -535,7 +628,8 @@ export default function CustomizeProgram() {
                   type="button"
                   size="sm"
                   variant={
-                    equipment.includes("dumbbells") && equipment.includes("bodyweight")
+                    equipment.includes("dumbbells") &&
+                    equipment.includes("bodyweight")
                       ? "default"
                       : "outline"
                   }
@@ -558,7 +652,10 @@ export default function CustomizeProgram() {
                     key={value}
                     className="flex cursor-pointer items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm hover:border-primary"
                   >
-                    <Checkbox checked={equipment.includes(value)} onCheckedChange={() => toggleEquipment(value)} />
+                    <Checkbox
+                      checked={equipment.includes(value)}
+                      onCheckedChange={() => toggleEquipment(value)}
+                    />
                     <span>{label}</span>
                   </Label>
                 ))}
@@ -571,7 +668,15 @@ export default function CustomizeProgram() {
             <section className="space-y-2">
               <Label>Focus areas (optional)</Label>
               <div className="flex flex-wrap gap-2">
-                {["chest", "back", "legs", "glutes", "shoulders", "arms", "core"].map((v) => (
+                {[
+                  "chest",
+                  "back",
+                  "legs",
+                  "glutes",
+                  "shoulders",
+                  "arms",
+                  "core",
+                ].map((v) => (
                   <Button
                     key={v}
                     type="button"
@@ -633,10 +738,19 @@ export default function CustomizeProgram() {
             </section>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <Button type="button" variant="outline" onClick={() => setGeneratedDays(null)} disabled={!generatedDays}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setGeneratedDays(null)}
+                disabled={!generatedDays}
+              >
                 Reset preview
               </Button>
-              <Button type="button" onClick={handleGenerate} disabled={generating}>
+              <Button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating}
+              >
                 {generating ? (
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" /> Generating…
@@ -659,13 +773,18 @@ export default function CustomizeProgram() {
             </CardHeader>
             <CardContent className="space-y-4">
               {generatedDays.map((day, dayIndex) => (
-                <Card key={`${day.day}-${dayIndex}`} className="border bg-background/60">
-                  <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+                <Card
+                  key={`${day.day}-${dayIndex}`}
+                  className="border bg-background/60"
+                >
+                  <CardHeader className="flex flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                       <div className="text-xs uppercase tracking-wide text-muted-foreground">
                         Workout day
                       </div>
-                      <div className="text-lg font-semibold text-foreground">{day.day}</div>
+                      <div className="text-lg font-semibold text-foreground">
+                        {day.day}
+                      </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {DAYS.map((d) => (
@@ -683,23 +802,36 @@ export default function CustomizeProgram() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {day.exercises.map((ex, exIdx) => (
-                      <div key={`${ex.name}-${exIdx}`} className="rounded-md border p-3">
+                      <div
+                        key={`${ex.name}-${exIdx}`}
+                        className="rounded-md border p-3"
+                      >
                         <div className="grid gap-3 md:grid-cols-[1fr_90px_120px_auto] md:items-end">
                           <div className="space-y-1">
                             <Label className="text-xs">Exercise</Label>
                             <Input
                               value={ex.name}
-                              onChange={(e) => updateExercise(dayIndex, exIdx, { name: e.target.value })}
+                              onChange={(e) =>
+                                updateExercise(dayIndex, exIdx, {
+                                  name: e.target.value,
+                                })
+                              }
                             />
                             <div className="pt-2">
                               <Dialog
-                                open={swapTarget?.dayIndex === dayIndex && swapTarget?.exerciseIndex === exIdx}
+                                open={
+                                  swapTarget?.dayIndex === dayIndex &&
+                                  swapTarget?.exerciseIndex === exIdx
+                                }
                                 onOpenChange={(open) => {
                                   if (!open) {
                                     setSwapTarget(null);
                                     setSwapQuery("");
                                   } else {
-                                    setSwapTarget({ dayIndex, exerciseIndex: exIdx });
+                                    setSwapTarget({
+                                      dayIndex,
+                                      exerciseIndex: exIdx,
+                                    });
                                   }
                                 }}
                               >
@@ -709,7 +841,10 @@ export default function CustomizeProgram() {
                                     size="sm"
                                     variant="outline"
                                     onClick={() => {
-                                      setSwapTarget({ dayIndex, exerciseIndex: exIdx });
+                                      setSwapTarget({
+                                        dayIndex,
+                                        exerciseIndex: exIdx,
+                                      });
                                       setSwapQuery("");
                                     }}
                                   >
@@ -723,35 +858,46 @@ export default function CustomizeProgram() {
                                   <div className="space-y-3">
                                     <Input
                                       value={swapQuery}
-                                      onChange={(e) => setSwapQuery(e.target.value)}
+                                      onChange={(e) =>
+                                        setSwapQuery(e.target.value)
+                                      }
                                       placeholder="Search (e.g. bench, row, squat)…"
                                       autoFocus
                                     />
                                     <div className="max-h-72 overflow-auto rounded-md border">
                                       {swapResults.map((exercise) => (
-                                          <button
-                                            key={exercise.id}
-                                            type="button"
-                                            className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-muted"
-                                            onClick={() => {
-                                              updateExercise(dayIndex, exIdx, {
-                                                name: exercise.name,
-                                              });
-                                              setSwapTarget(null);
-                                              setSwapQuery("");
-                                              toast({ title: "Exercise updated" });
-                                            }}
-                                          >
-                                            <span className="font-medium">{exercise.name}</span>
-                                            <span className="text-xs text-muted-foreground">Select</span>
-                                          </button>
-                                        ))}
+                                        <button
+                                          key={exercise.id}
+                                          type="button"
+                                          className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-muted"
+                                          onClick={() => {
+                                            updateExercise(dayIndex, exIdx, {
+                                              name: exercise.name,
+                                            });
+                                            setSwapTarget(null);
+                                            setSwapQuery("");
+                                            toast({
+                                              title: "Exercise updated",
+                                            });
+                                          }}
+                                        >
+                                          <span className="font-medium">
+                                            {exercise.name}
+                                          </span>
+                                          <span className="text-xs text-muted-foreground">
+                                            Select
+                                          </span>
+                                        </button>
+                                      ))}
                                       {!swapResults.length ? (
-                                        <div className="p-3 text-sm text-muted-foreground">No exercises available.</div>
+                                        <div className="p-3 text-sm text-muted-foreground">
+                                          No exercises available.
+                                        </div>
                                       ) : null}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                      Tip: you can always type a custom name directly in the exercise field.
+                                      Tip: you can always type a custom name
+                                      directly in the exercise field.
                                     </p>
                                   </div>
                                 </DialogContent>
@@ -766,7 +912,9 @@ export default function CustomizeProgram() {
                               max={10}
                               value={Number(ex.sets ?? 3)}
                               onChange={(e) =>
-                                updateExercise(dayIndex, exIdx, { sets: Number(e.target.value) })
+                                updateExercise(dayIndex, exIdx, {
+                                  sets: Number(e.target.value),
+                                })
                               }
                             />
                           </div>
@@ -774,38 +922,53 @@ export default function CustomizeProgram() {
                             <Label className="text-xs">Reps</Label>
                             <Input
                               value={String(ex.reps ?? "10")}
-                              onChange={(e) => updateExercise(dayIndex, exIdx, { reps: e.target.value })}
+                              onChange={(e) =>
+                                updateExercise(dayIndex, exIdx, {
+                                  reps: e.target.value,
+                                })
+                              }
                             />
                           </div>
-                          <div className="flex flex-wrap gap-2 md:justify-end">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => moveExercise(dayIndex, exIdx, exIdx - 1)}
-                              disabled={exIdx === 0}
-                            >
-                              Up
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              onClick={() => moveExercise(dayIndex, exIdx, exIdx + 1)}
-                              disabled={exIdx === day.exercises.length - 1}
-                            >
-                              Down
-                            </Button>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">Move to</span>
-                              <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-col gap-3 md:items-end">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  moveExercise(dayIndex, exIdx, exIdx - 1)
+                                }
+                                disabled={exIdx === 0}
+                              >
+                                Up
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  moveExercise(dayIndex, exIdx, exIdx + 1)
+                                }
+                                disabled={exIdx === day.exercises.length - 1}
+                              >
+                                Down
+                              </Button>
+                            </div>
+                            <div className="w-full space-y-1 md:w-auto">
+                              <span className="block text-xs text-muted-foreground">
+                                Move to day
+                              </span>
+                              <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap sm:gap-2">
                                 {generatedDays.map((d, idx) => (
                                   <Button
                                     key={`${d.day}-${idx}`}
                                     type="button"
                                     size="sm"
-                                    variant="ghost"
-                                    onClick={() => moveExerciseToDay(dayIndex, exIdx, idx)}
+                                    variant="outline"
+                                    className="min-w-0 px-2"
+                                    onClick={() =>
+                                      moveExerciseToDay(dayIndex, exIdx, idx)
+                                    }
                                     disabled={idx === dayIndex}
                                   >
                                     {d.day}
@@ -823,7 +986,8 @@ export default function CustomizeProgram() {
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  When you start, we’ll send you straight to Today with the workout ready.
+                  When you start, we’ll send you straight to Today with the
+                  workout ready.
                 </p>
                 <DemoWriteButton onClick={handleStart} disabled={starting}>
                   {starting ? (
@@ -842,4 +1006,3 @@ export default function CustomizeProgram() {
     </div>
   );
 }
-

@@ -44,7 +44,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We use the camera to scan and capture photos for your body scan.</string>
+	<string>We use the camera to capture body scan photos and scan food barcodes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>We use your photo library to select photos for your body scan.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

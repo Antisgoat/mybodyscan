@@ -131,7 +131,23 @@ function normalizeNutritionError(error: unknown): Error {
       extractDebugId(error);
     return err;
   }
-  if (error instanceof Error) return error;
+  if (error instanceof Error) {
+    const message = String(error.message || "").trim();
+    if (
+      /load failed|failed to fetch|network(?:error| request failed)|request timed out/i.test(
+        message
+      )
+    ) {
+      const err = new Error(
+        "Food search is offline right now. Check your connection and try again."
+      );
+      (err as Error & { code?: string; status?: number }).code =
+        "network_unavailable";
+      (err as Error & { code?: string; status?: number }).status = 0;
+      return err;
+    }
+    return error;
+  }
   return new Error("Unable to load nutrition results right now.");
 }
 

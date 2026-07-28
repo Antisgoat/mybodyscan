@@ -1,4 +1,6 @@
 /* Lightweight wrappers around @zxing/browser with graceful fallbacks */
+import { isCapacitorNative } from "@/lib/platform/isNative";
+
 export type StopFn = () => void;
 
 let zxingMod: any | null = null;
@@ -32,6 +34,7 @@ export function cameraAvailable(): boolean {
 export function isSecureContextOrLocal(): boolean {
   if (typeof window === "undefined") return false;
   return (
+    isCapacitorNative() ||
     Boolean(window.isSecureContext) ||
     (typeof location !== "undefined" && location.hostname === "localhost")
   );
