@@ -113,4 +113,13 @@ describe("marketing assets", () => {
     expect(metadata).toContain(keywords);
     expect(metadata).not.toMatch(/\b(Yuka|MyFitnessPal)\b/i);
   });
+
+  it("captures store screenshots with the current policy gate dismissed", () => {
+    const captureScript = read("scripts/capture-app-store-screenshots.mjs");
+
+    expect(captureScript).toContain('localStorage.setItem("mbs_policy_ok_v2", "1")');
+    expect(captureScript).not.toContain("mbs_policy_ok_v1");
+    expect(captureScript).toContain("06-personal-coach.png");
+    expect(captureScript).not.toContain("06-ai-coach.png");
+  });
 });

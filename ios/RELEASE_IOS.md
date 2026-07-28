@@ -109,21 +109,22 @@ enabled on the device.
 
 Current release snapshot (2026-07-28):
 
-- Build 10 (`1.0.0`) is the current TestFlight/device acceptance candidate. It
+- Build 12 (`1.0.0`) is the current TestFlight/device acceptance candidate. It
   contains the merged adaptive coaching, allergy-aware nutrition, custom-food
-  and recipe, workout-session, billing, legal, and production release changes.
-  The archive contains build tag `becc143`.
+  and recipe, workout-session, billing, legal, production release, and
+  customer-facing terminology changes. The archive contains build tag
+  `a2e0cf2`.
 - Xcode archive validation, distribution export, upload, and Apple processing
-  completed successfully. App Store Connect reports build 10 as **Ready to
+  completed successfully. App Store Connect reports build 12 as **Ready to
   Submit**.
-- Build 10 is the sole build in the `Internal QA` TestFlight group. Distribution
+- Build 12 is the sole build in the `Internal QA` TestFlight group. Distribution
   is manual so later unverified uploads cannot reach testers automatically.
   The build-level `What to Test` checklist and the app-level beta description,
   feedback email, marketing URL, and privacy URL are saved.
-- Build 10 is selected and saved for App Store version 1.0. It has not been
+- Build 12 is selected and saved for App Store version 1.0. It has not been
   installed on the paired iPhone or submitted for review. App Store Connect
   currently has no eligible internal testers, so no invitation has been sent.
-- Builds 2 through 9 are superseded and build 9 is no longer selected for App
+- Builds 2 through 11 are superseded and build 11 is no longer selected for App
   Store version 1.0; do not submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are

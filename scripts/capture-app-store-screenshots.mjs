@@ -83,7 +83,7 @@ for (const [profileName, profile] of selectedProfiles) {
   await context.addInitScript(() => {
     localStorage.setItem("mbs_demo", "1");
     sessionStorage.setItem("mbs_demo", "1");
-    localStorage.setItem("mbs_policy_ok_v1", "1");
+    localStorage.setItem("mbs_policy_ok_v2", "1");
     localStorage.setItem("mbs-consent", "accepted");
   });
 
