@@ -86,6 +86,7 @@ export function ServingChooser({
     >
       <DialogContent
         className="max-w-md"
+        aria-describedby={undefined}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           window.requestAnimationFrame(() => quantityRef.current?.focus());

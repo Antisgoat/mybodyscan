@@ -30,24 +30,12 @@ function resolveAnalyticsScripts(isNativeBuild: boolean): string[] {
     ENV.VITE_WEB_ANALYTICS_SCRIPTS as string | undefined
   );
   if (!isNativeBuild) return webScripts;
-
-  const nativeEnabled =
-    ENV.VITE_NATIVE_ANALYTICS_ENABLED === "1" ||
-    ENV.VITE_NATIVE_ANALYTICS_ENABLED === "true";
-  if (!nativeEnabled) {
-    if (webScripts.length) {
-      debugLog("analytics disabled for native build", { count: webScripts.length });
-    } else {
-      debugLog("analytics disabled for native build (no scripts configured)");
-    }
-    return [];
+  if (webScripts.length) {
+    debugLog("analytics disabled for native build", { count: webScripts.length });
+  } else {
+    debugLog("analytics disabled for native build (no scripts configured)");
   }
-  debugLog("analytics enabled via flag");
-
-  const nativeScripts = parseScriptList(
-    ENV.VITE_NATIVE_ANALYTICS_SCRIPTS as string | undefined
-  );
-  return nativeScripts.length ? nativeScripts : webScripts;
+  return [];
 }
 
 export function loadAnalyticsScripts(options?: { isNativeBuild?: boolean }): void {

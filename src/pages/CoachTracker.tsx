@@ -334,7 +334,7 @@ const CoachTracker = () => {
                 Add Meal
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle>Add a meal</DialogTitle>
               </DialogHeader>
