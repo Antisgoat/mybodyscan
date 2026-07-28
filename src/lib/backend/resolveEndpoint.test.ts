@@ -43,6 +43,9 @@ describe("resolveEndpoint", () => {
     expect(resolveEndpoint("/api/scan/submit")).toBe(
       `${FUNCTIONS_ORIGIN}/submitScan`
     );
+    expect(resolveEndpoint("/api/scan/upload")).toBe(
+      `${FUNCTIONS_ORIGIN}/scanUpload`
+    );
     expect(resolveEndpoint("/api/scan/delete")).toBe(
       `${FUNCTIONS_ORIGIN}/deleteScan`
     );

@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 
 const UNIVERSAL_ALLOWED_HEADERS =
-  "Authorization, Content-Type, X-Firebase-AppCheck, X-Requested-With";
+  "Authorization, Content-Type, X-Firebase-AppCheck, X-Requested-With, X-Correlation-Id, X-Request-Id, X-TZ-Offset-Mins";
 const WRAPPED_ALLOWED_HEADERS =
-  "Content-Type,Authorization,X-Firebase-AppCheck,X-TZ-Offset-Mins";
+  "Content-Type,Authorization,X-Firebase-AppCheck,X-Correlation-Id,X-Request-Id,X-TZ-Offset-Mins";
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://mybodyscanapp.com",
   "https://www.mybodyscanapp.com",

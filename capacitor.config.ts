@@ -14,7 +14,9 @@ const config = {
     "*.google.com",
   ],
   ios: {
-    contentInset: "automatic",
+    // Own safe-area spacing in CSS so sticky headers cover the status-bar
+    // region instead of allowing scrolled content to peek above the header.
+    contentInset: "never",
   },
   android: {
     allowMixedContent: false,

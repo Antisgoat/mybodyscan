@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { firebaseApiKey } from "../lib/firebase";
+import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
 
 type HealthSnapshot = {
   identityToolkitReachable?: boolean;
@@ -20,10 +21,15 @@ export default function SetupBanner() {
       params.set("clientKey", firebaseApiKey);
     }
 
-    fetch(`/systemHealth${params.size ? `?${params.toString()}` : ""}`, {
-      credentials: "include",
-      signal: controller.signal,
-    })
+    fetch(
+      resolveEndpoint(
+        `/system/health${params.size ? `?${params.toString()}` : ""}`
+      ),
+      {
+        credentials: "same-origin",
+        signal: controller.signal,
+      }
+    )
       .then(async (response) => {
         if (!response.ok) return null;
         try {

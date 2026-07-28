@@ -6,6 +6,7 @@ import {
   decodeFromImageFile,
   type StopFn,
 } from "./useZxing";
+import { isCapacitorNative } from "@/lib/platform/isNative";
 
 type Props = {
   open: boolean;
@@ -41,9 +42,10 @@ export default function BarcodeScannerSheet({
       stopRef.current?.();
       stopRef.current = null;
       if (cameraBlockReason === "blocked") {
-        // FIX: Stop re-requesting camera once Safari blocks permission and explain how to resolve.
         setError(
-          "Camera permission is blocked for this site. Enable camera access in Safari Settings to scan."
+          isCapacitorNative()
+            ? "Camera permission is off. Open Settings > Apps > MyBodyScan > Camera, then return and try again."
+            : "Camera permission is blocked for this site. Enable camera access in browser settings to scan."
         );
         onCapabilityChange?.({ supported: false, reason: "blocked" });
         return;
@@ -100,7 +102,9 @@ export default function BarcodeScannerSheet({
         if (code === "camera_permission_denied" || code === "NotAllowedError") {
           setCameraBlockReason("blocked");
           setError(
-            "Camera permission is blocked for this site. Enable camera access in Safari Settings > Safari > Camera."
+            isCapacitorNative()
+              ? "Camera permission is off. Open Settings > Apps > MyBodyScan > Camera, then return and try again."
+              : "Camera permission is blocked for this site. Enable camera access in browser settings."
           );
           onCapabilityChange?.({ supported: false, reason: "blocked" });
         } else if (code === "camera_unsupported") {
@@ -222,8 +226,7 @@ export default function BarcodeScannerSheet({
           </div>
 
           <p className="text-[11px] text-muted-foreground">
-            Tip: iPhone Safari requires HTTPS and will keep video inline (no
-            full‑screen). Good lighting helps.
+            Keep the barcode centered and use bright, even lighting.
           </p>
         </div>
       </div>

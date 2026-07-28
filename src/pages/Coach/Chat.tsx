@@ -961,7 +961,7 @@ export default function CoachChatPage() {
         title="Coach chat crashed"
         description="Retry to reload your recent messages."
       >
-        <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
+        <main className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-0 py-1 sm:gap-6 sm:p-2">
           <NotMedicalAdviceBanner />
           {readOnlyDemo ? (
             <Alert variant="default" data-testid="coach-demo-intro">

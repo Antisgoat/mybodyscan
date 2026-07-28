@@ -43,7 +43,7 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = async (
   res.set("Access-Control-Allow-Credentials", "true");
   res.set(
     "Access-Control-Allow-Headers",
-    "Content-Type,Authorization,X-Firebase-AppCheck,X-Correlation-Id,X-Scan-Id,X-Scan-View"
+    "Content-Type,Authorization,X-Firebase-AppCheck,X-Correlation-Id,X-Request-Id,X-Scan-Id,X-Scan-View,X-TZ-Offset-Mins"
   );
   res.set("Access-Control-Max-Age", "3600");
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");

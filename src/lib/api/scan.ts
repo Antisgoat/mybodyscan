@@ -14,6 +14,8 @@ import {
   type UploadPreprocessResult,
 } from "@/features/scan/resizeImage";
 import { kgToLb } from "@/lib/units";
+import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
+import { getAppCheckTokenHeader } from "@/lib/appCheck";
 
 export { getUploadStallReason } from "@/lib/uploads/retryPolicy";
 
@@ -533,7 +535,20 @@ function buildScanError(
       reason: effectiveReason,
     };
   }
-  if (err instanceof Error) return { message: err.message, reason };
+  if (err instanceof Error) {
+    const message = String(err.message || "").trim();
+    const networkFailure =
+      /load failed|failed to fetch|network(?:error| request failed)|string did not match the expected pattern/i.test(
+        message
+      );
+    return {
+      code: networkFailure ? "scan/network-unavailable" : undefined,
+      message: networkFailure
+        ? "We couldn't connect to the scan service. Check your connection and try again."
+        : message || fallbackMessage,
+      reason,
+    };
+  }
   return { message: fallbackMessage, reason };
 }
 
@@ -962,6 +977,7 @@ export async function submitScanClient(
     });
 
     const token = await requireIdToken();
+    const appCheckHeaders = await getAppCheckTokenHeader();
     const form = new FormData();
     // IMPORTANT: The upload function interprets `currentWeight`/`goalWeight` in the provided `unit`.
     // Our canonical inputs are kg, but we also store a human-friendly raw weight+unit in the scan doc.
@@ -995,14 +1011,21 @@ export async function submitScanClient(
       () => uploadAbort.abort(),
       uploadTimeoutMs
     );
-    const response = await fetch(scanUploadUrl(), {
+    // Capacitor runs from `capacitor://localhost`, so a relative `/api/...`
+    // upload URL is not a Firebase endpoint. WKWebView rejects multipart POSTs
+    // to that custom-scheme URL with "The string did not match the expected
+    // pattern." Resolve it to the direct HTTPS Function before calling fetch.
+    const uploadEndpoint = resolveEndpoint(scanUploadUrl());
+    const response = await fetch(uploadEndpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "X-Correlation-Id": scanCorrelationId,
+        ...appCheckHeaders,
       },
       body: form,
       signal: mergeAbortSignals(controller.signal, uploadAbort.signal),
+      credentials: "omit",
     });
     clearTimeout(uploadTimeoutId);
 
