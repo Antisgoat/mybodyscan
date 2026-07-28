@@ -125,11 +125,6 @@ function safeNumber(value: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function clampPercent(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.max(0, Math.min(100, value));
-}
-
 function toLocalISODate(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -171,7 +166,6 @@ export default function Meals() {
   const [history7, setHistory7] = useState<NutritionHistoryDay[]>(() =>
     demo ? DEMO_NUTRITION_HISTORY : []
   );
-  const [loading, setLoading] = useState(!demo);
   const [processing, setProcessing] = useState(false);
   const [recents, setRecents] = useState<RecentItem[]>(() => readRecents());
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>(() =>
@@ -205,10 +199,8 @@ export default function Meals() {
         totals: DEMO_NUTRITION_LOG.totals,
         meals: DEMO_NUTRITION_LOG.meals as MealEntry[],
       });
-      setLoading(false);
       return;
     }
-    setLoading(true);
     getDailyLog(dateISO)
       .then((data: any) => {
         if (!data || typeof data !== "object") {
@@ -222,8 +214,7 @@ export default function Meals() {
       .catch((error) => {
         console.warn("meals.refreshLog", error);
         setLog({ totals: normalizeDailyTotals(null), meals: [] });
-      })
-      .finally(() => setLoading(false));
+      });
   }, [demo, dateISO]);
 
   const refreshHistory = useCallback(() => {
@@ -704,30 +695,6 @@ export default function Meals() {
     1,
     targetCalories > 0 ? consumedCalories / targetCalories : 0
   );
-  const ringCircumference = 2 * Math.PI * 54;
-
-  const macroCalories = {
-    protein: consumedProtein * 4,
-    carbs: consumedCarbs * 4,
-    fat: consumedFat * 9,
-  };
-  const macroTotalCalories =
-    macroCalories.protein + macroCalories.carbs + macroCalories.fat;
-  const macroPercents = {
-    protein:
-      macroTotalCalories > 0
-        ? clampPercent((macroCalories.protein / macroTotalCalories) * 100)
-        : 0,
-    carbs:
-      macroTotalCalories > 0
-        ? clampPercent((macroCalories.carbs / macroTotalCalories) * 100)
-        : 0,
-    fat:
-      macroTotalCalories > 0
-        ? clampPercent((macroCalories.fat / macroTotalCalories) * 100)
-        : 0,
-  };
-
   const chartData = history7.map((day) => ({
     date: new Date(day.date).toLocaleDateString(undefined, {
       month: "short",
@@ -745,14 +712,32 @@ export default function Meals() {
         title="Meals - MyBodyScan"
         description="Track your daily nutrition"
       />
-      <main className="mx-auto flex max-w-5xl flex-col gap-5 px-0 py-1 sm:gap-6 sm:p-2">
-        <div className="space-y-2 text-center">
-          <Utensils className="mx-auto h-10 w-10 text-primary" />
-          <h1 className="text-3xl font-semibold text-foreground">Diary</h1>
-          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+      <main className="mx-auto flex max-w-5xl flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6">
+        <section className="space-y-4" aria-labelledby="nutrition-heading">
+          <div className="flex items-end justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+                Nutrition
+              </p>
+              <h1
+                id="nutrition-heading"
+                className="mt-1 text-[1.75rem] font-semibold leading-tight text-foreground sm:text-3xl"
+              >
+                Food diary
+              </h1>
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">
+                Log meals and keep today&apos;s targets easy to read.
+              </p>
+            </div>
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Utensils className="h-6 w-6" aria-hidden="true" />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1 rounded-xl border bg-card p-1.5 shadow-sm">
             <Button
               type="button"
-              size="sm"
+              size="icon"
               variant="ghost"
               onClick={() => {
                 const d = new Date(selectedDate);
@@ -760,13 +745,25 @@ export default function Meals() {
                 setSelectedDate(d);
               }}
               aria-label="Previous day"
+              className="h-10 w-10 shrink-0"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="h-5 w-5" />
             </Button>
-            <span className="font-medium text-foreground">{dateISO}</span>
+            <div className="min-w-0 flex-1 text-center">
+              <p className="truncate text-sm font-semibold text-foreground">
+                {selectedDate.toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </p>
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                {dateISO}
+              </p>
+            </div>
             <Button
               type="button"
-              size="sm"
+              size="icon"
               variant="ghost"
               onClick={() => {
                 const d = new Date(selectedDate);
@@ -774,31 +771,67 @@ export default function Meals() {
                 setSelectedDate(d);
               }}
               aria-label="Next day"
+              className="h-10 w-10 shrink-0"
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-5 w-5" />
             </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
               onClick={() => setSelectedDate(new Date())}
+              className="h-9 shrink-0 px-3 text-xs"
             >
               Today
             </Button>
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <a href="/meals/plan">
-              <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
-              Open my 7-day meal plan
-            </a>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a href="/meals/my-foods">
-              <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
-              My foods & recipes
-            </a>
-          </Button>
-        </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              size="sm"
+              className="h-11 justify-start px-3 text-[13px]"
+              asChild
+            >
+              <a href="/meals/search">
+                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                Search foods
+              </a>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-11 justify-start px-3 text-[13px]"
+              asChild
+            >
+              <a href="/barcode">
+                <Barcode className="mr-2 h-4 w-4" aria-hidden="true" />
+                Scan barcode
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 justify-start px-3 text-[13px]"
+              asChild
+            >
+              <a href="/meals/plan">
+                <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
+                Meal plan
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 justify-start px-3 text-[13px]"
+              asChild
+            >
+              <a href="/meals/my-foods">
+                <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+                My foods
+              </a>
+            </Button>
+          </div>
+        </section>
 
         {nutritionUnavailable && (
           <Alert variant="destructive">
@@ -807,10 +840,20 @@ export default function Meals() {
           </Alert>
         )}
 
-        <Card className="border bg-card/60">
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-lg">Today</CardTitle>
-            <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap">
+        <Card className="overflow-hidden border bg-card shadow-sm">
+          <CardHeader className="space-y-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">Daily summary</CardTitle>
+                <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
+                  Food minus activity against your daily goal
+                </p>
+              </div>
+              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
+                {units === "metric" ? "Metric" : "US units"}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 size="sm"
                 variant="outline"
@@ -820,7 +863,7 @@ export default function Meals() {
                 }}
                 disabled={processing || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
-                className="w-full sm:w-auto"
+                className="h-10 px-2 text-xs"
               >
                 <Plus className="mr-1 h-4 w-4" /> Quick add
               </Button>
@@ -830,14 +873,14 @@ export default function Meals() {
                 onClick={copyYesterday}
                 disabled={processing || demo}
                 title={demo ? "Demo mode: sign in to save" : undefined}
-                className="w-full sm:w-auto"
+                className="h-10 px-2 text-xs"
               >
-                <Copy className="mr-1 h-4 w-4" /> Copy yesterday
+                <Copy className="mr-1 h-4 w-4" /> Copy day
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                className="w-full sm:w-auto"
+                className="h-10 px-2 text-xs"
                 asChild
               >
                 <a href="/meals/history">
@@ -846,29 +889,55 @@ export default function Meals() {
               </Button>
             </div>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-md border p-4">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Calories
-              </div>
-              <div className="mt-1 text-3xl font-semibold">
-                {Math.round(consumedCalories).toLocaleString()} /{" "}
-                {targetCalories.toLocaleString()}
-              </div>
-              <div className="mt-2 text-xs uppercase tracking-wide text-muted-foreground">
+          <CardContent className="space-y-5 px-4 pb-5 sm:px-6 sm:pb-6">
+            <div className="rounded-xl bg-secondary/65 px-4 py-5 text-center">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Calories remaining
-              </div>
-              <div className="mt-1 text-2xl font-semibold">
+              </p>
+              <p className="mt-1 text-4xl font-semibold leading-none tabular-nums text-foreground">
                 {remainingCalories.toLocaleString()}
+              </p>
+              <div className="mt-5 grid grid-cols-3 divide-x divide-border">
+                <div className="px-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Goal
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+                    {targetCalories.toLocaleString()}
+                  </p>
+                </div>
+                <div className="px-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Food
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+                    {Math.round(consumedCalories).toLocaleString()}
+                  </p>
+                </div>
+                <div className="px-1">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Activity
+                  </p>
+                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
+                    {exerciseCalories.toLocaleString()}
+                  </p>
+                </div>
               </div>
-              <div className="mt-2 text-xs text-muted-foreground">
-                Goal {targetCalories.toLocaleString()} - Food{" "}
-                {Math.round(consumedCalories).toLocaleString()} + Exercise{" "}
-                {exerciseCalories} = Remaining{" "}
-                {remainingCalories.toLocaleString()}
+              <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-background">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{
+                    width: `${Math.min(100, Math.max(0, ringProgress * 100))}%`,
+                  }}
+                  role="progressbar"
+                  aria-label="Daily calorie progress"
+                  aria-valuemin={0}
+                  aria-valuemax={targetCalories}
+                  aria-valuenow={Math.round(consumedCalories)}
+                />
               </div>
               {weeklyCalorieDelta !== 0 ? (
-                <div className="mt-2 rounded-md bg-primary/5 px-2 py-1 text-xs text-primary">
+                <div className="mt-3 rounded-lg bg-background px-3 py-2 text-xs leading-5 text-primary">
                   Weekly review: {weeklyCalorieDelta > 0 ? "+" : ""}
                   {weeklyCalorieDelta} kcal/day.{" "}
                   <a className="underline" href="/weekly-review">
@@ -876,98 +945,111 @@ export default function Meals() {
                   </a>
                 </div>
               ) : null}
-              <div className="mt-3 h-2 w-full overflow-hidden rounded bg-muted">
-                <div
-                  className="h-full bg-primary transition-all"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, ringProgress * 100))}%`,
-                  }}
-                />
-              </div>
             </div>
-            <div className="rounded-md border p-4">
-              <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                Macros
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground">
+                  Macros
+                </h2>
+                <p className="text-[11px] text-muted-foreground">
+                  Consumed / goal
+                </p>
               </div>
-              <div className="mt-2 grid gap-2 text-xs text-muted-foreground">
-                <div className="flex items-center justify-between">
-                  <span>Protein</span>
-                  <span>
-                    {Math.round(consumedProtein)} g{" "}
-                    <span className="text-muted-foreground/80">
-                      ({Math.round(macroPercents.protein)}%)
-                    </span>{" "}
-                    · {Math.round(targetProtein)} g goal
-                  </span>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="min-w-0 rounded-xl border bg-background p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Protein
+                  </p>
+                  <p className="mt-1 text-base font-semibold leading-none tabular-nums text-foreground">
+                    {Math.round(consumedProtein)}g
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                    of {Math.round(targetProtein)}g goal
+                  </p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{
+                        width: `${
+                          targetProtein > 0
+                            ? Math.min(
+                                100,
+                                (consumedProtein / targetProtein) * 100
+                              )
+                            : 0
+                        }%`,
+                      }}
+                      role="progressbar"
+                      aria-label="Protein progress"
+                      aria-valuemin={0}
+                      aria-valuemax={Math.round(targetProtein)}
+                      aria-valuenow={Math.round(consumedProtein)}
+                    />
+                  </div>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded bg-muted">
-                  <div
-                    className="h-full bg-primary/80 transition-all"
-                    style={{
-                      width: `${
-                        targetProtein > 0
-                          ? Math.min(
-                              100,
-                              (consumedProtein / targetProtein) * 100
-                            )
-                          : 0
-                      }%`,
-                    }}
-                  />
+                <div className="min-w-0 rounded-xl border bg-background p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Carbs
+                  </p>
+                  <p className="mt-1 text-base font-semibold leading-none tabular-nums text-foreground">
+                    {Math.round(consumedCarbs)}g
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                    of {Math.round(targetCarbs)}g goal
+                  </p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{
+                        width: `${
+                          targetCarbs > 0
+                            ? Math.min(100, (consumedCarbs / targetCarbs) * 100)
+                            : 0
+                        }%`,
+                      }}
+                      role="progressbar"
+                      aria-label="Carbohydrate progress"
+                      aria-valuemin={0}
+                      aria-valuemax={Math.round(targetCarbs)}
+                      aria-valuenow={Math.round(consumedCarbs)}
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span>Carbs</span>
-                  <span>
-                    {Math.round(consumedCarbs)} g{" "}
-                    <span className="text-muted-foreground/80">
-                      ({Math.round(macroPercents.carbs)}%)
-                    </span>{" "}
-                    · {Math.round(targetCarbs)} g goal
-                  </span>
+                <div className="min-w-0 rounded-xl border bg-background p-3">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    Fat
+                  </p>
+                  <p className="mt-1 text-base font-semibold leading-none tabular-nums text-foreground">
+                    {Math.round(consumedFat)}g
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                    of {Math.round(targetFat)}g goal
+                  </p>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{
+                        width: `${
+                          targetFat > 0
+                            ? Math.min(100, (consumedFat / targetFat) * 100)
+                            : 0
+                        }%`,
+                      }}
+                      role="progressbar"
+                      aria-label="Fat progress"
+                      aria-valuemin={0}
+                      aria-valuemax={Math.round(targetFat)}
+                      aria-valuenow={Math.round(consumedFat)}
+                    />
+                  </div>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded bg-muted">
-                  <div
-                    className="h-full bg-primary/80 transition-all"
-                    style={{
-                      width: `${
-                        targetCarbs > 0
-                          ? Math.min(100, (consumedCarbs / targetCarbs) * 100)
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Fat</span>
-                  <span>
-                    {Math.round(consumedFat)} g{" "}
-                    <span className="text-muted-foreground/80">
-                      ({Math.round(macroPercents.fat)}%)
-                    </span>{" "}
-                    · {Math.round(targetFat)} g goal
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded bg-muted">
-                  <div
-                    className="h-full bg-primary/80 transition-all"
-                    style={{
-                      width: `${
-                        targetFat > 0
-                          ? Math.min(100, (consumedFat / targetFat) * 100)
-                          : 0
-                      }%`,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="mt-2 text-[11px] text-muted-foreground">
-                Units: {units === "metric" ? "Metric" : "US"}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4">
+        <section className="grid gap-3" aria-label="Meals by time of day">
           {MEAL_TYPES.map((type) => {
             const items = mealsByType[type] ?? [];
             const mealCalories = Math.round(
@@ -977,16 +1059,19 @@ export default function Meals() {
               )
             );
             return (
-              <Card key={type} className="border bg-card/60">
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="text-base">
-                    {MEAL_LABELS[type]}{" "}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      • {mealCalories} kcal
-                    </span>
-                  </CardTitle>
+              <Card key={type} className="border bg-card shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-6">
+                  <div className="min-w-0">
+                    <CardTitle className="text-[17px] leading-5">
+                      {MEAL_LABELS[type]}
+                    </CardTitle>
+                    <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                      {mealCalories.toLocaleString()} kcal
+                    </p>
+                  </div>
                   <Button
                     size="sm"
+                    variant="outline"
                     onClick={() => openAddDialog(type)}
                     disabled={processing || demo || nutritionUnavailable}
                     title={
@@ -996,19 +1081,24 @@ export default function Meals() {
                           ? "Demo mode: sign in to save"
                           : undefined
                     }
+                    className="h-9 shrink-0 px-3 text-[13px]"
                   >
                     <Plus className="mr-1 h-4 w-4" /> Add food
                   </Button>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="space-y-2 px-4 pb-4 sm:px-6 sm:pb-5">
                   {!items.length && (
-                    <p className="text-sm text-muted-foreground">
+                    <p className="rounded-lg border border-dashed px-3 py-4 text-center text-[13px] leading-5 text-muted-foreground">
                       No items yet.
                     </p>
                   )}
-                  {items.map((meal) => {
-                    const id = meal.id || `${meal.name}-${Math.random()}`;
+                  {items.map((meal, mealIndex) => {
+                    const id =
+                      meal.id || `${type}-${meal.name || "meal"}-${mealIndex}`;
                     const isHighlighted = highlightMealId === meal.id;
+                    const item = meal.item
+                      ? normalizedFromSnapshot(meal.item)
+                      : null;
                     const grams =
                       typeof meal.serving?.grams === "number"
                         ? meal.serving.grams
@@ -1035,39 +1125,63 @@ export default function Meals() {
                       <div
                         key={id}
                         id={meal.id ? `meal-${meal.id}` : undefined}
-                        className={`flex items-center justify-between gap-3 rounded-md border p-3 ${
+                        className={`flex items-start justify-between gap-3 rounded-xl border p-3 ${
                           isHighlighted ? "border-primary bg-primary/5" : ""
                         }`}
                       >
                         <div className="min-w-0">
-                          <div className="truncate font-medium text-foreground">
+                          <div className="truncate text-[15px] font-semibold leading-5 text-foreground">
                             {meal.name || "Meal"}
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
                             {Math.round(safeNumber(meal.calories))} kcal · P{" "}
                             {Math.round(safeNumber(meal.protein))}g · C{" "}
                             {Math.round(safeNumber(meal.carbs))}g · F{" "}
                             {Math.round(safeNumber(meal.fat))}g
                           </div>
                           {(servingText || gramsText) && (
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-xs leading-5 text-muted-foreground">
                               {servingText}
                               {servingText && gramsText ? " · " : ""}
                               {gramsText}
                             </div>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => meal.id && handleDelete(meal.id)}
-                          disabled={processing || demo}
-                          title={
-                            demo ? "Demo mode: sign in to save" : undefined
-                          }
-                        >
-                          Remove
-                        </Button>
+                        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row">
+                          {item && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 px-2 text-xs"
+                              onClick={() =>
+                                openEditor(
+                                  item,
+                                  meal.serving?.qty ?? 1,
+                                  (meal.serving?.unit as ServingUnit) ||
+                                    "serving"
+                                )
+                              }
+                              disabled={processing || demo}
+                              title={
+                                demo ? "Demo mode: sign in to save" : undefined
+                              }
+                            >
+                              Edit
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                            onClick={() => meal.id && handleDelete(meal.id)}
+                            disabled={processing || demo}
+                            title={
+                              demo ? "Demo mode: sign in to save" : undefined
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
@@ -1075,115 +1189,7 @@ export default function Meals() {
               </Card>
             );
           })}
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Daily Progress</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-6 md:grid-cols-[200px_1fr] md:items-center">
-            <div className="flex flex-col items-center justify-center">
-              <svg className="h-40 w-40" viewBox="0 0 120 120">
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="54"
-                  strokeWidth="8"
-                  className="fill-none stroke-muted"
-                />
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="54"
-                  strokeWidth="8"
-                  className="fill-none stroke-primary transition-all"
-                  strokeDasharray={`${ringCircumference} ${ringCircumference}`}
-                  strokeDashoffset={`${ringCircumference - ringCircumference * ringProgress}`}
-                  strokeLinecap="round"
-                />
-                <text
-                  x="60"
-                  y="60"
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  className="text-2xl font-semibold fill-foreground"
-                >
-                  {Math.round(consumedCalories)}
-                </text>
-              </svg>
-              <p className="text-xs text-muted-foreground">
-                Target {targetCalories} kcal
-              </p>
-            </div>
-            <div className="space-y-3 text-sm">
-              <p>
-                Protein:{" "}
-                <span className="font-medium">
-                  {Math.round(consumedProtein)} g
-                </span>
-              </p>
-              <p>
-                Carbs:{" "}
-                <span className="font-medium">
-                  {Math.round(consumedCarbs)} g
-                </span>
-              </p>
-              <p>
-                Fat:{" "}
-                <span className="font-medium">{Math.round(consumedFat)} g</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {nutritionUnavailable ? (
-                  <Button size="sm" disabled title={nutritionOfflineMessage}>
-                    <Plus className="mr-1 h-4 w-4" /> Search foods
-                  </Button>
-                ) : (
-                  <Button size="sm" asChild>
-                    <a href="/meals/search">
-                      <Plus className="mr-1 h-4 w-4" /> Search foods
-                    </a>
-                  </Button>
-                )}
-                {nutritionUnavailable ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled
-                    title={nutritionOfflineMessage}
-                  >
-                    <Barcode className="mr-1 h-4 w-4" /> Scan barcode
-                  </Button>
-                ) : (
-                  <Button size="sm" variant="outline" asChild>
-                    <a href="/barcode">
-                      <Barcode className="mr-1 h-4 w-4" /> Scan barcode
-                    </a>
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => openAddDialog("snacks")}
-                  disabled={processing || demo || nutritionUnavailable}
-                  title={
-                    nutritionUnavailable
-                      ? nutritionOfflineMessage
-                      : demo
-                        ? "Demo mode: sign in to save"
-                        : undefined
-                  }
-                >
-                  <Plus className="mr-1 h-4 w-4" /> Search + add
-                </Button>
-                <Button size="sm" variant="ghost" asChild>
-                  <a href="/meals/history">
-                    <History className="mr-1 h-4 w-4" /> History
-                  </a>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        </section>
 
         <Card>
           <CardHeader>
@@ -1343,86 +1349,10 @@ export default function Meals() {
             </CardContent>
           </Card>
         )}
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Logged meals</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {loading && (
-              <p className="text-sm text-muted-foreground">Loading meals…</p>
-            )}
-            {!loading && !log.meals.length && (
-              <p className="text-sm text-muted-foreground">
-                No meals logged yet. Start with search or barcode.
-              </p>
-            )}
-            {log.meals.map((meal) => {
-              const item = meal.item ? normalizedFromSnapshot(meal.item) : null;
-              const qty = meal.serving?.qty ?? 1;
-              const unit = (meal.serving?.unit as ServingUnit) || "serving";
-              const qtyDisplay =
-                typeof meal.serving?.qty === "number"
-                  ? formatServingQuantity(meal.serving.qty)
-                  : null;
-              const unitLabel =
-                typeof meal.serving?.unit === "string"
-                  ? meal.serving.unit
-                  : null;
-              return (
-                <Card key={meal.id || meal.name} className="border">
-                  <CardContent className="flex flex-col gap-2 py-4 text-sm md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="font-medium text-foreground">{meal.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {meal.calories ?? "—"} kcal • {meal.protein ?? 0}g P •{" "}
-                        {meal.carbs ?? 0}g C • {meal.fat ?? 0}g F
-                      </p>
-                      {(qtyDisplay || unitLabel || meal.serving?.grams) && (
-                        <p className="text-xs text-muted-foreground">
-                          {qtyDisplay && unitLabel
-                            ? `${qtyDisplay} × ${unitLabel}`
-                            : qtyDisplay || unitLabel || ""}
-                          {meal.serving?.grams
-                            ? ` · approx ${Math.round(meal.serving.grams)} g`
-                            : ""}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {item && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openEditor(item, qty, unit)}
-                          disabled={demo}
-                          title={
-                            demo ? "Demo mode: sign in to save" : undefined
-                          }
-                        >
-                          Edit
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => meal.id && handleDelete(meal.id)}
-                        disabled={demo}
-                        title={demo ? "Demo mode: sign in to save" : undefined}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </CardContent>
-        </Card>
       </main>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-xl sm:px-6">
           <DialogHeader>
             <DialogTitle>
               {editorItem ? `Log ${editorItem.name}` : "Log food"}
@@ -1444,7 +1374,7 @@ export default function Meals() {
       </Dialog>
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-3xl sm:px-6">
           <DialogHeader>
             <DialogTitle>Add to {MEAL_LABELS[addMealType]}</DialogTitle>
           </DialogHeader>
@@ -1460,7 +1390,7 @@ export default function Meals() {
       </Dialog>
 
       <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-lg sm:px-6">
           <DialogHeader>
             <DialogTitle>Quick add</DialogTitle>
           </DialogHeader>

@@ -479,46 +479,40 @@ exist.
 
 Current iOS external state on 2026-07-28: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode. Build 12 was archived from release commit `a2e0cf2`, exported
-with App Store distribution signing, and uploaded successfully. App Store
-Connect completed processing without an upload rejection and reports version
-`1.0.0`, build `12` as **Ready to Submit**. The archive contains Weekly Review,
-private foods and recipes, the three exact App Store products, and the final
-customer-facing terminology cleanup. Build 12 is the only current
-TestFlight/device acceptance candidate. It is the sole build in the
-`Internal QA` TestFlight group, whose distribution is intentionally manual,
-and it is selected and saved for App Store version 1.0. Its build-level
-`What to Test` checklist and app-level beta description, feedback email,
-marketing URL, and privacy URL are saved. App Store Connect currently has no
-eligible internal testers, so no invitation has been sent. Build 12 has not
-been installed on the paired iPhone or submitted for review.
+Developer Mode; and the internal tester invitation has been accepted. Build 13
+finished App Store processing and is **Ready to Test**, but build 12 remains
+the sole build in the manually managed `Internal QA` group and remains selected
+for App Store version 1.0. Builds 2 through 13 are superseded by the version
+1.0.0 build-14 source candidate in this repository and must not be submitted
+once build 14 finishes processing.
 
-Builds 2 through 11 are superseded and must not be submitted. Build 9 was
-previously installed on the paired iPhone 14 Pro Max, reported
-bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched successfully,
-and remained running. Fresh iPhone and iPad simulator builds also install,
-launch, and render the reviewed responsive layouts. The real photo, purchase,
-restore, notification, authentication, cold-launch, and offline device
-checklist remains mandatory for build 12.
+Build 14 includes the native request-routing and CORS fixes, four-photo upload
+normalization, safe-area layout, user-facing Coach/nutrition error handling,
+the final customer terminology cleanup, and the reviewed Food Diary typography
+and responsive layout. It must be archived from the final reviewed commit,
+uploaded, added to `Internal QA`, selected for App Store version 1.0, and
+installed fresh from TestFlight before it becomes the acceptance candidate.
+An archive, upload, simulator launch, or older TestFlight install is not
+evidence for build 14. The real-photo, purchase, restore, notification,
+authentication, cold-launch, offline, nutrition, Coach-adjustment, and
+account-deletion checklist remains mandatory.
 
-Build 12 includes the native request routing introduced in build 9:
-scan start/submit/delete now resolve to their HTTP Functions, while Coach and
-nutrition resolve to the aggregate authenticated REST API rather than sending
-plain JSON to Firebase callable endpoints. The same fix is deployed on Firebase
-Hosting from merge `3db674c`; guarded deployment run `30284768932`, disposable
-production probes, Capacitor CORS preflights, and public Hosting/Auth/App Check
-browser smokes all passed. Hosting rollback channel `rollback-3db674c` preserves
-the pre-release Hosting state until 2026-08-03.
+The matching web routing fix is deployed from main merge `e3b0ba2`; guarded
+deployment run `30400732544`, production CORS preflights, route rewrites,
+health/legal/custom-domain probes, and public Hosting/Auth/App Check browser
+smokes passed. Create a fresh Hosting rollback channel for the final nutrition
+release before merging it to main; do not rely on an expired historical
+channel.
 
 Five ordered 1242 × 2688 iPhone screenshots and five ordered 2064 × 2752 iPad
 screenshots are uploaded: body results, training, nutrition progress, meal
-planning, and four-photo scanning. The superseded coach screenshots were
-removed because they showed implementation terminology. Corrected Personal
-Coach assets are generated locally and must be uploaded only after visual
-review. The app download price is $0.00 and the app is scheduled to be
-available in all 175 countries or regions on release. The three exact purchase
-products have their required review screenshot and are in one App Review draft
-with status **Ready for Review**:
+planning, and four-photo scanning. The final Food Diary screenshot has been
+regenerated locally at both exact sizes and must replace the uploaded nutrition
+screenshot after the build-14 production render is reviewed. The app download
+price is $0.00 and the app is scheduled to be available in all 175 countries
+or regions on release. The three exact purchase products have their required
+review screenshot and are in one App Review draft with status **Ready for
+Review**:
 
 - `com.mybodyscan.scan.single`: consumable, $4.99, available in all 175
   countries or regions;
@@ -550,14 +544,18 @@ real App Store sandbox purchase and renewal event. Native plan links open the
 RevenueCat purchase/restore paywall, while Settings opens Apple's
 subscription-management screen; native builds never open Stripe checkout.
 APNs key `9R5X23CQQ9` is uploaded to Firebase for development and production.
-RevenueCat currently reports no received Apple server-notification events.
-In App Store Connect → App Information → App Store Server Notifications, save
-RevenueCat's production URL for production and sandbox URL for sandbox, send a
-test notification, and confirm it appears in RevenueCat before submission.
+RevenueCat's production and sandbox App Store server-notification URLs are
+saved in App Store Connect. RevenueCat still reports no received Apple
+server-notification events, so send a dashboard test notification and confirm
+it appears before submission.
 
-App Store metadata, age rating, categories, and the App Privacy answers are
-configured. App Store Connect will not add version 1.0 to the review draft
-until all of the following are completed truthfully:
+App Store metadata, age rating, categories, and App Privacy answers are
+configured. The public subtitle is `Body Progress & Coaching`; customer-facing
+store copy must not call the scan an “AI body scan.” App Review contact and
+sign-in fields are still empty, App Privacy is configured but unpublished,
+Content Rights is unset, and Digital Services Act/trader status is unfinished.
+Version 1.0 must not be added for review until all of the following are
+completed truthfully:
 
 1. App Review **Contact Information** (first name, last name, phone, and email)
    and working reviewer sign-in credentials for the gated experience.
@@ -565,11 +563,12 @@ until all of the following are completed truthfully:
    Holder must personally accept any legal attestation Apple presents.
 3. The Account Holder or an authorized Admin completes **Content Rights** in
    App Information based on the actual third-party content and licenses.
+4. The Account Holder completes the Digital Services Act/trader declaration
+   and any agreement or legal attestation Apple presents.
 
-Digital Services Act/trader status and any other agreement or legal
-attestations remain owner-only. The final submission is intentionally not
-sent. A successful archive, upload, or provider test does not prove the
-remaining physical-device, purchase, restore, notification, or store flows.
+The final submission is intentionally not sent. A successful archive, upload,
+or provider test does not prove the remaining physical-device, purchase,
+restore, notification, or store flows.
 
 Purchase restoration is verified only when the customer returns to the same
 Firebase account. Deleting that account and then creating a different Firebase
