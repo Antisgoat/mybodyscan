@@ -1083,9 +1083,9 @@ export default function CoachChatPage() {
                                 variant={
                                   message.usedLLM ? "default" : "secondary"
                                 }
-                                className="uppercase tracking-wide"
+                                className="tracking-wide"
                               >
-                                {message.usedLLM ? "LLM" : "Rules"}
+                                {message.usedLLM ? "Adaptive" : "Guided"}
                               </Badge>
                             </div>
                           ) : null}

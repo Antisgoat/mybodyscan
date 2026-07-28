@@ -2,7 +2,7 @@
 
 ## Product snapshot (non-technical)
 
-- **What it does**: MyBodyScan lets members capture body photos, send them to our secure scanning service, and get composition estimates with history tracking. It also includes an AI coach chat, nutrition search/logging, workout plans, and subscription billing for premium access.
+- **What it does**: MyBodyScan lets members capture body photos, send them to our secure scanning service, and get composition estimates with history tracking. It also includes adaptive coach chat, nutrition search/logging, workout plans, and subscription billing for premium access.
 - **Core promise to users**: quick self-serve scans, guided coaching, and simple logging in one app. Health sync is explicitly marked as coming soon.
 
 ## Architecture in plain language
@@ -16,7 +16,7 @@
 - **Auth & access**: `/auth` for sign-in. Logged-out visitors are redirected away from protected routes; logged-in users see `AuthedLayout` with navigation.
 - **Scan flow (canonical)**: Home → **Scan** (`/scan`) → Start (`/scan/start`) → Capture (`/scan/capture`) → Processing (`/scan/result` or `/processing/:scanId`) → Results (`/scan/:scanId` or `/results/:scanId`) → History (`/scan/history` or `/history`). Uploads land in `user_uploads/{uid}/{scanId}`; final results persist under `users/{uid}/scans/{scanId}`.
 - **Plans / billing**: `/plans` lists one-time and subscription plans. Non-subscribers see upgrade CTAs; active subscribers see “manage subscription.” Checkout uses the `createCheckout` callable; customer portal uses `createCustomerPortalSession`.
-- **AI coach**: `/coach` → `/coach/chat` for threaded chat backed by the `coachChat` Function; `/coach/day` surfaces plan-of-day content.
+- **Personal Coach**: `/coach` → `/coach/chat` for threaded chat backed by the `coachChat` Function; `/coach/day` surfaces plan-of-day content.
 - **Meals**: `/meals` hub → `/meals/search` for food lookup → log entries to `users/{uid}/nutritionLogs/{day}` and `entries` subcollections → `/meals/history` for history and trends. Barcode search lives at `/barcode`.
 - **Workouts**: `/workouts` fetches/generates plans via Functions (`/generateWorkoutPlan`, `/getPlan`, `/markExerciseDone`). Progress is stored under `users/{uid}/workoutPlans/{planId}/progress/{iso}`.
 - **Settings**: `/settings` for account/privacy; `/settings/units` persists unit preference on `users/{uid}.preferences.units`; `/settings/health` and `/health` clearly state health sync is coming soon.
@@ -24,7 +24,7 @@
 
 ## High-level roadmap
 
-- **V1 ready**: Core auth/routing, scan upload/result lifecycle, meals logging with USDA/OPEN FF proxies, AI coach chat + history pruning, workout plan generation/mark-complete, subscription checkout/portal (with graceful Stripe-off state), units preference persistence with metric-aware scan screens, and explicit health-sync gating.
+- **V1 ready**: Core auth/routing, scan upload/result lifecycle, meals logging with USDA/OPEN FF proxies, adaptive coach chat + history pruning, workout plan generation/mark-complete, subscription checkout/portal (with graceful Stripe-off state), units preference persistence with metric-aware scan screens, and explicit health-sync gating.
 - **Near-term (stabilization)**:
   - Deprecate legacy scan capture/processing routes in favor of the canonical `/scan/*` journey and wire automatic cleanup for temporary uploads.
   - Add automated coverage for logged-out redirects and disabled billing/nutrition states.

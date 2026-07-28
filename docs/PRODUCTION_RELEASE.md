@@ -479,30 +479,29 @@ exist.
 
 Current iOS external state on 2026-07-28: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode. Build 10 was archived from release commit `becc143`, exported
+Developer Mode. Build 12 was archived from release commit `a2e0cf2`, exported
 with App Store distribution signing, and uploaded successfully. App Store
 Connect completed processing without an upload rejection and reports version
-`1.0.0`, build `10` as **Ready to Submit**. The archive contains Weekly Review,
-private foods and recipes, the three exact App Store products, and build tag
-`becc143`. Build 10 is the only current TestFlight/device acceptance candidate.
-It is the sole build in the `Internal QA` TestFlight group, whose distribution
-is intentionally manual, and it is selected and saved for App Store version
-1.0. Its build-level `What to Test` checklist and app-level beta description,
-feedback email, marketing URL, and privacy URL are saved. App Store Connect
-currently has no eligible internal testers, so no invitation has been sent.
-Build 10 has not been installed on the paired iPhone or submitted for review.
+`1.0.0`, build `12` as **Ready to Submit**. The archive contains Weekly Review,
+private foods and recipes, the three exact App Store products, and the final
+customer-facing terminology cleanup. Build 12 is the only current
+TestFlight/device acceptance candidate. It is the sole build in the
+`Internal QA` TestFlight group, whose distribution is intentionally manual,
+and it is selected and saved for App Store version 1.0. Its build-level
+`What to Test` checklist and app-level beta description, feedback email,
+marketing URL, and privacy URL are saved. App Store Connect currently has no
+eligible internal testers, so no invitation has been sent. Build 12 has not
+been installed on the paired iPhone or submitted for review.
 
-Build 9 is no longer selected for App Store version 1.0. It predates the final
-adaptive coaching and custom-food bundle and is now superseded; do not submit
-it. It was previously installed on the paired iPhone 14 Pro Max, reported
+Builds 2 through 11 are superseded and must not be submitted. Build 9 was
+previously installed on the paired iPhone 14 Pro Max, reported
 bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched successfully,
 and remained running. Fresh iPhone and iPad simulator builds also install,
-launch, and render the reviewed responsive layouts. Builds 2 through 9 are
-superseded and must not be submitted. The real photo, purchase, restore,
-notification, authentication, cold-launch, and offline device checklist
-remains mandatory for build 10.
+launch, and render the reviewed responsive layouts. The real photo, purchase,
+restore, notification, authentication, cold-launch, and offline device
+checklist remains mandatory for build 12.
 
-Build 10 includes the native request routing introduced in build 9:
+Build 12 includes the native request routing introduced in build 9:
 scan start/submit/delete now resolve to their HTTP Functions, while Coach and
 nutrition resolve to the aggregate authenticated REST API rather than sending
 plain JSON to Firebase callable endpoints. The same fix is deployed on Firebase
@@ -511,10 +510,12 @@ production probes, Capacitor CORS preflights, and public Hosting/Auth/App Check
 browser smokes all passed. Hosting rollback channel `rollback-3db674c` preserves
 the pre-release Hosting state until 2026-08-03.
 
-Six ordered 1242 × 2688 iPhone
-screenshots and six ordered 2064 × 2752 iPad screenshots are uploaded: body
-results, training, nutrition progress, meal planning, four-photo scanning, and
-AI coaching. The app download price is $0.00 and the app is scheduled to be
+Five ordered 1242 × 2688 iPhone screenshots and five ordered 2064 × 2752 iPad
+screenshots are uploaded: body results, training, nutrition progress, meal
+planning, and four-photo scanning. The superseded coach screenshots were
+removed because they showed implementation terminology. Corrected Personal
+Coach assets are generated locally and must be uploaded only after visual
+review. The app download price is $0.00 and the app is scheduled to be
 available in all 175 countries or regions on release. The three exact purchase
 products have their required review screenshot and are in one App Review draft
 with status **Ready for Review**:

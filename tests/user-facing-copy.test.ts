@@ -29,9 +29,9 @@ const userFacingCopyFiles = [
 ];
 
 describe("user-facing product language", () => {
-  it("uses product-focused wording instead of AI branding", () => {
+  it("uses product-focused wording instead of implementation branding", () => {
     for (const file of userFacingCopyFiles) {
-      expect(read(file), file).not.toMatch(/\bAI\b|\bOpenAI\b/);
+      expect(read(file), file).not.toMatch(/\bAI\b|\bOpenAI\b|\bLLM\b/);
     }
   });
 });

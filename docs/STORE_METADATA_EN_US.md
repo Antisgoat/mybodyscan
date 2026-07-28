@@ -51,9 +51,9 @@ surface stronger warnings, but users must always verify the current label.
 
 GET ADAPTIVE SUPPORT
 
-Subscribers can use AI Coach to discuss training, recovery, schedule changes,
-and nutrition. A weekly review considers recovery, consistency, and trend,
-shows a conservative recommendation, and changes nothing without approval.
+Subscribers can use Personal Coach to discuss training, recovery, schedule
+changes, and nutrition. A weekly review considers recovery, consistency, and
+trend, shows a conservative recommendation, and changes nothing without approval.
 Optional plateau check-ins and Momentum milestones focus on consistent
 actions—not appearance. Eligible adults can also request a conservative
 motivational Transformation Preview. It is a visualization, not a promise or
@@ -93,7 +93,7 @@ https://mybodyscanapp.com/privacy
 3. Nutrition progress — Make nutrition easier to track
 4. Personalized meal plan — Turn targets into a practical week
 5. Four-photo scan — Capture four guided views
-6. AI Coach — Adjust the next decision, not just the first plan
+6. Personal Coach — Adjust the next decision, not just the first plan
 
 Use actual current app screens. Avoid before-and-after promises, exact regional
 fat claims, medical language, or competitor names.
