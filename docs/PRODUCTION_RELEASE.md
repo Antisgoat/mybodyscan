@@ -477,24 +477,28 @@ change app credentials; an Owner/Admin must upload the least-privileged Google
 service-account JSON and complete RTDN after the correct Play account and app
 exist.
 
-Current iOS external state on 2026-07-27: the App Store app record exists;
+Current iOS external state on 2026-07-28: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode. Build 9 was archived from reviewed PR head `a35a005` (the same
-source merged as `3db674c`), exported with App Store distribution signing, and
-uploaded successfully. App Store Connect completed processing without an
-upload rejection and reports version `1.0.0`, build `9` as **Ready to Submit**.
-Build 9 is selected and saved for App Store version 1.0; build 8 was removed
-from that version, and the final **Add for Review** action was intentionally not
-taken. The exact archive was installed on the paired iPhone 14 Pro Max, reports
-bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched successfully,
-and remained running. App Store Connect accepted the upload and Xcode completed
-archive and export validation. Fresh iPhone and iPad simulator builds also
-install, launch, and render the reviewed responsive layouts. Builds 2 through 8
-are superseded and must not be submitted. The real photo, purchase, restore,
-notification, authentication, cold-launch, and offline device checklist
-remains mandatory.
+Developer Mode. Build 10 was archived from release commit `becc143`, exported
+with App Store distribution signing, and uploaded successfully. App Store
+Connect completed processing without an upload rejection and reports version
+`1.0.0`, build `10` as **Ready to Submit**. The archive contains Weekly Review,
+private foods and recipes, the three exact App Store products, and build tag
+`becc143`. Build 10 is the only current TestFlight/device acceptance candidate.
+It has not been added to an internal testing group, selected for App Store
+version 1.0, installed on the paired iPhone, or submitted for review.
 
-Build 9 replaces the native request routing used in the device screenshots:
+Build 9 remains selected and saved for App Store version 1.0, but it predates
+the final adaptive coaching and custom-food bundle and is now superseded. Do
+not submit build 9. It was previously installed on the paired iPhone 14 Pro
+Max, reported bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched
+successfully, and remained running. Fresh iPhone and iPad simulator builds also
+install, launch, and render the reviewed responsive layouts. Builds 2 through
+9 are superseded and must not be submitted. The real photo, purchase, restore,
+notification, authentication, cold-launch, and offline device checklist
+remains mandatory for build 10.
+
+Build 10 includes the native request routing introduced in build 9:
 scan start/submit/delete now resolve to their HTTP Functions, while Coach and
 nutrition resolve to the aggregate authenticated REST API rather than sending
 plain JSON to Firebase callable endpoints. The same fix is deployed on Firebase

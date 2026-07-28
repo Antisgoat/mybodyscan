@@ -107,21 +107,20 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
-Current release snapshot (2026-07-23):
+Current release snapshot (2026-07-28):
 
-- Build 6 (`1.0.0`) is the final replacement candidate containing the
-  corrected RevenueCat paywall routing, idempotent SDK initialization, and
-  hardened same-origin auth/paywall redirects. It passed the release archive
-  and App Store validation/export gates and was accepted by Apple's upload
-  service for TestFlight processing.
-- The paired iPhone was unavailable after upload, so build 6 has not yet been
-  installed or launched on the physical device.
-- Build 5 passed the release archive and App Store validation/export gates and
-  was accepted by Apple's upload service, but it was superseded before device
-  testing by the redirect-hardening fix and must not be submitted.
-- Build 4 was accepted by Apple's upload service and installed on the paired
-  iPhone, but it must not be submitted because its native plan route bypassed
-  the purchase paywall.
+- Build 10 (`1.0.0`) is the current TestFlight/device acceptance candidate. It
+  contains the merged adaptive coaching, allergy-aware nutrition, custom-food
+  and recipe, workout-session, billing, legal, and production release changes.
+  The archive contains build tag `becc143`.
+- Xcode archive validation, distribution export, upload, and Apple processing
+  completed successfully. App Store Connect reports build 10 as **Ready to
+  Submit**.
+- Build 10 has not been added to an internal testing group, installed on the
+  paired iPhone, selected for App Store version 1.0, or submitted for review.
+- Builds 2 through 9 are superseded. Build 9 remains selected for App Store
+  version 1.0 but predates the final adaptive coaching and custom-food bundle;
+  do not submit it.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
@@ -131,8 +130,8 @@ Current release snapshot (2026-07-23):
 - Store metadata, age rating, categories, and App Privacy answers are
   configured. Publishing the privacy declaration and the remaining Content
   Rights, API-access, and DSA/trader attestations require the Account Holder.
-- Four exact 1242 × 2688 screenshot candidates are generated in
-  `release-artifacts/app-store-screenshots/` and still require manual upload.
+- Six ordered 1242 × 2688 iPhone and six ordered 2064 × 2752 iPad screenshots
+  are uploaded to the App Store version.
 - Build selection, review contact/demo credentials, the checklist below, and
   final submission remain incomplete.
 
