@@ -43,6 +43,8 @@ runbook before shipping.
   at the exact iPhone and iPad dimensions described in the runbook.
 - Select only the freshly uploaded candidate build. Superseded TestFlight
   builds are not release evidence.
+- Current candidate: version 1.0.0 build 14 from main merge `b8a0863`. It is
+  the sole build in `Internal QA` and is saved for App Store version 1.0.
 - Complete truthful App Review contact details and a dedicated reviewer
   account. An Account Holder/Admin must publish App Privacy, declare Content
   Rights, and complete Digital Services Act/trader status; do not guess those

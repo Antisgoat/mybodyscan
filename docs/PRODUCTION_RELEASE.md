@@ -479,40 +479,36 @@ exist.
 
 Current iOS external state on 2026-07-28: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
-Developer Mode; and the internal tester invitation has been accepted. Build 13
-finished App Store processing and is **Ready to Test**, but build 12 remains
-the sole build in the manually managed `Internal QA` group and remains selected
-for App Store version 1.0. Builds 2 through 13 are superseded by the version
-1.0.0 build-14 source candidate in this repository and must not be submitted
-once build 14 finishes processing.
+Developer Mode; and the internal tester invitation has been accepted. Version
+1.0.0 build 14 was archived from main merge `b8a0863`, uploaded successfully,
+finished processing, and is **Testing** in the manually managed `Internal QA`
+group. Build 14 is the group's sole build and is saved as the build for App
+Store version 1.0. Builds 2 through 13 are superseded and must not be submitted.
 
 Build 14 includes the native request-routing and CORS fixes, four-photo upload
 normalization, safe-area layout, user-facing Coach/nutrition error handling,
 the final customer terminology cleanup, and the reviewed Food Diary typography
-and responsive layout. It must be archived from the final reviewed commit,
-uploaded, added to `Internal QA`, selected for App Store version 1.0, and
-installed fresh from TestFlight before it becomes the acceptance candidate.
-An archive, upload, simulator launch, or older TestFlight install is not
-evidence for build 14. The real-photo, purchase, restore, notification,
-authentication, cold-launch, offline, nutrition, Coach-adjustment, and
-account-deletion checklist remains mandatory.
+and responsive layout. It must still be installed fresh from TestFlight and
+pass physical-device acceptance before submission. An archive, successful
+upload, simulator launch, or older TestFlight install is not acceptance
+evidence. The real-photo, purchase, restore, notification, authentication,
+cold-launch, offline, nutrition, Coach-adjustment, and account-deletion
+checklist remains mandatory.
 
-The matching web routing fix is deployed from main merge `e3b0ba2`; guarded
-deployment run `30400732544`, production CORS preflights, route rewrites,
-health/legal/custom-domain probes, and public Hosting/Auth/App Check browser
-smokes passed. Create a fresh Hosting rollback channel for the final nutrition
-release before merging it to main; do not rely on an expired historical
-channel.
+The matching web and Food Diary release is deployed from main merge `b8a0863`;
+guarded deployment run `30407521525`, production CORS preflights, route
+rewrites, health/legal/custom-domain probes, and public Hosting/Auth/App Check
+browser smokes passed. The pre-deployment Hosting rollback channel is
+`rollback-nutrition-20260728` and expires on 2026-08-04.
 
 Five ordered 1242 × 2688 iPhone screenshots and five ordered 2064 × 2752 iPad
 screenshots are uploaded: body results, training, nutrition progress, meal
-planning, and four-photo scanning. The final Food Diary screenshot has been
-regenerated locally at both exact sizes and must replace the uploaded nutrition
-screenshot after the build-14 production render is reviewed. The app download
-price is $0.00 and the app is scheduled to be available in all 175 countries
-or regions on release. The three exact purchase products have their required
-review screenshot and are in one App Review draft with status **Ready for
-Review**:
+planning, and four-photo scanning. The nutrition screenshots were regenerated
+from the final Food Diary at both exact sizes, visually reviewed, and uploaded.
+The app download price is $0.00 and the app is scheduled to be available in all
+175 countries or regions on release. The three exact purchase products have
+their required review screenshot and are in one App Review draft with status
+**Ready for Review**:
 
 - `com.mybodyscan.scan.single`: consumable, $4.99, available in all 175
   countries or regions;
