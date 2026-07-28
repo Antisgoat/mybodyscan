@@ -139,7 +139,7 @@ export default function LiveFlowsQA() {
         return `credits=${creditsSnap.data()?.creditsSummary?.totalAvailable ?? "na"}, pro=${Boolean(entSnap.data()?.pro)}`;
       });
       await run("4. coachChat manual verification", async () => {
-        return "manual only: skipped to avoid paid AI request or message writes";
+        return "manual only: skipped to avoid paid analysis or message writes";
       });
       await run("5. nutritionSearch read", async () => {
         const res = await nutritionSearch("banana");
@@ -228,7 +228,7 @@ export default function LiveFlowsQA() {
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">
             Read-only by default: no meals, workout plans, scan sessions,
-            credits, or paid AI calls are created by this check.
+            credits, or paid analysis calls are created by this check.
           </p>
         </CardContent>
       </Card>
@@ -243,7 +243,7 @@ export default function LiveFlowsQA() {
                 <div>scanId: {latestScan.id}</div>
                 <div>scan status: {String(latestScan.status ?? "unknown")}</div>
                 <div>
-                  AI processing status:{" "}
+                  Analysis processing status:{" "}
                   {String(
                     latestScan.aiProcessing?.status ??
                       latestScan.lastStep ??

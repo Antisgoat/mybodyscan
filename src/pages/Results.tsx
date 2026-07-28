@@ -902,7 +902,7 @@ const Results = () => {
                   calculations.
                 </li>
                 <li>
-                  Body-fat percentage is an AI-assisted visual wellness
+                  Body-fat percentage is a photo-based visual wellness
                   estimate. Lean and fat mass are calculated from weight and
                   that estimate.
                 </li>
@@ -938,7 +938,7 @@ const Results = () => {
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-zinc-300">
               <p>
-                Create an optional, private AI illustration of a realistic goal
+                Create an optional, private illustration of a realistic goal
                 direction. It is motivational—not a prediction or guarantee.
               </p>
               <Button

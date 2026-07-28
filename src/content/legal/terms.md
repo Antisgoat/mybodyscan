@@ -49,7 +49,7 @@ We may limit, suspend, or terminate access when reasonably necessary for securit
 
 ## Availability and Third-Party Services
 
-We may change, suspend, or discontinue features and do not promise uninterrupted availability. MyBodyScan relies on third-party platforms and data sources, including app stores, cloud, AI, nutrition-data, authentication, and payment providers. Their outages, rules, and content can affect the service.
+We may change, suspend, or discontinue features and do not promise uninterrupted availability. MyBodyScan relies on third-party platforms and data sources, including app stores, cloud, automated analysis, nutrition-data, authentication, and payment providers. Their outages, rules, and content can affect the service.
 
 ## Disclaimers and Limitation of Liability
 

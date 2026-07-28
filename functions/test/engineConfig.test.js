@@ -26,7 +26,7 @@ function restoreEnv(snapshot) {
   }
 }
 
-test("engine config surfaces missing OPENAI_API_KEY with actionable message", () => {
+test("engine config surfaces missing provider credentials with actionable message", () => {
   const snap = snapshotEnv();
   try {
     delete process.env.OPENAI_API_KEY;
@@ -38,8 +38,8 @@ test("engine config surfaces missing OPENAI_API_KEY with actionable message", ()
         assert.equal(err.code, "unavailable");
         assert.match(
           err.message,
-          /Set OPENAI_API_KEY/,
-          "missing key should include fix hint"
+          /Configure the required provider credentials/,
+          "missing credentials should include fix hint"
         );
         return true;
       }

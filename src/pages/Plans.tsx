@@ -325,7 +325,7 @@ export default function Plans() {
         "Personalized 7-day meal plan, targets, and meal log",
         "Barcode search and MBS Product Insight",
         "Better-fit same-category food alternatives",
-        "AI Coach and opt-in plateau check-ins",
+        "Personal Coach and opt-in plateau check-ins",
         "Daily Momentum based on completed actions—not appearance",
         "Optional adult Transformation Previews",
       ],

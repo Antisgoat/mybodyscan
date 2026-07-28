@@ -147,13 +147,13 @@ export function computeFeatureStatuses(
     : `Missing: ${firebaseConfigMissingKeys.join(", ")}. Add the Firebase web keys to .env.production.local.`;
 
   const scanWarnLabel =
-    openaiConfigured === false ? "OpenAI missing" : "Needs config";
+    openaiConfigured === false ? "Analysis service missing" : "Needs config";
   const scanDetail = scanConfigured
     ? scanServicesHealthy === false
       ? "Function reachable but reported unhealthy; check Cloud Functions logs."
       : undefined
     : openaiConfigured === false
-      ? "Add OPENAI_API_KEY via firebase functions:secrets:set before running scans."
+      ? "Configure the analysis-provider secret before running scans."
       : scanEngineConfigured === false && Array.isArray(remoteHealth?.scanEngineMissing)
         ? `Scan engine missing: ${remoteHealth.scanEngineMissing.join(", ")}`
         : functionsConfigured
@@ -163,14 +163,15 @@ export function computeFeatureStatuses(
   const workoutsDetail = workoutsConfigured
     ? workoutAdjustConfigured
       ? undefined
-      : "AI adjustments disabled until OPENAI_API_KEY secret is configured."
+      : "Personalized adjustments are disabled until the coaching service is configured."
     : "Backend unavailable (Cloud Functions). Check deployment / network.";
 
-  const coachWarnLabel = openaiConfigured === false ? "OpenAI missing" : "Needs config";
+  const coachWarnLabel =
+    openaiConfigured === false ? "Coaching service missing" : "Needs config";
   const coachDetail = coachConfigured
     ? undefined
     : openaiConfigured === false
-      ? "Add OPENAI_API_KEY via firebase functions:secrets:set."
+      ? "Configure the coaching-provider secret."
       : "Deploy coachChat Function and confirm /api/system/health passes.";
 
   const nutritionDetail = nutritionConfigured

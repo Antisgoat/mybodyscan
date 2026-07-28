@@ -259,7 +259,7 @@ export default function ScanFlowResult() {
   const scanOfflineMessage = scanOffline
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
-      ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before results can be finalized."
+      ? "Photo analysis is temporarily unavailable. Please try again shortly."
       : "Backend unavailable (Cloud Functions). Check deployment / network."
     : null;
 
@@ -1520,7 +1520,7 @@ export default function ScanFlowResult() {
                     ? "Processing…"
                     : flowStatus === "starting"
                       ? "Preparing…"
-                      : "Finalize with AI"}
+                      : "Analyze photos"}
             </Button>
             <Button
               type="button"

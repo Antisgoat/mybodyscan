@@ -26,15 +26,15 @@ Allergy preferences and weekly recovery check-ins are treated as sensitive welln
 
 MyBodyScan maintains incident-response procedures for unauthorized access to identifiable wellness information. Where the Federal Trade Commission Health Breach Notification Rule or another applicable law applies, we will provide required notices to affected people and regulators within the required time.
 
-## Scan Media and AI Processing
+## Scan Media and Automated Processing
 
-Photos and related inputs may be sent to contracted cloud and AI service providers solely to operate the requested scan or optional preview. Outputs are estimates and may be inaccurate. A transformation preview is a motivational illustration, not a prediction or guarantee of future appearance.
+Photos and related inputs may be sent to contracted cloud and automated analysis service providers solely to operate the requested scan or optional preview. Outputs are estimates and may be inaccurate. A transformation preview is a motivational illustration, not a prediction or guarantee of future appearance.
 
 ## Sharing and Service Providers
 
 We do not sell personal information. We disclose information only as needed to:
 
-- cloud hosting, authentication, storage, analytics, AI-processing, nutrition-data, customer-support, notification, and payment providers acting for us;
+- cloud hosting, authentication, storage, analytics, automated analysis, nutrition-data, customer-support, notification, and payment providers acting for us;
 - protect users, MyBodyScan, or others from fraud, abuse, or security threats;
 - comply with legal process or applicable law; or
 - complete a business transaction, subject to appropriate safeguards.

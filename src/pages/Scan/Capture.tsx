@@ -51,7 +51,7 @@ export default function ScanCapture() {
   const scanPrereqMessage = scanOffline
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
-      ? "Scans require the OpenAI key (OPENAI_API_KEY) to be configured before uploads are enabled."
+      ? "Photo analysis is temporarily unavailable. Please try again shortly."
       : "Backend unavailable (Cloud Functions). Check deployment / network."
     : null;
 

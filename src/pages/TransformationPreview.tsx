@@ -249,8 +249,8 @@ export default function TransformationPreviewPage() {
                   className="w-full rounded-xl border border-zinc-700 object-cover"
                 />
                 <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">
-                  This AI-created image is illustrative—not a forecast or
-                  guarantee. Real outcomes and appearance vary.
+                  This computer-generated image is illustrative—not a forecast
+                  or guarantee. Real outcomes and appearance vary.
                 </p>
               </div>
             ) : (
@@ -343,9 +343,10 @@ export default function TransformationPreviewPage() {
                           className="text-xs font-normal leading-relaxed text-zinc-300"
                         >
                           I consent to MyBodyScan sending my front scan photo
-                          and selected goal to OpenAI to create this one-time
-                          image. I understand it is AI-generated, can be
-                          inaccurate, and is not a prediction.
+                          and selected goal to its contracted image-processing
+                          provider to create this one-time image. I understand
+                          it is computer-generated, can be inaccurate, and is
+                          not a prediction.
                         </Label>
                       </div>
                       <Button
