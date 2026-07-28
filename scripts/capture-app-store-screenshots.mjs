@@ -22,7 +22,7 @@ const screens = [
   ["03-nutrition-progress.png", "/meals?demo=1"],
   ["04-personalized-meal-plan.png", "/meals/plan?demo=1"],
   ["05-four-photo-scan.png", "/scan/tips?demo=1"],
-  ["06-ai-coach.png", "/coach/chat?demo=1"],
+  ["06-personal-coach.png", "/coach/chat?demo=1"],
 ];
 
 const profiles = {
