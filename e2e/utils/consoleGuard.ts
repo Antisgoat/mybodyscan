@@ -6,12 +6,10 @@ const benignConsolePatterns: Array<RegExp> = [
   /Download the React DevTools/, // React devtools suggestion
   /was preloaded using link preload but not used within a few seconds/,
   /chrome-error\:\/\//,
+  /^\[Report Only\] Refused to frame 'https:\/\/www\.google\.com\/' because an ancestor violates the following Content Security Policy directive: "frame-ancestors 'self'"\.?$/,
 ];
 
-export function isBenignConsoleError(
-  text: string,
-  sourceUrl: string
-): boolean {
+export function isBenignConsoleError(text: string, sourceUrl: string): boolean {
   const isLocalPreview = /^https?:\/\/(127\.0\.0\.1|localhost)(?::\d+)?\//.test(
     sourceUrl
   );
@@ -64,9 +62,7 @@ export function isBenignConsoleError(
   if (
     /Failed to load resource.*403/.test(text) &&
     source?.hostname === "content-firebaseappcheck.googleapis.com" &&
-    source.pathname.startsWith(
-      "/v1/projects/mybodyscan-f3daf/apps/"
-    ) &&
+    source.pathname.startsWith("/v1/projects/mybodyscan-f3daf/apps/") &&
     source.pathname.endsWith(":exchangeRecaptchaEnterpriseToken")
   ) {
     return true;

@@ -20,6 +20,24 @@ describe("live E2E console guard", () => {
     ).toBe(false);
   });
 
+  it("allows Google's report-only iframe warning from headless App Check", () => {
+    expect(
+      isBenignConsoleError(
+        `[Report Only] Refused to frame 'https://www.google.com/' because an ancestor violates the following Content Security Policy directive: "frame-ancestors 'self'".`,
+        ""
+      )
+    ).toBe(true);
+  });
+
+  it("does not hide enforced or unrelated CSP failures", () => {
+    expect(
+      isBenignConsoleError(
+        `Refused to frame 'https://example.com/' because an ancestor violates the following Content Security Policy directive: "frame-ancestors 'self'".`,
+        ""
+      )
+    ).toBe(false);
+  });
+
   it("allows only this project's headless App Check exchange 403", () => {
     expect(
       isBenignConsoleError(
@@ -51,10 +69,7 @@ describe("live E2E console guard", () => {
     const message =
       "@firebase/firestore: Firestore (11.10.0): Could not reach Cloud Firestore backend.";
     expect(
-      isBenignConsoleError(
-        message,
-        "http://127.0.0.1:4173/assets/firebase.js"
-      )
+      isBenignConsoleError(message, "http://127.0.0.1:4173/assets/firebase.js")
     ).toBe(true);
     expect(
       isBenignConsoleError(

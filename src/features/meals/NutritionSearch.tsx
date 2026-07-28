@@ -240,21 +240,24 @@ export default function NutritionSearch({
           <AlertDescription>{offlineMessage}</AlertDescription>
         </Alert>
       )}
-      <form onSubmit={onSubmit} className="flex gap-2">
+      <form
+        onSubmit={onSubmit}
+        className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+      >
         <input
           data-testid="nutrition-search-input"
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search foods (e.g., chicken breast, oatmeal or barcode)…"
-          className="w-full rounded-md border px-3 py-2 text-sm"
+          className="col-span-2 h-11 min-w-0 w-full rounded-lg border bg-background px-3 text-base leading-5 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 sm:col-span-1 sm:text-sm"
           disabled={authLoading || busy || !nutritionEnabled}
         />
         <button
           data-testid="nutrition-search-button"
           type="submit"
           disabled={!q.trim() || busy || !nutritionEnabled}
-          className="rounded-md border px-3 py-2 text-sm"
+          className="h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? "Searching…" : "Search"}
         </button>
@@ -264,7 +267,7 @@ export default function NutritionSearch({
             if (!nutritionEnabled || !liveScannerSupported) return;
             setScanOpen(true);
           }}
-          className="rounded-md border px-3 py-2 text-sm"
+          className="h-11 rounded-lg border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Scan barcode"
           disabled={!nutritionEnabled || !liveScannerSupported}
           title={
@@ -275,7 +278,9 @@ export default function NutritionSearch({
         </button>
       </form>
       {scannerWarning && (
-        <p className="text-[11px] text-muted-foreground">{scannerWarning}</p>
+        <p className="text-xs leading-5 text-muted-foreground">
+          {scannerWarning}
+        </p>
       )}
 
       {busy && (
@@ -314,16 +319,16 @@ export default function NutritionSearch({
           {results.map((it) => (
             <li
               key={it.id ?? it.name}
-              className="flex items-center justify-between gap-3 p-3"
+              className="flex items-start justify-between gap-3 p-3.5"
             >
               <div className="min-w-0">
-                <div className="truncate text-sm font-medium">
+                <div className="truncate text-[15px] font-semibold leading-5">
                   {it.name}{" "}
                   {it.brand ? (
                     <span className="text-muted-foreground">· {it.brand}</span>
                   ) : null}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
                   {fmtCalories(it)}
                   {sep(it)}
                   {fmtMacros(it)}
@@ -334,7 +339,7 @@ export default function NutritionSearch({
                 </div>
               </div>
               <button
-                className="rounded border px-2 py-1 text-xs"
+                className="h-9 shrink-0 rounded-lg border bg-background px-3 text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
                 onClick={() => startEdit(it, "search")}
                 disabled={busy || !nutritionEnabled || !user || demo}
                 title={!user ? "Sign in to log meals" : undefined}
