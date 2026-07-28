@@ -485,16 +485,20 @@ Connect completed processing without an upload rejection and reports version
 `1.0.0`, build `10` as **Ready to Submit**. The archive contains Weekly Review,
 private foods and recipes, the three exact App Store products, and build tag
 `becc143`. Build 10 is the only current TestFlight/device acceptance candidate.
-It has not been added to an internal testing group, selected for App Store
-version 1.0, installed on the paired iPhone, or submitted for review.
+It is the sole build in the `Internal QA` TestFlight group, whose distribution
+is intentionally manual, and it is selected and saved for App Store version
+1.0. Its build-level `What to Test` checklist and app-level beta description,
+feedback email, marketing URL, and privacy URL are saved. App Store Connect
+currently has no eligible internal testers, so no invitation has been sent.
+Build 10 has not been installed on the paired iPhone or submitted for review.
 
-Build 9 remains selected and saved for App Store version 1.0, but it predates
-the final adaptive coaching and custom-food bundle and is now superseded. Do
-not submit build 9. It was previously installed on the paired iPhone 14 Pro
-Max, reported bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched
-successfully, and remained running. Fresh iPhone and iPad simulator builds also
-install, launch, and render the reviewed responsive layouts. Builds 2 through
-9 are superseded and must not be submitted. The real photo, purchase, restore,
+Build 9 is no longer selected for App Store version 1.0. It predates the final
+adaptive coaching and custom-food bundle and is now superseded; do not submit
+it. It was previously installed on the paired iPhone 14 Pro Max, reported
+bundle `com.mybodyscan.app`, version `1.0.0`, build `9`, launched successfully,
+and remained running. Fresh iPhone and iPad simulator builds also install,
+launch, and render the reviewed responsive layouts. Builds 2 through 9 are
+superseded and must not be submitted. The real photo, purchase, restore,
 notification, authentication, cold-launch, and offline device checklist
 remains mandatory for build 10.
 
