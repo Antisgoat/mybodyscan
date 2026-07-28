@@ -88,7 +88,7 @@ export function assertOpenAIConfig(correlationId?: string): OpenAIEnvConfig {
   if (config) return config;
   const message =
     missing.includes("OPENAI_API_KEY") || missing.includes("OPENAI_MODEL")
-      ? "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions."
+      ? "Scan engine not configured. Configure the required provider credentials in Cloud Functions."
       : `Scan engine not configured. Missing: ${missing.join(", ")}`;
   throw new HttpsError("unavailable", message, {
     reason: "scan_engine_not_configured",

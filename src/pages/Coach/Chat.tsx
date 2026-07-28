@@ -190,7 +190,7 @@ export default function CoachChatPage() {
   const coachPrereqMessage =
     systemHealth?.openaiConfigured === false ||
     systemHealth?.openaiKeyPresent === false
-      ? "Coach chat requires the OpenAI key (OPENAI_API_KEY). Ask an admin to add it."
+      ? "Personalized coaching is temporarily unavailable. Ask an admin to check the coaching service."
       : coachConfigured === false
         ? "Coach chat is offline until the backend configuration is completed."
         : null;
@@ -955,7 +955,7 @@ export default function CoachChatPage() {
     >
       <Seo
         title="Coach Chat | MyBodyScan"
-        description="Talk to your AI coach and refresh your weekly plan."
+        description="Talk to your personal coach and refresh your weekly plan."
       />
       <ErrorBoundary
         title="Coach chat crashed"

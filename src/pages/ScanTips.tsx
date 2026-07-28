@@ -1,7 +1,7 @@
 /**
  * Pipeline map — Scan prep guidance:
  * - Offers static photo-taking tips so users pass the capture gate before uploads.
- * - Reinforces the need for the 4 poses that `ScanCapture` enforces, improving downstream OpenAI analysis quality.
+ * - Reinforces the need for the 4 poses that `ScanCapture` enforces, improving downstream analysis quality.
  */
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ListChecks, SunMedium, Scan, Users } from "lucide-react";

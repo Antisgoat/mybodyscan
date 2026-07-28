@@ -75,7 +75,7 @@ export default function ScanStart() {
   const scanPrereqMessage = scanOffline
     ? systemHealth?.openaiConfigured === false ||
       systemHealth?.openaiKeyPresent === false
-      ? "Scans require the OpenAI key (OPENAI_API_KEY) to be set on Cloud Functions."
+      ? "Photo analysis is temporarily unavailable. Please try again shortly."
       : "Backend unavailable (Cloud Functions). Check deployment / network."
     : null;
 

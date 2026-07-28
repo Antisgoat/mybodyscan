@@ -148,7 +148,7 @@ export function getEngineConfigOrThrow(correlationId?: string): EngineConfig {
   throw new HttpsError(
     "unavailable",
     needsKey
-      ? "Scan engine not configured. Set OPENAI_API_KEY and OPENAI_MODEL in Cloud Functions."
+      ? "Scan engine not configured. Configure the required provider credentials in Cloud Functions."
       : `Scan engine not configured. Missing: ${missingList}.`,
     {
       reason: "scan_engine_not_configured",

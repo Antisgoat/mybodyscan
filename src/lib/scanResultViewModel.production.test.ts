@@ -58,7 +58,7 @@ describe("scan result production view model", () => {
     const vm = buildScanResultViewModel({ scan: baseScan() });
 
     expect(vm.isValidResult).toBe(true);
-    expect(vm.sourceLabel).toBe("AI analysis");
+    expect(vm.sourceLabel).toBe("Photo analysis");
     expect(vm.primary.bodyFatPercent).toBe(20);
     expect(vm.primary.bmi).toBe(27.8);
     expect(vm.nutrition.calories).toBe(2300);

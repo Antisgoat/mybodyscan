@@ -220,7 +220,7 @@ export default function PaywallPage() {
               "Workout sessions, progress logging, timers, and smart swaps",
               "7-day meal plans, nutrition tracking, recipes, and saved foods",
               "Barcode insights, label context, and same-category alternatives",
-              "AI Coach plus approval-based weekly plan reviews",
+              "Personal Coach plus approval-based weekly plan reviews",
               "Scan comparisons and opt-in plateau check-ins",
               "Process-based daily Momentum without appearance rankings",
               "Optional adult Transformation Previews",

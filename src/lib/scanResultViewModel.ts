@@ -14,7 +14,7 @@ export type CanonicalScanResultViewModel = {
   isValidResult: boolean;
   isFailedOrFallback: boolean;
   sourceLabel:
-    | "AI analysis"
+    | "Photo analysis"
     | "Demo only"
     | "Failed"
     | "Fallback/invalid"
@@ -391,7 +391,7 @@ export function buildScanResultViewModel(args: {
         : canonical === "error"
           ? "Failed"
           : isValidResult
-            ? "AI analysis"
+            ? "Photo analysis"
             : canonical === "complete"
               ? "Fallback/invalid"
               : "Processing",

@@ -159,7 +159,7 @@ export default function Workouts() {
     ? null
     : "Backend unavailable (Cloud Functions). Check deployment / network.";
   const adjustUnavailableMessage = !workoutAdjustConfigured
-    ? "AI workout adjustments require the OpenAI key (OPENAI_API_KEY) on Cloud Functions."
+    ? "Personalized workout adjustments are temporarily unavailable."
     : null;
   const adjustDisabled = !workoutAdjustConfigured || !workoutsConfigured;
 
@@ -757,7 +757,7 @@ export default function Workouts() {
       const description =
         adjustUnavailableMessage ??
         workoutsOfflineMessage ??
-        "AI workout adjustments are offline. Configure OPENAI_API_KEY to re-enable.";
+        "Personalized workout adjustments are temporarily unavailable.";
       toast({
         title: "Adjustments unavailable",
         description,

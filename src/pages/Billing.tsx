@@ -143,7 +143,7 @@ export default function Billing() {
           <ul className="my-4 flex-1 space-y-2 text-sm">
             {[
               "Three scan credits per renewal",
-              "AI Coach and weekly adaptive reviews",
+              "Personal Coach and weekly adaptive reviews",
               "Workout tracking, meal plans, recipes, and food insights",
             ].map((feature) => (
               <li key={feature} className="flex gap-2">

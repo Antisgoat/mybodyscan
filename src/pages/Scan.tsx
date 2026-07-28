@@ -1348,7 +1348,7 @@ export default function ScanPage() {
   if (!authLoading && !user) {
     return (
       <div className="mx-auto max-w-2xl space-y-6 p-4">
-        <h1 className="text-xl font-semibold">AI Body Scan</h1>
+        <h1 className="text-xl font-semibold">Body Scan</h1>
         <p className="text-sm text-muted-foreground">
           Browse mode: sign in to upload your own scan. You can view sample results without
           uploading photos.
@@ -1371,7 +1371,7 @@ export default function ScanPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 p-4">
-      <h1 className="text-xl font-semibold">AI Body Scan</h1>
+      <h1 className="text-xl font-semibold">Body Scan</h1>
       <p className="text-sm text-muted-foreground">
         Upload four photos and your current/goal weight. We&apos;ll analyze your
         body composition and build a personalized workout and nutrition plan.
