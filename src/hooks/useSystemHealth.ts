@@ -13,6 +13,9 @@ export interface SystemHealthSnapshot {
   openaiKeyPresent?: boolean;
   openaiConfigured?: boolean;
   stripeSecretPresent?: boolean;
+  stripeApiKeyPresent?: boolean;
+  stripeWebhookSecretPresent?: boolean;
+  stripeConfigured?: boolean;
   usdaKeyPresent?: boolean;
   nutritionConfigured?: boolean;
   coachRpmPresent?: boolean;

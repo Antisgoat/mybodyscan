@@ -55,6 +55,9 @@ export type RemoteHealth = {
   usdaKeyPresent?: boolean;
   coachRpmPresent?: boolean;
   stripeSecretPresent?: boolean;
+  stripeApiKeyPresent?: boolean;
+  stripeWebhookSecretPresent?: boolean;
+  stripeConfigured?: boolean;
   workoutsConfigured?: boolean;
   workoutAdjustConfigured?: boolean;
   scanServicesHealthy?: boolean;

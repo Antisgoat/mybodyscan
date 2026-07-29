@@ -15,6 +15,19 @@ import { projectBillingEntitlement } from "./lib/entitlementProjection.js";
 
 const db = getFirestore();
 
+export function getStripeWebhookRequestError(
+  signature: string | undefined,
+  secret: string
+): { status: 400 | 501; message: string } | null {
+  if (!secret) {
+    return { status: 501, message: "unconfigured" };
+  }
+  if (!signature) {
+    return { status: 400, message: "Missing Stripe signature" };
+  }
+  return null;
+}
+
 async function writeStripeProEntitlement(params: {
   uid: string;
   pro: boolean;
@@ -217,7 +230,10 @@ export const stripeWebhook = onRequest(
   async (req, res) => {
     const sig = req.get("stripe-signature");
     const secret = process.env.STRIPE_WEBHOOK_SECRET || "";
-    if (!sig || !secret) return res.status(501).send("unconfigured");
+    const requestError = getStripeWebhookRequestError(sig, secret);
+    if (requestError) {
+      return res.status(requestError.status).send(requestError.message);
+    }
 
     const rawBody = (req as unknown as { rawBody?: Buffer }).rawBody;
     if (!rawBody) {
