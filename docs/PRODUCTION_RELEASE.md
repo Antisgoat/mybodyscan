@@ -508,6 +508,14 @@ Stripe webhook request returns HTTP 400 instead of being misreported as an
 unconfigured server. The pre-deployment Hosting rollback channel preserved by
 this deployment is `rollback-c1c1d6b`.
 
+Firebase Hosting limits the number of active preview channels. The guarded
+workflow first tries a commit-specific `rollback-SHORT_SHA` channel. If channel
+capacity prevents that snapshot, it reuses `rollback-c1c1d6b`, clones the
+current live release into that slot before any deployment, and records the
+actual channel in the GitHub Actions job summary. This fallback is
+non-destructive to the live channel and avoids deleting recovery points by
+guess.
+
 Five ordered 1242 × 2688 iPhone screenshots and five ordered 2064 × 2752 iPad
 screenshots are uploaded: body results, training, nutrition progress, meal
 planning, and four-photo scanning. The nutrition screenshots were regenerated
@@ -748,6 +756,10 @@ npx firebase-tools deploy --only functions --project mybodyscan-f3daf --non-inte
 npx firebase-tools deploy --only firestore:rules,storage --project mybodyscan-f3daf --non-interactive
 npx firebase-tools deploy --only hosting --project mybodyscan-f3daf --non-interactive
 ```
+
+For the automated workflow, use the rollback channel printed in the deployment
+job summary. At preview-channel capacity, the current reusable slot is
+`rollback-c1c1d6b`; do not delete channels manually just to make room.
 
 Indexes are submitted first because they may build asynchronously. Backend code
 is deployed before the web bundle. Rules and Storage policy are updated before
