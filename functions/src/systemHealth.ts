@@ -37,6 +37,21 @@ function envPresent(value: string | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+export function resolveStripeHealthStatus(
+  stripeApiKeyPresent: boolean,
+  stripeWebhookSecretPresent: boolean
+) {
+  return {
+    // Backward-compatible field consumed by the client. It represents the API
+    // key needed for checkout and portal sessions, not an unrelated webhook
+    // signing secret.
+    stripeSecretPresent: stripeApiKeyPresent,
+    stripeApiKeyPresent,
+    stripeWebhookSecretPresent,
+    stripeConfigured: stripeApiKeyPresent && stripeWebhookSecretPresent,
+  };
+}
+
 export const systemHealth = onRequest(
   {
     region: "us-central1",
@@ -55,17 +70,24 @@ export const systemHealth = onRequest(
     const openaiConfigured = hasOpenAI();
     const scanEngine = getScanEngineStatus();
 
-    const stripeSecretPresent =
+    const stripeApiKeyPresent =
       !!process.env.STRIPE_SECRET ||
       secretPresent(stripeSecretParam) ||
       secretPresent(stripeSecretKeyParam) ||
-      secretPresent(stripeWebhookSecretParam) ||
       envPresent(process.env.STRIPE_SECRET) ||
       envPresent(process.env.STRIPE_SECRET_KEY) ||
+      envPresent(process.env.STRIPE_API_KEY) ||
+      envPresent(process.env.STRIPE_KEY);
+    const stripeWebhookSecretPresent =
+      secretPresent(stripeWebhookSecretParam) ||
       envPresent(process.env.STRIPE_WEBHOOK_SECRET) ||
       envPresent(process.env.STRIPE_WEBHOOK) ||
       envPresent(process.env.STRIPE_SIGNING_SECRET) ||
       envPresent(process.env.STRIPE_SIGNATURE);
+    const stripeHealth = resolveStripeHealthStatus(
+      stripeApiKeyPresent,
+      stripeWebhookSecretPresent
+    );
 
     const usdaKeyPresent =
       envPresent(process.env.USDA_FDC_API_KEY) ||
@@ -84,7 +106,7 @@ export const systemHealth = onRequest(
 
     const identityToolkitReachable = true;
     const identityToolkitReason =
-      openaiConfigured || stripeSecretPresent ? "ok" : "unknown";
+      openaiConfigured || stripeHealth.stripeSecretPresent ? "ok" : "unknown";
 
     const authProviders = {
       google: getEnvBool("AUTH_GOOGLE_ENABLED", true),
@@ -98,7 +120,7 @@ export const systemHealth = onRequest(
       timestamp: new Date().toISOString(),
       appCheckMode: getAppCheckMode(),
       authProviders,
-      stripeSecretPresent,
+      ...stripeHealth,
       openaiKeyPresent: openaiConfigured,
       nutritionConfigured,
       openaiConfigured,

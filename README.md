@@ -364,7 +364,12 @@ The `functions/package.json` scripts keep the runtime on Node 22 and fail fast i
   bound secret is present, handlers return
   `501 { error: "payments_disabled", code: "no_secret" }` and log
   `{ "svc":"checkout", ... , "ok":false }`.
-- Webhook verification uses the bound `STRIPE_WEBHOOK_SECRET`; legacy environment aliases are read only for backwards compatibility.
+- Webhook verification uses the bound `STRIPE_WEBHOOK_SECRET`; legacy
+  environment aliases are read only for backwards compatibility. `/systemHealth`
+  reports `stripeApiKeyPresent`, `stripeWebhookSecretPresent`, and
+  `stripeConfigured` separately so an unrelated Stripe secret cannot produce a
+  false-ready result. A missing webhook secret returns HTTP 501; an unsigned or
+  invalidly signed webhook request returns HTTP 400 and is never processed.
 - Allowlisted price IDs load from committed fail-closed defaults with optional
   environment overrides. The retired `functions.config()` service is not used.
   Canonical launch IDs and explicitly named legacy IDs are the only accepted
