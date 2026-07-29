@@ -12,6 +12,7 @@ describe("sanitizeReturnTo", () => {
     "https://example.com",
     "//example.com/path",
     "/\\example.com/path",
+    "/%2F%2Fexample.com/path",
     "/%5Cexample.com/path",
     "\\\\example.com/path",
     "javascript:alert(1)",
