@@ -76,6 +76,20 @@ describe("production deployment authentication", () => {
     expect(deployIndex).toBeGreaterThan(authIndex);
   });
 
+  it("preserves a rollback release even when preview-channel capacity is full", () => {
+    expect(WORKFLOW).toContain('rollback_channel="rollback-${GITHUB_SHA:0:7}"');
+    expect(WORKFLOW).toContain('fallback_rollback_channel="rollback-c1c1d6b"');
+    expect(WORKFLOW).toContain(
+      "if ! npx firebase hosting:clone mybodyscan-f3daf:live"
+    );
+    expect(WORKFLOW).toContain(
+      'rollback_channel="${fallback_rollback_channel}"'
+    );
+    expect(WORKFLOW).toContain(
+      'echo "Hosting rollback channel: ${rollback_channel}" >> "${GITHUB_STEP_SUMMARY}"'
+    );
+  });
+
   it("commits only safe non-secret Functions parameters for CI", () => {
     const keys = FUNCTIONS_ENV.split(/\r?\n/)
       .map((line) => line.trim())
@@ -208,7 +222,9 @@ describe("production deployment authentication", () => {
     expect(WORKFLOW).toContain(
       "VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}"
     );
-    expect(WORKFLOW).not.toMatch(/VITE_FIREBASE_VAPID_KEY:\s+[A-Za-z0-9_-]{40}/);
+    expect(WORKFLOW).not.toMatch(
+      /VITE_FIREBASE_VAPID_KEY:\s+[A-Za-z0-9_-]{40}/
+    );
   });
 
   it("deletes the temporary production probe account after scan cleanup", () => {

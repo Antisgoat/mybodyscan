@@ -99,7 +99,14 @@ jobs:
 
       - name: Deploy production in dependency order
         run: |
-          npx firebase hosting:clone mybodyscan-f3daf:live "mybodyscan-f3daf:rollback-${GITHUB_SHA:0:7}" --project mybodyscan-f3daf
+          rollback_channel="rollback-${GITHUB_SHA:0:7}"
+          fallback_rollback_channel="rollback-c1c1d6b"
+          if ! npx firebase hosting:clone mybodyscan-f3daf:live "mybodyscan-f3daf:${rollback_channel}" --project mybodyscan-f3daf; then
+            echo "::warning::Firebase Hosting preview-channel capacity prevented a commit-specific rollback snapshot; reusing the recorded rollback slot."
+            rollback_channel="${fallback_rollback_channel}"
+            npx firebase hosting:clone mybodyscan-f3daf:live "mybodyscan-f3daf:${rollback_channel}" --project mybodyscan-f3daf
+          fi
+          echo "Hosting rollback channel: ${rollback_channel}" >> "${GITHUB_STEP_SUMMARY}"
           npm run storage:cors:apply
           npx firebase deploy --only firestore:indexes --project mybodyscan-f3daf --non-interactive
           npx firebase deploy --only functions --project mybodyscan-f3daf --non-interactive
