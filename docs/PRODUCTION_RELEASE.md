@@ -495,11 +495,18 @@ evidence. The real-photo, purchase, restore, notification, authentication,
 cold-launch, offline, nutrition, Coach-adjustment, and account-deletion
 checklist remains mandatory.
 
-The matching web and Food Diary release is deployed from main merge `b8a0863`;
-guarded deployment run `30407521525`, production CORS preflights, route
-rewrites, health/legal/custom-domain probes, and public Hosting/Auth/App Check
-browser smokes passed. The pre-deployment Hosting rollback channel is
-`rollback-nutrition-20260728` and expires on 2026-08-04.
+The matching production web and backend are deployed from main merge
+`c1c1d6b`. Guarded deployment run `30411264094` completed successfully after
+the web and Functions builds, rules emulator checks, scan/credit/refund/account
+deletion pipeline, and dependency audits passed. Post-deploy verification
+confirmed the public and direct regional health endpoints, production CORS,
+legal and custom-domain routes, all five public browser smokes, an authenticated
+disposable-account scan start/cleanup/account-deletion flow, and zero error or
+warning entries in the sampled Function logs. Health reports the Stripe API key
+and webhook secret separately and confirms both are configured; an unsigned
+Stripe webhook request returns HTTP 400 instead of being misreported as an
+unconfigured server. The pre-deployment Hosting rollback channel preserved by
+this deployment is `rollback-c1c1d6b`.
 
 Five ordered 1242 × 2688 iPhone screenshots and five ordered 2064 × 2752 iPad
 screenshots are uploaded: body results, training, nutrition progress, meal
