@@ -727,6 +727,75 @@ async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
     .filter(Boolean) as FoodItem[];
 }
 
+function normalizeSearchText(value: unknown): string {
+  return typeof value === "string"
+    ? value
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim()
+        .replace(/\s+/g, " ")
+    : "";
+}
+
+function nutritionResultScore(item: FoodItem, query: string): number {
+  const normalizedQuery = normalizeSearchText(query);
+  const name = normalizeSearchText(item.name);
+  const brand = normalizeSearchText(item.brand);
+  const combined = `${name} ${brand}`.trim();
+  const tokens = normalizedQuery.split(" ").filter(Boolean);
+  let score = 0;
+
+  if (name === normalizedQuery) score += brand ? 700 : 1_000;
+  else if (name.startsWith(`${normalizedQuery} `)) score += 450;
+  if (tokens.length && tokens.every((token) => combined.includes(token))) {
+    score += 300;
+  }
+  for (const token of tokens) {
+    if (name.includes(token)) score += 40;
+    if (brand.includes(token)) score += 25;
+  }
+  if (brand && tokens.some((token) => brand.includes(token))) score += 350;
+
+  const dataType = normalizeSearchText((item.raw as any)?.dataType);
+  if (item.source === "USDA") {
+    if (dataType === "foundation") score += 240;
+    else if (dataType === "sr legacy") score += 200;
+    else if (dataType.includes("survey") || dataType.includes("fndds")) {
+      score += 160;
+    }
+    if (!brand) score += 120;
+    if (
+      dataType === "branded" &&
+      brand &&
+      !tokens.some((token) => brand.includes(token))
+    ) {
+      score -= 50;
+    }
+  }
+
+  const macros = item.basePer100g;
+  if (macros.kcal > 0) score += 20;
+  if (macros.protein > 0 || macros.carbs > 0 || macros.fat > 0) score += 20;
+  if (item.servings.some((serving) => serving.grams > 0)) score += 10;
+  return score;
+}
+
+export function rankNutritionResults(
+  items: FoodItem[],
+  query: string
+): FoodItem[] {
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      score: nutritionResultScore(item, query),
+    }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(({ item }) => item);
+}
+
 function extractBearerToken(req: Request): string | null {
   const header = req.get("authorization") || req.get("Authorization") || "";
   const match = header.match(/^Bearer\s+(.+)$/i);
@@ -948,7 +1017,7 @@ async function runNutritionSearchCore(
   }
 
   const seen = new Set<string>();
-  const normalized = items
+  const normalized = rankNutritionResults(items, input.query)
     .filter((item) => {
       const key = `${item.source}:${item.id}`.toLowerCase();
       if (seen.has(key)) return false;
