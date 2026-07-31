@@ -34,7 +34,23 @@ test("transformation prompt is restrained and prohibits predictive or revealing 
   assert.match(prompt, /same smile or serious expression/i);
   assert.match(prompt, /Do not beautify.*change the face/i);
   assert.match(prompt, /Do not add.*measurements/i);
+  assert.match(prompt, /fully upright in portrait orientation/i);
+  assert.match(prompt, /easy to recognize at a glance/i);
+  assert.match(prompt, /clearly visible body-recomposition goal-state/i);
+  assert.match(prompt, /Do not create stage-lean conditioning/i);
   assert.doesNotMatch(prompt, /exact body fat|exact weight/i);
+});
+
+test("ready transformation previews regenerate when the prompt version changes", () => {
+  const source = readFileSync(
+    new URL("../src/transformationPreview.ts", import.meta.url),
+    "utf8"
+  );
+  assert.match(
+    source,
+    /existingData\.promptVersion === TRANSFORMATION_PROMPT_VERSION/
+  );
+  assert.match(source, /promptVersion: TRANSFORMATION_PROMPT_VERSION/);
 });
 
 test("USDA labeled serving nutrients are converted before being shown per 100 g", () => {

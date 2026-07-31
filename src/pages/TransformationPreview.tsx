@@ -16,6 +16,7 @@ import {
   loadTransformationPreviewBlob,
   requestTransformationPreview,
   subscribeTransformationPreview,
+  TRANSFORMATION_PREVIEW_PROMPT_VERSION,
   type TransformationPreviewGoal,
 } from "@/lib/transformationPreview";
 import { buildScanResultViewModel } from "@/lib/scanResultViewModel";
@@ -94,6 +95,12 @@ export default function TransformationPreviewPage() {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [state?.status, state?.storagePath]);
+
+  useEffect(() => {
+    if (!state) return;
+    setGoal(state.goal);
+    setTimelineWeeks(state.timelineWeeks);
+  }, [state]);
 
   const vm = useMemo(
     () =>
@@ -186,6 +193,9 @@ export default function TransformationPreviewPage() {
     !requesting &&
     state?.status !== "processing" &&
     state?.status !== "queued";
+  const improvedPreviewAvailable =
+    state?.status === "ready" &&
+    state?.promptVersion !== TRANSFORMATION_PREVIEW_PROMPT_VERSION;
 
   const handleRequest = async () => {
     if (!canRequest) return;
@@ -246,12 +256,60 @@ export default function TransformationPreviewPage() {
                 <img
                   src={previewUrl}
                   alt="Illustrative future-goal fitness visualization"
-                  className="w-full rounded-xl border border-zinc-700 object-cover"
+                  className="aspect-[2/3] w-full rounded-xl border border-zinc-700 bg-zinc-950 object-cover object-center"
                 />
                 <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">
                   This computer-generated image is illustrative—not a forecast
                   or guarantee. Real outcomes and appearance vary.
                 </p>
+                {improvedPreviewAvailable ? (
+                  <div className="space-y-3 rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-4">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-cyan-50">
+                        A clearer goal visualization is available
+                      </p>
+                      <p className="text-xs leading-5 text-cyan-100/80">
+                        The updated version keeps your identity and natural
+                        proportions while making the selected fitness direction
+                        easier to see. It also corrects sideways image output.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="preview-refresh-consent"
+                        checked={consent}
+                        onCheckedChange={(checked) =>
+                          setConsent(checked === true)
+                        }
+                        className="mt-0.5"
+                      />
+                      <Label
+                        htmlFor="preview-refresh-consent"
+                        className="text-xs font-normal leading-5 text-cyan-50/90"
+                      >
+                        I consent to resend my front scan photo and saved goal
+                        to create the updated private preview.
+                      </Label>
+                    </div>
+                    <Button
+                      className="w-full"
+                      disabled={!canRequest}
+                      onClick={handleRequest}
+                    >
+                      {requesting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating updated preview…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="mr-2 h-4 w-4" /> Create updated
+                          preview
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-zinc-400">

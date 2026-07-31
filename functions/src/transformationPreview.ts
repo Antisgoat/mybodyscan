@@ -11,6 +11,7 @@ import { onCallWithOptionalAppCheck } from "./util/callable.js";
 const db = getFirestore();
 const storage = getStorage();
 const MODEL = "gpt-image-2";
+export const TRANSFORMATION_PROMPT_VERSION = "2026-07-31-goal-definition-v2";
 const DISCLAIMER =
   "Illustrative motivational wellness visualization only. Not a prediction, guarantee, medical result, or exact representation of future appearance.";
 
@@ -29,23 +30,24 @@ export function buildTransformationPrompt(input: {
 }): string {
   const direction: Record<Goal, string> = {
     lose_fat:
-      "show a moderate, realistic leaner fitness outcome while preserving natural proportions",
+      "show a clearly noticeable but plausible leaner goal-state: substantially reduce waist and abdominal fullness, improve the natural torso taper, and reveal believable shoulder, arm, chest, and midsection definition while preserving natural proportions and skin texture",
     gain_muscle:
-      "show a moderate, realistic increase in visible muscular development while preserving natural proportions",
+      "show a clearly noticeable but attainable increase in muscular development across the shoulders, chest, arms, back, and legs, with natural athletic definition and preserved body proportions",
     recomp:
-      "show a moderate, realistic body-recomposition outcome with slightly more definition and development",
+      "show a clearly visible body-recomposition goal-state with a leaner waist, stronger torso taper, and believable shoulder, chest, arm, and midsection definition without changing the person's underlying frame",
     maintain:
       "show a healthy maintenance outcome with subtle posture and presentation improvements only",
     performance:
-      "show a moderate, realistic athletic-development outcome without bodybuilding exaggeration",
+      "show a clearly noticeable athletic-development outcome with a leaner waist, stronger posture, and believable functional muscle definition without bodybuilding exaggeration",
   };
   return [
     "Edit the supplied reference photo into a photorealistic adult fitness progress portrait.",
     "Preserve the person's identity, facial features, facial expression (including the same smile or serious expression), hairstyle, skin tone, pose, camera angle, background, and clothing coverage.",
     "Do not beautify, age, de-age, reshape, retouch, or otherwise change the face.",
+    "Render the person fully upright in portrait orientation with the head above the torso and the feet below it. Correct any reference-orientation metadata before editing. Never return a sideways, tilted, mirrored, or upside-down person.",
     direction[input.goal],
     `Treat ${input.timelineWeeks} weeks only as motivational context, not as a guaranteed outcome.`,
-    "Keep the result plausible and subtle. Do not exaggerate muscle size, thinness, vascularity, or body definition.",
+    "Make the goal-direction easy to recognize at a glance, but keep it naturally attainable. Do not create stage-lean conditioning, extreme vascularity, oversized bodybuilding proportions, impossible abdominal definition, or an unhealthy degree of thinness.",
     "Do not add text, measurements, internal anatomy, medical imagery, diagnoses, before-and-after labels, nudity, or revealing clothing.",
     "The person must remain fully clothed. Produce one clean portrait image.",
   ].join(" ");
@@ -174,7 +176,11 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
       const existingData = existing.data() as
         | Record<string, unknown>
         | undefined;
-      if (existingData?.status === "ready" && existingData.storagePath) {
+      if (
+        existingData?.status === "ready" &&
+        existingData.storagePath &&
+        existingData.promptVersion === TRANSFORMATION_PROMPT_VERSION
+      ) {
         return { generate: false, status: "ready" } as const;
       }
       const updatedAt = existingData?.updatedAt as
@@ -204,6 +210,7 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
           updatedAt: FieldValue.serverTimestamp(),
           disclaimer: DISCLAIMER,
           model: MODEL,
+          promptVersion: TRANSFORMATION_PROMPT_VERSION,
           failureReason: null,
         },
         { merge: true }
@@ -252,7 +259,8 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
           readyAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
           promptSummary:
-            "A moderate, realistic, fully clothed motivational visualization aligned with the selected goal.",
+            "A clearly visible, plausible, fully clothed motivational goal-state aligned with the selected goal.",
+          promptVersion: TRANSFORMATION_PROMPT_VERSION,
           failureReason: null,
         },
         { merge: true }

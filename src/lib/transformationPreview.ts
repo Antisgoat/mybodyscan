@@ -17,6 +17,9 @@ export type TransformationPreviewGoal =
   | "maintain"
   | "performance";
 
+export const TRANSFORMATION_PREVIEW_PROMPT_VERSION =
+  "2026-07-31-goal-definition-v2";
+
 export type TransformationPreviewDocument = {
   scanId: string;
   status: TransformationPreviewStatus;
@@ -30,6 +33,7 @@ export type TransformationPreviewDocument = {
   storagePath?: string | null;
   compareImageUrl?: string | null;
   promptSummary?: string | null;
+  promptVersion?: string | null;
   failureReason?: string | null;
 };
 
@@ -99,6 +103,8 @@ function normalize(
       typeof data.compareImageUrl === "string" ? data.compareImageUrl : null,
     promptSummary:
       typeof data.promptSummary === "string" ? data.promptSummary : null,
+    promptVersion:
+      typeof data.promptVersion === "string" ? data.promptVersion : null,
     failureReason:
       typeof data.failureReason === "string" ? data.failureReason : null,
   };

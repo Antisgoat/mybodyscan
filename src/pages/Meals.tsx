@@ -1374,7 +1374,7 @@ export default function Meals() {
       </Dialog>
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-3xl sm:px-6">
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-3xl sm:px-6">
           <DialogHeader>
             <DialogTitle>Add to {MEAL_LABELS[addMealType]}</DialogTitle>
           </DialogHeader>
