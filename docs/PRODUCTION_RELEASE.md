@@ -97,7 +97,7 @@ Non-secret runtime configuration is committed in
 Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
 feature flags, and the effective Coach and nutrition rate limits.
 The shared OpenAI client uses the configured model (currently
-`gpt-5.6-luna`), retries one transient 429/5xx response on that model, and then
+`gpt-5.6-sol`), retries one transient 429/5xx response on that model, and then
 falls back to `gpt-5.6-terra`. Both models must pass an
 image-input plus structured-JSON account smoke test before release. Do not add
 an old dated model snapshot as a fallback without verifying that the production
@@ -221,7 +221,7 @@ back to a health store. Apple Watch support follows through HealthKit; it does
 not require delaying version 1.0 when all health-sync copy remains “coming
 soon.”
 
-The OpenAI scan pipeline defaults to `gpt-5.6-luna` with explicit
+The OpenAI scan pipeline defaults to the flagship `gpt-5.6-sol` with explicit
 `reasoning_effort=none` to preserve the former low-latency mini-model behavior.
 Do not override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless
 the replacement has passed the scan reliability suite.

@@ -13,7 +13,7 @@ firebase functions:secrets:set OPENAI_API_KEY --project <projectId>
 2) (Optional) Configure model + provider (server-side only):
 
 ```bash
-firebase functions:config:set openai.model="gpt-5.6-luna" --project <projectId>
+firebase functions:config:set openai.model="gpt-5.6-sol" --project <projectId>
 ```
 
 > `OPENAI_MODEL`, `OPENAI_PROVIDER`, and `OPENAI_BASE_URL` are **server-side only**. Do not place them in client `.env*` files.

@@ -58,7 +58,7 @@ test("engine config uses the vision-capable production model default", async () 
     process.env.STORAGE_BUCKET = "demo.appspot.com";
     process.env.GCLOUD_PROJECT = "demo-project";
     const config = getEngineConfigOrThrow("test-default-model");
-    assert.equal(config.model, "gpt-5.6-luna");
+    assert.equal(config.model, "gpt-5.6-sol");
   } finally {
     restoreEnv(snap);
     if (previousModel == null) delete process.env.OPENAI_MODEL;

@@ -95,7 +95,7 @@ test("falls back from a retired override to the current image-capable model", as
     });
 
     assert.deepEqual(result.data, { estimate: "ok" });
-    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-5.6-luna"]);
+    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-5.6-sol"]);
     assert.equal(requestBodies[1].messages[1].content[1].type, "image_url");
     assert.equal(requestBodies[1].reasoning_effort, "none");
     assert.equal(requestBodies[1].max_completion_tokens, 128);
