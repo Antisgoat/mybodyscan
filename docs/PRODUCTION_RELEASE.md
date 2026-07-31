@@ -508,8 +508,9 @@ disposable-account scan start/cleanup/account-deletion flow, and zero error or
 warning entries in the sampled Function logs. Health reports the Stripe API key
 and webhook secret separately and confirms both are configured; an unsigned
 Stripe webhook request returns HTTP 400 instead of being misreported as an
-unconfigured server. The pre-deployment Hosting rollback channel preserved by
-this deployment is `rollback-c1c1d6b`.
+unconfigured server. The pre-deployment Hosting rollback channel is the
+`rollback-SHORT_SHA` value printed in the successful deployment job summary;
+never infer it from an older release note.
 
 Firebase Hosting limits the number of active preview channels. The guarded
 workflow first tries a commit-specific `rollback-SHORT_SHA` channel. If channel
