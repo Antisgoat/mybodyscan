@@ -233,7 +233,7 @@ export default function NutritionSearch({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       {!nutritionEnabled && (
         <Alert variant="destructive">
           <AlertTitle>Nutrition search unavailable</AlertTitle>
@@ -242,7 +242,7 @@ export default function NutritionSearch({
       )}
       <form
         onSubmit={onSubmit}
-        className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+        className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
       >
         <input
           data-testid="nutrition-search-input"
@@ -313,33 +313,47 @@ export default function NutritionSearch({
 
       {results && results.length > 0 && (
         <ul
-          className="divide-y rounded-md border"
+          className="min-w-0 divide-y overflow-hidden rounded-xl border bg-background"
           data-testid="nutrition-results"
         >
           {results.map((it) => (
             <li
               key={it.id ?? it.name}
-              className="flex items-start justify-between gap-3 p-3.5"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3.5 sm:px-4"
             >
-              <div className="min-w-0">
-                <div className="truncate text-[15px] font-semibold leading-5">
-                  {it.name}{" "}
-                  {it.brand ? (
-                    <span className="text-muted-foreground">· {it.brand}</span>
-                  ) : null}
+              <div className="min-w-0 space-y-1.5">
+                <div className="line-clamp-2 break-words text-[15px] font-semibold leading-5 text-foreground">
+                  {formatFoodName(it.name)}
                 </div>
-                <div className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                  {fmtCalories(it)}
-                  {sep(it)}
-                  {fmtMacros(it)}
-                  {sep(it)}
-                  {fmtServing(it)}
-                  {sep(it)}
-                  {it.source || ""}
+                {it.brand ? (
+                  <div className="line-clamp-1 text-xs leading-4 text-muted-foreground">
+                    {formatFoodName(it.brand)}
+                  </div>
+                ) : null}
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4">
+                  <span className="font-semibold text-foreground">
+                    {fmtCalories(it)}
+                  </span>
+                  <span className="max-w-full truncate text-muted-foreground">
+                    {fmtServing(it)}
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {it.source || "Food data"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  {macroTokens(it).map((macro) => (
+                    <span key={macro.label}>
+                      <strong className="font-semibold text-foreground">
+                        {macro.label}
+                      </strong>{" "}
+                      {macro.value}
+                    </span>
+                  ))}
                 </div>
               </div>
               <button
-                className="h-9 shrink-0 rounded-lg border bg-background px-3 text-xs font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
+                className="min-h-11 min-w-14 shrink-0 self-center rounded-lg border bg-background px-3 text-sm font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
                 onClick={() => startEdit(it, "search")}
                 disabled={busy || !nutritionEnabled || !user || demo}
                 title={!user ? "Sign in to log meals" : undefined}
@@ -408,7 +422,7 @@ function fmtCalories(it: {
   }
   return fmtCal(null);
 }
-function fmtMacros(it: {
+function macroTokens(it: {
   per_serving: {
     protein_g: number | null;
     carbs_g: number | null;
@@ -417,15 +431,17 @@ function fmtMacros(it: {
 }) {
   const p =
     it.per_serving.protein_g != null
-      ? `P ${round(it.per_serving.protein_g)}g`
-      : "P ?";
+      ? `${round(it.per_serving.protein_g)}g`
+      : "?";
   const c =
-    it.per_serving.carbs_g != null
-      ? `C ${round(it.per_serving.carbs_g)}g`
-      : "C ?";
+    it.per_serving.carbs_g != null ? `${round(it.per_serving.carbs_g)}g` : "?";
   const f =
-    it.per_serving.fat_g != null ? `F ${round(it.per_serving.fat_g)}g` : "F ?";
-  return [p, c, f].join(" • ");
+    it.per_serving.fat_g != null ? `${round(it.per_serving.fat_g)}g` : "?";
+  return [
+    { label: "Protein", value: p },
+    { label: "Carbs", value: c },
+    { label: "Fat", value: f },
+  ];
 }
 function fmtServing(it: {
   serving: { qty: number | null; unit: string | null; text?: string | null };
@@ -435,8 +451,16 @@ function fmtServing(it: {
     return `${round(it.serving.qty)} ${it.serving.unit}`;
   return "per serving";
 }
-function sep(it: any) {
-  return "  •  ";
+function formatFoodName(value: string) {
+  const cleaned = value.trim().replace(/\s+/g, " ");
+  if (!cleaned || cleaned !== cleaned.toUpperCase()) return cleaned || "Food";
+  return cleaned
+    .toLowerCase()
+    .replace(
+      /(^|[\s\-/])([a-z])/g,
+      (_, boundary: string, letter: string) =>
+        `${boundary}${letter.toUpperCase()}`
+    );
 }
 function round(n?: number | null) {
   if (n == null || !isFinite(n)) return "?";
