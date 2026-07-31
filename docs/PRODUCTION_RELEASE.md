@@ -477,18 +477,21 @@ change app credentials; an Owner/Admin must upload the least-privileged Google
 service-account JSON and complete RTDN after the correct Play account and app
 exist.
 
-Current iOS external state on 2026-07-28: the App Store app record exists;
+Current iOS external state on 2026-07-31: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
 Developer Mode; and the internal tester invitation has been accepted. Version
-1.0.0 build 14 was archived from main merge `b8a0863`, uploaded successfully,
-finished processing, and is **Testing** in the manually managed `Internal QA`
-group. Build 14 is the group's sole build and is saved as the build for App
-Store version 1.0. Builds 2 through 13 are superseded and must not be submitted.
+1.0.0 build 15 was archived from main merge `9e1d4cf`, validated, exported, and
+uploaded successfully on 2026-07-31. Apple reported the package as processing;
+do not treat it as available to testers until App Store Connect reports that
+processing has completed and it has been manually added to `Internal QA`.
+Builds 2 through 14 are superseded and must not be submitted.
 
-Build 14 includes the native request-routing and CORS fixes, four-photo upload
+Build 15 includes the native request-routing and CORS fixes, four-photo upload
 normalization, safe-area layout, user-facing Coach/nutrition error handling,
 the final customer terminology cleanup, and the reviewed Food Diary typography
-and responsive layout. It must still be installed fresh from TestFlight and
+and responsive layout. It also corrects goal-preview orientation, strengthens
+the realistic goal-direction prompt, and removes nutrition-search horizontal
+overflow. It must still be installed fresh from TestFlight and
 pass physical-device acceptance before submission. An archive, successful
 upload, simulator launch, or older TestFlight install is not acceptance
 evidence. The real-photo, purchase, restore, notification, authentication,
@@ -496,7 +499,7 @@ cold-launch, offline, nutrition, Coach-adjustment, and account-deletion
 checklist remains mandatory.
 
 The matching production web and backend are deployed from main merge
-`c1c1d6b`. Guarded deployment run `30411264094` completed successfully after
+`9e1d4cf`. Guarded deployment run `30656127887` completed successfully after
 the web and Functions builds, rules emulator checks, scan/credit/refund/account
 deletion pipeline, and dependency audits passed. Post-deploy verification
 confirmed the public and direct regional health endpoints, production CORS,
