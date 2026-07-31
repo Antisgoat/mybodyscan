@@ -736,7 +736,7 @@ async function generateCoachResponse(
     meta: {
       debugId: context.requestId,
       metadata,
-      model: process.env.OPENAI_MODEL ?? "gpt-5.6-luna",
+      model: process.env.OPENAI_MODEL ?? "gpt-5.6-sol",
     },
   };
 }
