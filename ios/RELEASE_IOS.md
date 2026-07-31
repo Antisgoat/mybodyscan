@@ -107,25 +107,19 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
-Current release snapshot (2026-07-28):
+Current release snapshot (2026-07-31):
 
-- Build 12 (`1.0.0`) is the current TestFlight/device acceptance candidate. It
-  contains the merged adaptive coaching, allergy-aware nutrition, custom-food
-  and recipe, workout-session, billing, legal, production release, and
-  customer-facing terminology changes. The archive contains build tag
-  `a2e0cf2`.
-- Xcode archive validation, distribution export, upload, and Apple processing
-  completed successfully. App Store Connect reports build 12 as **Ready to
-  Submit**.
-- Build 12 is the sole build in the `Internal QA` TestFlight group. Distribution
-  is manual so later unverified uploads cannot reach testers automatically.
-  The build-level `What to Test` checklist and the app-level beta description,
-  feedback email, marketing URL, and privacy URL are saved.
-- Build 12 is selected and saved for App Store version 1.0. It has not been
-  installed on the paired iPhone or submitted for review. App Store Connect
-  currently has no eligible internal testers, so no invitation has been sent.
-- Builds 2 through 11 are superseded and build 11 is no longer selected for App
-  Store version 1.0; do not submit any of them.
+- Build 15 (`1.0.0`) from main merge `9e1d4cf` is the current device-acceptance
+  candidate. It includes the goal-preview orientation/visibility and mobile
+  nutrition-search fixes in addition to the previously merged release work.
+- Archive validation, distribution export, and upload completed successfully
+  on 2026-07-31. Apple reported that the uploaded package is processing.
+- Distribution is manual so an upload cannot reach testers automatically. Once
+  processing completes, add only build 15 to `Internal QA`, retain the saved
+  beta metadata, and select build 15 for App Store version 1.0.
+- Build 15 has not yet passed the clean-install physical-device checklist and
+  has not been submitted for review. Builds 2 through 14 are superseded; do not
+  submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
