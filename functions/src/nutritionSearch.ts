@@ -994,7 +994,7 @@ async function runNutritionSearchCore(
   if (!items.length || input.sourcePreference !== "usda-first") {
     if (offResult.items.length) {
       if (input.sourcePreference === "combined" && items.length) {
-        items = [...items, ...offResult.items].slice(0, 40);
+        items = [...items, ...offResult.items];
         source = "USDA";
       } else {
         items = offResult.items;
@@ -1024,7 +1024,10 @@ async function runNutritionSearchCore(
       seen.add(key);
       return true;
     })
-    .slice(0, 40)
+    // A food logger needs a short, useful choice set—not an upstream database
+    // dump. Ranking happens first, so this keeps the strongest authoritative,
+    // branded, and serving-complete matches while reducing decision fatigue.
+    .slice(0, 16)
     .map(({ raw: _raw, ...item }) => item);
   return {
     status: "ok",

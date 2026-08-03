@@ -918,6 +918,10 @@ export default function Onboarding() {
           <p className="mt-1 text-sm text-muted-foreground">
             Step {step + 1} of {STEP_TITLES.length}: {STEP_TITLES[step]}
           </p>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-muted-foreground">
+            About two minutes. More detail helps tailor your training and meals;
+            optional questions can be left blank and updated later.
+          </p>
         </div>
 
         {loadError && (
