@@ -25,4 +25,10 @@ describe("nutrition search mobile layout", () => {
     expect(mealsSource).toContain("max-w-[calc(100vw-1rem)]");
     expect(mealsSource).toContain("overflow-x-hidden");
   });
+
+  it("reveals ranked results in a short, progressive list", () => {
+    expect(searchSource).toContain("const INITIAL_RESULT_COUNT = 8");
+    expect(searchSource).toContain("slice(0, visibleResultCount)");
+    expect(searchSource).toContain("Show {");
+  });
 });

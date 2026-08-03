@@ -37,6 +37,8 @@ type NutritionSearchProps = {
   onMealAdded?: (payload: { meal: MealEntry; totals: any }) => void;
 };
 
+const INITIAL_RESULT_COUNT = 8;
+
 export default function NutritionSearch({
   onMealLogged,
   defaultMealType,
@@ -56,6 +58,9 @@ export default function NutritionSearch({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<FoodItem[] | null>(null);
+  const [visibleResultCount, setVisibleResultCount] = useState(
+    INITIAL_RESULT_COUNT
+  );
   const [hasSearched, setHasSearched] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scannerCapability, setScannerCapability] = useState<{
@@ -74,6 +79,7 @@ export default function NutritionSearch({
     e?.preventDefault();
     setError(null);
     setResults(null);
+    setVisibleResultCount(INITIAL_RESULT_COUNT);
     if (!q.trim()) {
       setHasSearched(false);
       return;
@@ -316,7 +322,7 @@ export default function NutritionSearch({
           className="min-w-0 divide-y overflow-hidden rounded-xl border bg-background"
           data-testid="nutrition-results"
         >
-          {results.map((it) => (
+          {results.slice(0, visibleResultCount).map((it) => (
             <li
               key={it.id ?? it.name}
               className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3.5 sm:px-4"
@@ -362,6 +368,21 @@ export default function NutritionSearch({
               </button>
             </li>
           ))}
+          {results.length > visibleResultCount ? (
+            <li className="p-3">
+              <button
+                type="button"
+                className="min-h-11 w-full rounded-lg border bg-background px-4 text-sm font-semibold transition-colors hover:bg-secondary"
+                onClick={() =>
+                  setVisibleResultCount((count) =>
+                    Math.min(results.length, count + INITIAL_RESULT_COUNT)
+                  )
+                }
+              >
+                Show {Math.min(INITIAL_RESULT_COUNT, results.length - visibleResultCount)} more
+              </button>
+            </li>
+          ) : null}
         </ul>
       )}
 

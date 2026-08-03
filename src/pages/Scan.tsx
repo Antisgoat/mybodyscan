@@ -27,7 +27,7 @@ import { apiFetch } from "@/lib/http";
 import { db, getFirebaseApp, getFirebaseConfig } from "@/lib/firebase";
 import { getIdToken } from "@/auth/mbs-auth";
 import { useClaims } from "@/lib/claims";
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { useAppCheckStatus } from "@/hooks/useAppCheckStatus";
 import { getScanPhotoPath } from "@/lib/uploads/storagePaths";
 import {
@@ -773,77 +773,11 @@ export default function ScanPage() {
       setActiveScanId(null);
       setScanSession(null);
 
-      const scanDocRef = doc(db, "users", user.uid, "scans", startedScanId);
-      let settled = false;
-      const finalizeNavigation = () => {
-        if (settled) return;
-        settled = true;
-        cleanupWatchers();
-        nav(`/scans/${startedScanId}`);
-      };
-      const handleFailureStatus = (message: string) => {
-        if (settled) return;
-        const customerMessage =
-          "Scan is temporarily unavailable. Please try again in a few minutes or contact support.";
-        const visibleMessage = showDebug ? message : customerMessage;
-        setStatus("error");
-        setError(visibleMessage);
-        setStatusDetail(null);
-        updatePipeline(startedScanId, {
-          stage: "failed",
-          lastError: {
-            message: visibleMessage,
-            pose: undefined,
-            stage: "failed",
-            requestId: requestIdRef.current ?? undefined,
-            occurredAt: Date.now(),
-          },
-        });
-        settled = true;
-        cleanupWatchers();
-      };
-
-      let unsubscribe: (() => void) | null = null;
-      const fallbackTimer = window.setTimeout(async () => {
-        if (settled) return;
-        const snap = await getDoc(scanDocRef);
-        const data = snap.data() as any;
-        const statusValue = typeof data?.status === "string" ? data.status : null;
-        if (statusValue === "complete" || statusValue === "completed") {
-          finalizeNavigation();
-          return;
-        }
-        if (statusValue === "failed" || statusValue === "error") {
-          handleFailureStatus(data?.errorMessage || "Scan failed during processing.");
-          return;
-        }
-        finalizeNavigation();
-      }, 45_000);
-
-      const cleanupWatchers = () => {
-        if (unsubscribe) {
-          try {
-            unsubscribe();
-          } catch {
-            // ignore
-          }
-          unsubscribe = null;
-        }
-        window.clearTimeout(fallbackTimer);
-      };
-
-      unsubscribe = onSnapshot(scanDocRef, (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data() as any;
-        const statusValue = typeof data?.status === "string" ? data.status : null;
-        if (statusValue === "complete" || statusValue === "completed") {
-          finalizeNavigation();
-          return;
-        }
-        if (statusValue === "failed" || statusValue === "error") {
-          handleFailureStatus(data?.errorMessage || "Scan failed during processing.");
-        }
-      });
+      // Submission is already accepted and durable at this point. Move straight
+      // to the scan detail screen, which owns the live processing subscription.
+      // Waiting here duplicated that listener and made a healthy scan appear
+      // frozen for up to 45 seconds on mobile.
+      nav(`/scans/${startedScanId}`);
     } catch (err) {
       console.error("scan.submit.unexpected", err);
       const pose = (err as any)?.pose as string | undefined;

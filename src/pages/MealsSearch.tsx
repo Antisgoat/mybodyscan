@@ -47,6 +47,7 @@ import { reportError } from "@/lib/telemetry";
 
 const RECENTS_KEY = "mbs_nutrition_recents_v3";
 const MAX_RECENTS = 50;
+const INITIAL_RESULT_COUNT = 8;
 
 function currentLocalDate(): string {
   const now = new Date();
@@ -352,6 +353,9 @@ export default function MealsSearch() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
+  const [visibleResultCount, setVisibleResultCount] = useState(
+    INITIAL_RESULT_COUNT
+  );
   const [primarySource, setPrimarySource] = useState<
     "USDA" | "Open Food Facts" | null
   >(null);
@@ -410,6 +414,7 @@ export default function MealsSearch() {
     }
 
     const term = sanitizeNutritionQuery(debouncedQuery);
+    setVisibleResultCount(INITIAL_RESULT_COUNT);
     if (!term) {
       setResults([]);
       setPrimarySource(null);
@@ -834,7 +839,7 @@ export default function MealsSearch() {
             {!loading && searchWarning && (
               <p className="text-sm text-muted-foreground">{searchWarning}</p>
             )}
-            {results.map((item) => {
+            {results.slice(0, visibleResultCount).map((item) => {
               const favorite = favoritesMap.get(item.id);
               const subtitle = item.brand || item.source;
               const base = item.basePer100g;
@@ -881,6 +886,20 @@ export default function MealsSearch() {
                 </Card>
               );
             })}
+            {results.length > visibleResultCount ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() =>
+                  setVisibleResultCount((count) =>
+                    Math.min(results.length, count + INITIAL_RESULT_COUNT)
+                  )
+                }
+              >
+                Show {Math.min(INITIAL_RESULT_COUNT, results.length - visibleResultCount)} more
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
       </main>
