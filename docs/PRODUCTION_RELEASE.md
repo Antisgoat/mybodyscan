@@ -438,16 +438,27 @@ the current-state notes below say it was configured:
       internal-test install. No real card charge is required or acceptable for
       release verification.
 
-Current Android external state on 2026-07-26: the Firebase Android app exists
+Current Android external state on 2026-08-04: the Firebase Android app exists
 in `mybodyscan-f3daf` with package `com.mybodyscan.app`; its ignored
-`google-services.json`, local debug fingerprints, API-36 project, and debug APK
-are verified. `npm run android:build:debug` completed native sync, production
-credential guards, Java/Kotlin compilation, unit tests, Android lint, and APK
-assembly successfully. The Google Play app already exists in RevenueCat with
-package `com.mybodyscan.app`, and its public `goog_…` SDK key passes the native
-release guard. RevenueCat still has no Google service-account credentials or
-Real-Time Developer Notifications connection, so Play purchases cannot be
-accepted as release-verified.
+`google-services.json`, local debug fingerprints, API-36 project, and release
+bundle are verified. The ADLR LABS LLC Play organization now owns app
+`4973106928551115866`, named `MyBodyScan: Body Progress`, for package
+`com.mybodyscan.app`. Signed bundle version code 1/version 1.0 was accepted by
+Play and published on the private internal-testing track as
+`1.0 Internal Test 1`; tester list `Internal QA Testers` contains one licensed
+tester. The track reports the release as active and available to internal
+testers. It is not a public production release and is not reviewed.
+
+Play App Signing is active. The upload certificate and both current
+Play-managed signing identities are registered on the Firebase Android app,
+and a refreshed ignored `google-services.json` includes the corresponding
+OAuth clients. `npm run android:doctor`,
+`npm run check:android-release-config`, and `npm run verify:native` pass with
+that configuration. The Google Play app also exists in RevenueCat with package
+`com.mybodyscan.app`, and its public `goog_…` SDK key passes the native release
+guard. RevenueCat still has no Google service-account credentials or Real-Time
+Developer Notifications connection, so Play purchases cannot be accepted as
+release-verified.
 
 A new ignored upload keystore was generated at
 `android/mybodyscan-upload.jks`, with its ignored configuration at
@@ -463,19 +474,18 @@ the production credential guard, unit tests, Android lint, and Gradle release
 signing, and `jarsigner -verify` accepted it. Rebuild it from the final reviewed
 commit before upload; never upload an AAB produced from a different commit.
 
-Play Integrity registration is prepared but not saved because the account
-owner must accept the Google APIs and Play Integrity terms. The currently
-signed-in Google account still shows Play Console account creation and asks
-whether the owner is an organization or individual; ownership cannot be
-changed later. Do not complete that flow unless it is the intended ADLR Labs
-organization account. Otherwise switch to the already-paid developer account.
-No Play product catalog, internal-test upload, Play App Signing certificate, or
-Android device acceptance test exists yet. Register both the upload certificate
-above and the Play-generated app-signing certificate in Firebase after the
-correct Play app exists. The current RevenueCat role can inspect but cannot
-change app credentials; an Owner/Admin must upload the least-privileged Google
-service-account JSON and complete RTDN after the correct Play account and app
-exist.
+Play Integrity API registration is not enabled; enable it only after accepting
+the applicable Google API terms and observing valid internal-test tokens before
+enforcement. The Play merchant account is also not configured, so the monthly,
+yearly, and single-scan product catalog cannot be created yet. The account owner
+must complete the merchant payments/tax profile before catalog work. Afterward,
+an Owner/Admin must upload a least-privileged Google service-account JSON to
+RevenueCat, connect Real-Time Developer Notifications, import the three exact
+product IDs, attach only monthly/yearly to `pro`, and complete license-tester
+purchases and restoration. No Android physical-device acceptance test exists
+yet; the internal-track build still requires Google sign-in, cold launch,
+camera/barcode, four-photo scan, push, App Check, purchase/restore, and account
+deletion tests on a supported Android device.
 
 Current iOS external state on 2026-07-31: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
