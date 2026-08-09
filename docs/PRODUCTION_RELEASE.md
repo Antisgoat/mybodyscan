@@ -92,6 +92,13 @@ exist before Functions deployment. RevenueCat is required when mobile purchase
 events are enabled. `ADMIN_EMAIL_ALLOWLIST` is a fail-closed binding for the
 admin credit-grant function and must exist before Functions deployment.
 
+WHOOP is intentionally deferred from the initial production release. Its UI,
+API routes, public callback exception, and Firebase secret bindings must remain
+absent until a company-owned WHOOP developer membership, an approved OAuth
+client, and an end-to-end member test are available. The preserved foundation
+documents the future redirect URI as
+`https://mybodyscanapp.com/api/health/whoop/callback`.
+
 Non-secret runtime configuration is committed in
 `functions/.env.mybodyscan-f3daf`, the Firebase-supported project-specific
 Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
@@ -870,6 +877,13 @@ providers and does not replace the subscribed real-account checks below.
   support path for a customer who later returns with a different account.
 - On the physical iPhone, opt into plateau alerts, accept the system prompt,
   receive one visible APNs notification, and confirm tapping it opens History.
+- In a future WHOOP-enabled release, a Pro test user can connect through the provider
+  consent screen, return to Settings, sync the latest recovery, and disconnect.
+  Confirm the UI never exposes tokens, the provider access grant is revoked,
+  the server token document is removed, and account deletion performs the same
+  cleanup. Repeat once after forcing an access-token refresh. A non-Pro user
+  must be denied connect and sync but must still be able to disconnect an
+  existing connection.
 - From a Google Play internal-test install, verify email, Google, and Apple
   authentication only where the provider is intentionally offered; complete a
   real four-photo scan; test notification opt-in; and purchase monthly, yearly,

@@ -28,6 +28,9 @@ export type ScanEstimate = {
   bmiCategory?: string | null;
   keyObservations?: string[];
   goalRecommendations?: string[];
+  physiqueScores?: Partial<
+    Record<"chest" | "back" | "shoulders" | "arms" | "core" | "legs", number>
+  >;
   visualObservations?: {
     muscularDevelopment?: string;
     upperBodyDevelopment?: string;

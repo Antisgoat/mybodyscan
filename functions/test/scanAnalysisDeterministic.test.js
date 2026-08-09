@@ -98,7 +98,10 @@ test("unsafe legacy observation fields cannot leak into saved plan text", () => 
     ],
   });
 
-  assert.equal(analysis.estimate.notes, "Visual estimate only. Not medical advice.");
+  assert.equal(
+    analysis.estimate.notes,
+    "Visual estimate only. Not medical advice."
+  );
   assert.deepEqual(analysis.estimate.keyObservations, [
     "Balanced upper-body development is visible.",
   ]);
@@ -194,6 +197,28 @@ test("five-day beginners receive a balanced strength and recovery schedule", () 
     ]
   );
   assert.match(plan.summary, /mixed strength, conditioning, and recovery/i);
+});
+
+test("physique scores add conservative priorities only when the scan is sufficiently complete", () => {
+  const complete = deriveDeterministicWorkoutPlan(
+    { training_days_per_week: 3 },
+    { chest: 62, back: 58, shoulders: 71, arms: 67, core: 49, legs: 74 }
+  );
+  assert.match(complete.summary, /core and back/i);
+  assert.match(
+    complete.progressionRules.join(" "),
+    /additional core and back/i
+  );
+
+  const sparse = deriveDeterministicWorkoutPlan(
+    { training_days_per_week: 3 },
+    { chest: 42, legs: 70 }
+  );
+  assert.doesNotMatch(sparse.summary, /priority/i);
+  assert.doesNotMatch(
+    sparse.progressionRules.join(" "),
+    /additional .* volume/i
+  );
 });
 
 test("successful plan markdown never labels the estimate as fallback", () => {

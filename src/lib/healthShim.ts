@@ -1,7 +1,7 @@
 const TODO_LINK = "https://linear.app/mybodyscan/issue/HEALTH-SHIM";
 
 const NOT_AVAILABLE_ERROR =
-  "Health integrations are not live yet. This screen is gated until Apple Health/Google Fit connectors ship.";
+  "Health integrations are not live yet. This screen is gated until Apple Health, Health Connect, and approved direct connectors are ready.";
 
 function logShim(method: string) {
   console.info(
@@ -12,6 +12,7 @@ function logShim(method: string) {
 export type HealthProvider =
   | "apple-health"
   | "google-health-connect"
+  | "whoop"
   | "manual";
 
 /**

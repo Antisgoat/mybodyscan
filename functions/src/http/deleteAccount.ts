@@ -6,10 +6,8 @@ import { getStorage } from "firebase-admin/storage";
 import { verifyAppCheck } from "../http.js";
 import { deletePushTokenOwnershipForUser } from "../pushTokenOwnership.js";
 import { deleteStripeCustomerForUser } from "../accountDeletion.js";
-import {
-  stripeSecretKeyParam,
-  stripeSecretParam,
-} from "../stripe/keys.js";
+import { stripeSecretKeyParam, stripeSecretParam } from "../stripe/keys.js";
+import { deleteWhoopDataForAccount } from "../health/whoopRouter.js";
 
 export const deleteAccount = onRequest(
   {
@@ -71,5 +69,6 @@ async function deleteUserData(uid: string) {
   await bucket.deleteFiles({ prefix: `user_uploads/${uid}/` });
   await bucket.deleteFiles({ prefix: `transformation-previews/${uid}/` });
   await deletePushTokenOwnershipForUser(db, uid);
+  await deleteWhoopDataForAccount(uid);
   await db.recursiveDelete(db.doc(`users/${uid}`));
 }

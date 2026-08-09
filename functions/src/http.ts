@@ -49,7 +49,8 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = async (
   res.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (req.method === "OPTIONS") return res.status(204).end();
   try {
-    const publicHealth = /^\/(?:api\/)?health\/?$/.test(req.url || req.path);
+    const requestPath = req.path || req.url || "";
+    const publicHealth = /^\/(?:api\/)?health\/?$/.test(requestPath);
     await verifyAppCheck(req, publicHealth ? "soft" : getAppCheckMode());
     next();
   } catch {

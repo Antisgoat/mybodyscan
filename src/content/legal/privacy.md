@@ -9,6 +9,7 @@ MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This P
 - **Account and contact information:** your email address, display name, authentication provider, and messages you send to support.
 - **Scan media and wellness information you provide:** body photos, goals, preferences, equipment, allergy and dietary-restriction selections, workout and meal logs, weekly recovery check-ins, custom foods and recipes, and other information you choose to enter.
 - **Results and generated content:** scan estimates, visual observations, calculated values, plans, check-ins, food insights, and optional transformation-preview images.
+- **Connected health-provider information:** when you choose to connect a supported provider, the limited activity, sleep, workout, heart-rate, and recovery fields you authorize, along with connection and sync status. Provider access and refresh tokens are kept server-side.
 - **Device and usage information:** app version, device/browser type, IP-derived security information, crash and performance diagnostics, feature interactions, and push-notification tokens when you opt in.
 - **Purchase information:** products purchased, subscription status, credit balance, transaction identifiers, and limited billing metadata. Payment processors handle full payment-card details; MyBodyScan does not store full card numbers.
 
@@ -18,6 +19,7 @@ MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This P
 - Process purchases, maintain credits and subscriptions, and prevent duplicate charges or credit use.
 - Secure, troubleshoot, measure, and improve the service, including fraud and abuse prevention.
 - Send service notices and, only when you opt in, progress or plateau notifications. You can turn optional notifications off in Settings or your device settings.
+- Use health-provider data you explicitly connect to add recovery and activity context to your plan. Health-provider data is not used for advertising.
 - Comply with law and enforce our Terms of Service.
 
 Allergy preferences and weekly recovery check-ins are treated as sensitive wellness information. They are used to personalize your experience and safety notices, not for targeted advertising.
@@ -52,6 +54,7 @@ Before deleting your account, export any history you want to keep. Deletion is i
 - Review or update available profile, plan, scan, meal, and workout information in the app.
 - Delete scans or your account using the available Settings controls.
 - Control optional notifications in Settings and your browser or device settings.
+- Connect or disconnect supported health providers in Health settings. Disconnecting revokes provider access where supported and removes MyBodyScan's stored provider token.
 - Contact support@mybodyscanapp.com to request access, correction, deletion, or export where applicable.
 
 Depending on where you live, privacy law may provide additional rights, including rights to object to or restrict processing and to appeal or complain to a regulator. We may need to verify your identity before completing a request.

@@ -105,3 +105,24 @@ test("api preflight allows every header sent by the native client", async () => 
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("deferred WHOOP callback is not publicly exposed", async () => {
+  const previous = process.env.APP_CHECK_MODE;
+  process.env.APP_CHECK_MODE = "strict";
+  const server = http.createServer(apiAppForTest);
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  const base = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const res = await fetch(
+      `${base}/api/health/whoop/callback?error=access_denied&state=12345678`,
+      { redirect: "manual" }
+    );
+    assert.equal(res.status, 403);
+  } finally {
+    if (previous == null) delete process.env.APP_CHECK_MODE;
+    else process.env.APP_CHECK_MODE = previous;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});

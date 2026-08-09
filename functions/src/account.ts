@@ -7,10 +7,8 @@ import { buildScanPhotoPath, isScanPose } from "./scan/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
 import { deletePushTokenOwnershipForUser } from "./pushTokenOwnership.js";
 import { deleteStripeCustomerForUser } from "./accountDeletion.js";
-import {
-  stripeSecretKeyParam,
-  stripeSecretParam,
-} from "./stripe/keys.js";
+import { stripeSecretKeyParam, stripeSecretParam } from "./stripe/keys.js";
+import { deleteWhoopDataForAccount } from "./health/whoopRouter.js";
 
 const auth = getAuth();
 const db = getFirestore();
@@ -43,6 +41,7 @@ async function deleteFirestoreUser(
   const ref = db.doc(`users/${uid}`);
   console.log("account_delete_firestore_begin", { uid, requestId });
   await deletePushTokenOwnershipForUser(db, uid);
+  await deleteWhoopDataForAccount(uid);
   await db.recursiveDelete(ref);
   console.log("account_delete_firestore_complete", { uid, requestId });
 }

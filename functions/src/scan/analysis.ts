@@ -15,6 +15,10 @@ import type {
 } from "../types.js";
 import { scanPhotosPrefix } from "./paths.js";
 import { isValidBodyFatPercent } from "./contract.js";
+import {
+  PHYSIQUE_SCORE_MODEL_INSTRUCTION,
+  sanitizePhysiqueScores,
+} from "./physiqueScores.js";
 
 const storage = getStorage();
 const POSES = ["front", "back", "left", "right"] as const;
@@ -137,6 +141,9 @@ function sanitizeEstimate(
   const visualObservations = sanitizeVisualObservations(
     source?.visualObservations ?? source?.visual_observations
   );
+  const physiqueScores = sanitizePhysiqueScores(
+    source?.physiqueScores ?? source?.physique_scores
+  );
   return {
     bodyFatPercent: Number(bodyFatPercent.toFixed(1)),
     bmi,
@@ -155,6 +162,7 @@ function sanitizeEstimate(
     ...(Object.keys(visualObservations).length > 0
       ? { visualObservations }
       : {}),
+    ...(Object.keys(physiqueScores).length > 0 ? { physiqueScores } : {}),
   };
 }
 
@@ -434,6 +442,14 @@ export async function callOpenAI(
       '      "torsoCore": string,',
       '      "hips": string,',
       '      "legs": string',
+      "    },",
+      '    "physiqueScores": {',
+      '      "chest": number,',
+      '      "back": number,',
+      '      "shoulders": number,',
+      '      "arms": number,',
+      '      "core": number,',
+      '      "legs": number',
       "    }",
       "  },",
       '  "recommendations": string[],',
@@ -454,6 +470,7 @@ export async function callOpenAI(
     "Key observations should capture posture/muscle balance/general notes (no medical diagnosis).",
     "For visualObservations, describe only what is visibly apparent with cautious qualitative wording.",
     "Region values may describe visible development, visual balance, or training priority; never give regional fat or muscle amounts.",
+    PHYSIQUE_SCORE_MODEL_INSTRUCTION,
     "Do not infer injuries, health conditions, internal tissue, or exact regional composition from photos.",
     "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",
@@ -463,8 +480,9 @@ export async function callOpenAI(
 
   const imageParts: ChatContentPart[] = images.map(({ dataUrl }) => ({
     type: "image_url" as const,
-    // Speed-first: "low" significantly reduces latency/cost for 4-image inputs.
-    image_url: { url: dataUrl, detail: "low" as const },
+    // Regional development scoring needs enough detail to distinguish visible
+    // shape from compression artifacts across all four prepared photos.
+    image_url: { url: dataUrl, detail: "high" as const },
   }));
   const userContent: ChatContentPart[] = [
     { type: "text", text: userText },
