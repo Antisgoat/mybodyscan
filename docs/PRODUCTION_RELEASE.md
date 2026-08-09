@@ -456,6 +456,10 @@ Play and published on the private internal-testing track as
 tester. The track reports the release as active and available to internal
 testers. It is not a public production release and is not reviewed.
 
+The next internal acceptance candidate uses version code 2/version 1.0 and
+must supersede `1.0 Internal Test 1` on the same private track. It must not be
+promoted to production until the Android device and purchase smoke tests pass.
+
 Play App Signing is active. The upload certificate and both current
 Play-managed signing identities are registered on the Firebase Android app,
 and a refreshed ignored `google-services.json` includes the corresponding
