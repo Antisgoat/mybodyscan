@@ -31,11 +31,11 @@ It matches the spoken exercise to today's existing workout exercises instead of 
 
 The logger is mounted in the existing workout session and saves through the same `saveExerciseLog` / `logWorkoutExercise` path as manual entries. Multi-set phrases are stored in the existing completed-reps field as `sets×reps`, preserving one workout log model.
 
-## WHOOP
+## WHOOP (deferred from the initial production release)
 
-WHOOP stays gated until all server-side OAuth configuration exists. The implementation uses the standard authorization-code flow with one-time expiring CSRF state, server-only access and refresh tokens, refresh handling, recovery sync, provider revocation, and account-deletion cleanup. The UI cannot display WHOOP as connected until a token exchange succeeds.
+The WHOOP foundation is retained for a later provider-approved release, but its routes, UI, Firebase secret bindings, and callback exception are not deployed in the initial production release. The implementation uses the standard authorization-code flow with one-time expiring CSRF state, server-only access and refresh tokens, refresh handling, recovery sync, provider revocation, and account-deletion cleanup.
 
-Required operator configuration before enabling:
+Required operator configuration before enabling in a future release:
 
 - `WHOOP_CLIENT_ID`
 - `WHOOP_CLIENT_SECRET`

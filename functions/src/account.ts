@@ -8,7 +8,6 @@ import { onCallWithOptionalAppCheck } from "./util/callable.js";
 import { deletePushTokenOwnershipForUser } from "./pushTokenOwnership.js";
 import { deleteStripeCustomerForUser } from "./accountDeletion.js";
 import { stripeSecretKeyParam, stripeSecretParam } from "./stripe/keys.js";
-import { whoopClientIdParam, whoopClientSecretParam } from "./health/whoop.js";
 import { deleteWhoopDataForAccount } from "./health/whoopRouter.js";
 
 const auth = getAuth();
@@ -176,12 +175,7 @@ export const deleteMyAccount = onCallWithOptionalAppCheck(
   },
   {
     region: "us-central1",
-    secrets: [
-      stripeSecretParam,
-      stripeSecretKeyParam,
-      whoopClientIdParam,
-      whoopClientSecretParam,
-    ],
+    secrets: [stripeSecretParam, stripeSecretKeyParam],
   }
 );
 

@@ -106,7 +106,7 @@ test("api preflight allows every header sent by the native client", async () => 
   }
 });
 
-test("WHOOP callback remains reachable when App Check is strict", async () => {
+test("deferred WHOOP callback is not publicly exposed", async () => {
   const previous = process.env.APP_CHECK_MODE;
   process.env.APP_CHECK_MODE = "strict";
   const server = http.createServer(apiAppForTest);
@@ -119,11 +119,7 @@ test("WHOOP callback remains reachable when App Check is strict", async () => {
       `${base}/api/health/whoop/callback?error=access_denied&state=12345678`,
       { redirect: "manual" }
     );
-    assert.equal(res.status, 302);
-    const location = new URL(res.headers.get("location"));
-    assert.equal(location.origin, "https://mybodyscanapp.com");
-    assert.equal(location.pathname, "/settings/health");
-    assert.equal(location.searchParams.get("whoop"), "error");
+    assert.equal(res.status, 403);
   } finally {
     if (previous == null) delete process.env.APP_CHECK_MODE;
     else process.env.APP_CHECK_MODE = previous;

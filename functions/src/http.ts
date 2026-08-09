@@ -51,17 +51,7 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = async (
   try {
     const requestPath = req.path || req.url || "";
     const publicHealth = /^\/(?:api\/)?health\/?$/.test(requestPath);
-    // OAuth providers cannot send a Firebase App Check token when redirecting
-    // the browser back to our server. The signed, one-time state is the callback
-    // gate; authenticated start/status/sync/disconnect routes remain covered by
-    // the configured App Check mode.
-    const publicOAuthCallback = /^\/(?:api\/)?health\/whoop\/callback\/?$/.test(
-      requestPath
-    );
-    await verifyAppCheck(
-      req,
-      publicHealth || publicOAuthCallback ? "soft" : getAppCheckMode()
-    );
+    await verifyAppCheck(req, publicHealth ? "soft" : getAppCheckMode());
     next();
   } catch {
     res.status(403).json({ error: "app_check_required" });

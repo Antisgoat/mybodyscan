@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { api } from "../lib/index.js";
 
-test("aggregate API binds every router runtime secret", () => {
+test("aggregate API binds only launch-enabled router secrets", () => {
   const secretKeys = (api.__endpoint?.secretEnvironmentVariables ?? [])
     .map((entry) => entry.key)
     .sort();
@@ -13,7 +13,5 @@ test("aggregate API binds every router runtime secret", () => {
     "STRIPE_SECRET",
     "STRIPE_SECRET_KEY",
     "USDA_FDC_API_KEY",
-    "WHOOP_CLIENT_ID",
-    "WHOOP_CLIENT_SECRET",
   ]);
 });

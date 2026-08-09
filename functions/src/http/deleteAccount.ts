@@ -7,7 +7,6 @@ import { verifyAppCheck } from "../http.js";
 import { deletePushTokenOwnershipForUser } from "../pushTokenOwnership.js";
 import { deleteStripeCustomerForUser } from "../accountDeletion.js";
 import { stripeSecretKeyParam, stripeSecretParam } from "../stripe/keys.js";
-import { whoopClientIdParam, whoopClientSecretParam } from "../health/whoop.js";
 import { deleteWhoopDataForAccount } from "../health/whoopRouter.js";
 
 export const deleteAccount = onRequest(
@@ -16,12 +15,7 @@ export const deleteAccount = onRequest(
     region: "us-central1",
     timeoutSeconds: 540,
     memory: "1GiB",
-    secrets: [
-      stripeSecretParam,
-      stripeSecretKeyParam,
-      whoopClientIdParam,
-      whoopClientSecretParam,
-    ],
+    secrets: [stripeSecretParam, stripeSecretKeyParam],
   },
   async (req, res) => {
     if (req.method !== "POST")
