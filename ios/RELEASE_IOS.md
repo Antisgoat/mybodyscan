@@ -109,14 +109,14 @@ enabled on the device.
 
 Current release snapshot (2026-08-09):
 
-- Build 16 (`1.0.0`) is the current device-acceptance candidate. It includes
+- Build 17 (`1.0.0`) is the current device-acceptance candidate. It includes
   the complete launch release merged through `bb65e38`, with WHOOP explicitly
   deferred and removed from the launch runtime path.
-- Build 15 is superseded. Upload build 16 to `Internal QA`, retain the saved
-  beta metadata, and select build 16 for App Store version 1.0 only after the
+- Builds 15 and 16 are superseded. Upload build 17 to `Internal QA`, retain the
+  saved beta metadata, and select build 17 for App Store version 1.0 only after the
   clean-install physical-device checklist passes.
-- Build 16 has not yet passed that checklist and has not been submitted for
-  review. Builds 2 through 15 are superseded; do not submit any of them.
+- Build 17 has not yet passed that checklist and has not been submitted for
+  review. Builds 2 through 16 are superseded; do not submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
