@@ -107,19 +107,16 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
-Current release snapshot (2026-07-31):
+Current release snapshot (2026-08-09):
 
-- Build 15 (`1.0.0`) from main merge `9e1d4cf` is the current device-acceptance
-  candidate. It includes the goal-preview orientation/visibility and mobile
-  nutrition-search fixes in addition to the previously merged release work.
-- Archive validation, distribution export, and upload completed successfully
-  on 2026-07-31. Apple reported that the uploaded package is processing.
-- Distribution is manual so an upload cannot reach testers automatically. Once
-  processing completes, add only build 15 to `Internal QA`, retain the saved
-  beta metadata, and select build 15 for App Store version 1.0.
-- Build 15 has not yet passed the clean-install physical-device checklist and
-  has not been submitted for review. Builds 2 through 14 are superseded; do not
-  submit any of them.
+- Build 16 (`1.0.0`) is the current device-acceptance candidate. It includes
+  the complete launch release merged through `bb65e38`, with WHOOP explicitly
+  deferred and removed from the launch runtime path.
+- Build 15 is superseded. Upload build 16 to `Internal QA`, retain the saved
+  beta metadata, and select build 16 for App Store version 1.0 only after the
+  clean-install physical-device checklist passes.
+- Build 16 has not yet passed that checklist and has not been submitted for
+  review. Builds 2 through 15 are superseded; do not submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
