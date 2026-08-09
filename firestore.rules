@@ -334,6 +334,12 @@ service cloud.firestore {
         allow write: if !isDemoUser() && hasActivePro(uid);
       }
 
+      // OAuth access and refresh tokens are server-only. Connection status is
+      // exposed through an authenticated API that strips token material.
+      match /serverHealth/{provider} {
+        allow read, write: if false;
+      }
+
       match /nutrition/{docId} {
         allow read: if hasActivePro(uid);
         allow write: if !isDemoUser() && hasActivePro(uid);
@@ -386,6 +392,11 @@ service cloud.firestore {
     match /stripeEvents/{eventId} {
       allow read: if isStaff();
       allow write: if false;
+    }
+
+    // Short-lived, one-time OAuth CSRF state. Never client-readable.
+    match /oauthStates/{stateHash} {
+      allow read, write: if false;
     }
 
     match /telemetryEvents/{eventId} {

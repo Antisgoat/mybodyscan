@@ -13,5 +13,7 @@ test("aggregate API binds every router runtime secret", () => {
     "STRIPE_SECRET",
     "STRIPE_SECRET_KEY",
     "USDA_FDC_API_KEY",
+    "WHOOP_CLIENT_ID",
+    "WHOOP_CLIENT_SECRET",
   ]);
 });

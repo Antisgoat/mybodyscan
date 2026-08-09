@@ -15,7 +15,6 @@ test("WHOOP remains unavailable until every server credential is present", () =>
     getWhoopReadiness({
       WHOOP_CLIENT_ID: "client",
       WHOOP_CLIENT_SECRET: "secret",
-      WHOOP_REDIRECT_URI: "https://mybodyscanapp.com/api/health/whoop/callback",
     }),
     { configured: true, reason: "ready" }
   );

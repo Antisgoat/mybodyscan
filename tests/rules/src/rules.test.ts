@@ -224,6 +224,24 @@ d("Firestore security rules", () => {
     await assertFails(previewRef.delete());
   });
 
+  it("never exposes OAuth state or provider tokens to clients", async () => {
+    const uid = "health-owner";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      const admin = ctx.firestore();
+      await admin.doc(`users/${uid}/serverHealth/whoop`).set({
+        accessToken: "server-only",
+        refreshToken: "server-only",
+      });
+      await admin.doc("oauthStates/state-hash").set({ uid, provider: "whoop" });
+    });
+    const owner = testEnv.authenticatedContext(uid).firestore();
+    await assertFails(owner.doc(`users/${uid}/serverHealth/whoop`).get());
+    await assertFails(
+      owner.doc(`users/${uid}/serverHealth/whoop`).set({ connected: true })
+    );
+    await assertFails(owner.doc("oauthStates/state-hash").get());
+  });
+
   it("blocks cross-user access", async () => {
     const uid1 = "alice";
     const uid2 = "bob";

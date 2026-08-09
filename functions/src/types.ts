@@ -9,6 +9,10 @@ export interface ScanEstimate {
   bmiCategory?: string | null;
   keyObservations?: string[];
   goalRecommendations?: string[];
+  /** Optional photo-based development scores; omitted when a region is unclear. */
+  physiqueScores?: Partial<
+    Record<"chest" | "back" | "shoulders" | "arms" | "core" | "legs", number>
+  >;
   /** Cautious, photo-based qualitative observations. Never numeric or diagnostic. */
   visualObservations?: {
     muscularDevelopment?: string;

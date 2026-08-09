@@ -48,6 +48,7 @@ import { formatHeightFromCm, kgToLb } from "@/lib/units";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { isNative } from "@/lib/platform";
+import { PhysiqueDevelopmentScores } from "@/components/scan/PhysiqueDevelopmentScores";
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -693,6 +694,12 @@ const Results = () => {
               </section>
             )}
 
+            {activeScan?.estimate?.physiqueScores ? (
+              <PhysiqueDevelopmentScores
+                scores={activeScan.estimate.physiqueScores}
+              />
+            ) : null}
+
             <section>
               <div className="flex items-center gap-2">
                 <Utensils className="h-5 w-5 text-cyan-300" />
@@ -902,9 +909,9 @@ const Results = () => {
                   calculations.
                 </li>
                 <li>
-                  Body-fat percentage is a photo-based visual wellness
-                  estimate. Lean and fat mass are calculated from weight and
-                  that estimate.
+                  Body-fat percentage is a photo-based visual wellness estimate.
+                  Lean and fat mass are calculated from weight and that
+                  estimate.
                 </li>
                 <li>
                   Nutrition and training guidance come from deterministic app

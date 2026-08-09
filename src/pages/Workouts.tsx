@@ -57,6 +57,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { VoiceWorkoutLogger } from "@/features/workouts/VoiceWorkoutLogger";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -1086,6 +1087,21 @@ export default function Workouts() {
                 <AlertDescription>{today.coachGuidance}</AlertDescription>
               </Alert>
             ) : null}
+            <VoiceWorkoutLogger
+              exercises={todayExercises.map((exercise) => ({
+                id: exercise.id,
+                name: exercise.name,
+              }))}
+              defaultUnit={units === "metric" ? "kg" : "lb"}
+              disabled={!plan || demo}
+              onApply={async ({ exerciseId, load, repsDone }) => {
+                await saveExerciseLog(exerciseId, { load, repsDone });
+                toast({
+                  title: "Workout log saved",
+                  description: "Review the exercise card to confirm the entry.",
+                });
+              }}
+            />
             {todayExercises.map((ex) => {
               const serverLog = exerciseLogs?.[ex.id] ?? null;
               const localLog = getLocalLog(ex.id);

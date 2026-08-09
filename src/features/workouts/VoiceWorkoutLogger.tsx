@@ -88,11 +88,15 @@ export function VoiceWorkoutLogger({
 
   const apply = async () => {
     if (!parsed) {
-      setMessage('Try “bench press 225 for 8” or “squat 3 sets of 5 at 315 pounds.”');
+      setMessage(
+        "Try “bench press 225 for 8” or “squat 3 sets of 5 at 315 pounds.”"
+      );
       return;
     }
     if (!match) {
-      setMessage(`I heard “${parsed.exercise},” but it does not uniquely match today’s exercises.`);
+      setMessage(
+        `I heard “${parsed.exercise},” but it does not uniquely match today’s exercises.`
+      );
       return;
     }
     const load =
@@ -102,9 +106,22 @@ export function VoiceWorkoutLogger({
     await onApply({
       exerciseId: match.id,
       load,
-      repsDone: parsed.reps == null ? null : String(parsed.reps),
+      repsDone:
+        parsed.reps == null
+          ? null
+          : parsed.sets == null
+            ? String(parsed.reps)
+            : `${parsed.sets}×${parsed.reps}`,
     });
-    setMessage(`Logged ${match.name || parsed.exercise}${load ? ` · ${load}` : ""}${parsed.reps ? ` · ${parsed.reps} reps` : ""}.`);
+    const completed =
+      parsed.reps == null
+        ? ""
+        : parsed.sets == null
+          ? `${parsed.reps} reps`
+          : `${parsed.sets}×${parsed.reps}`;
+    setMessage(
+      `Logged ${match.name || parsed.exercise}${load ? ` · ${load}` : ""}${completed ? ` · ${completed}` : ""}.`
+    );
     setTranscript("");
   };
 
@@ -139,7 +156,11 @@ export function VoiceWorkoutLogger({
               disabled={disabled}
               aria-label={listening ? "Stop listening" : "Log set by voice"}
             >
-              {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              {listening ? (
+                <MicOff className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
             </Button>
           ) : null}
         </div>
@@ -147,9 +168,11 @@ export function VoiceWorkoutLogger({
           <div className="rounded-lg border bg-background/70 p-3 text-sm">
             <p className="font-medium">{match.name || parsed.exercise}</p>
             <p className="text-muted-foreground">
-              {parsed.weight != null ? `${parsed.weight} ${parsed.unit ?? defaultUnit}` : "Bodyweight / no load"}
+              {parsed.weight != null
+                ? `${parsed.weight} ${parsed.unit ?? defaultUnit}`
+                : "Bodyweight / no load"}
               {parsed.reps != null ? ` · ${parsed.reps} reps` : ""}
-              {parsed.sets != null ? ` · ${parsed.sets} sets mentioned` : ""}
+              {parsed.sets != null ? ` · ${parsed.sets} sets` : ""}
             </p>
           </div>
         ) : null}
@@ -163,10 +186,15 @@ export function VoiceWorkoutLogger({
         </Button>
         {!speechSupported ? (
           <p className="text-xs text-muted-foreground">
-            Voice recognition is not available in this browser. The same quick-log phrase can still be typed.
+            Voice recognition is not available in this browser. The same
+            quick-log phrase can still be typed.
           </p>
         ) : null}
-        {message ? <p className="text-xs text-muted-foreground" aria-live="polite">{message}</p> : null}
+        {message ? (
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {message}
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );

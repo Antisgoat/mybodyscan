@@ -77,6 +77,8 @@ npx firebase-tools functions:secrets:get STRIPE_SECRET --project mybodyscan-f3da
 npx firebase-tools functions:secrets:get STRIPE_SECRET_KEY --project mybodyscan-f3daf
 npx firebase-tools functions:secrets:get STRIPE_WEBHOOK_SECRET --project mybodyscan-f3daf
 npx firebase-tools functions:secrets:get USDA_FDC_API_KEY --project mybodyscan-f3daf
+npx firebase-tools functions:secrets:get WHOOP_CLIENT_ID --project mybodyscan-f3daf
+npx firebase-tools functions:secrets:get WHOOP_CLIENT_SECRET --project mybodyscan-f3daf
 ```
 
 Set or rotate a missing value interactively, one at a time:
@@ -91,6 +93,22 @@ API-key aliases are currently bound for compatibility and therefore both must
 exist before Functions deployment. RevenueCat is required when mobile purchase
 events are enabled. `ADMIN_EMAIL_ALLOWLIST` is a fail-closed binding for the
 admin credit-grant function and must exist before Functions deployment.
+
+WHOOP remains unavailable until both WHOOP secrets have enabled versions and
+the WHOOP developer app has the exact redirect URI
+`https://mybodyscanapp.com/api/health/whoop/callback`. Set the secrets
+interactively without printing their values:
+
+```bash
+npx firebase-tools functions:secrets:set WHOOP_CLIENT_ID --project mybodyscan-f3daf
+npx firebase-tools functions:secrets:set WHOOP_CLIENT_SECRET --project mybodyscan-f3daf
+```
+
+The integration requests read-only recovery, sleep, cycle, and workout scopes
+plus offline refresh access. Access and refresh tokens stay in server-owned
+Firestore documents denied by client rules. Keep the feature labeled
+unavailable until connect, refresh, recovery sync, disconnect/revocation, and
+account-deletion cleanup pass with a non-admin Pro production test account.
 
 Non-secret runtime configuration is committed in
 `functions/.env.mybodyscan-f3daf`, the Firebase-supported project-specific
@@ -870,6 +888,13 @@ providers and does not replace the subscribed real-account checks below.
   support path for a customer who later returns with a different account.
 - On the physical iPhone, opt into plateau alerts, accept the system prompt,
   receive one visible APNs notification, and confirm tapping it opens History.
+- With WHOOP configured, a Pro test user can connect through the provider
+  consent screen, return to Settings, sync the latest recovery, and disconnect.
+  Confirm the UI never exposes tokens, the provider access grant is revoked,
+  the server token document is removed, and account deletion performs the same
+  cleanup. Repeat once after forcing an access-token refresh. A non-Pro user
+  must be denied connect and sync but must still be able to disconnect an
+  existing connection.
 - From a Google Play internal-test install, verify email, Google, and Apple
   authentication only where the provider is intentionally offered; complete a
   real four-photo scan; test notification opt-in; and purchase monthly, yearly,

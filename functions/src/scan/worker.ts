@@ -29,6 +29,7 @@ import {
   isSaneWeightKg,
   normalizeScanStatus,
 } from "./contract.js";
+import type { PhysiqueScores } from "./physiqueScores.js";
 
 const db = getFirestore();
 const serverTimestamp = (): FirebaseFirestore.Timestamp =>
@@ -51,7 +52,31 @@ function bmiCategory(bmi: number): string | null {
   return "Obesity III";
 }
 
-export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
+export function deriveDeterministicWorkoutPlan(
+  profile: any,
+  physiqueScores: PhysiqueScores = {}
+): ScanWorkoutPlan {
+  const scoreLabels: Record<keyof PhysiqueScores, string> = {
+    chest: "chest",
+    back: "back",
+    shoulders: "shoulders",
+    arms: "arms",
+    core: "core",
+    legs: "legs",
+  };
+  const scoredRegions = Object.entries(physiqueScores)
+    .filter(
+      (entry): entry is [keyof PhysiqueScores, number] =>
+        typeof entry[1] === "number" && Number.isFinite(entry[1])
+    )
+    .sort((a, b) => a[1] - b[1]);
+  // A sparse score is too easy to over-interpret. Only adapt a plan when at
+  // least four regions were visible enough for a balanced comparison.
+  const priorityRegions =
+    scoredRegions.length >= 4 ? scoredRegions.slice(0, 2) : [];
+  const prioritySummary = priorityRegions.length
+    ? priorityRegions.map(([key]) => scoreLabels[key]).join(" and ")
+    : null;
   const requested = Number(
     profile?.training_days_per_week ??
       profile?.trainingDaysPerWeek ??
@@ -188,7 +213,7 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
         ? "full-body plan"
         : "upper/lower balanced split";
   return {
-    summary: `${daysPerWeek}-day ${structureName} based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""} (${experience} level)${equipment.size ? " using your available equipment" : ""}.`,
+    summary: `${daysPerWeek}-day ${structureName} based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""} (${experience} level)${equipment.size ? " using your available equipment" : ""}${prioritySummary ? `, with modest extra volume for ${prioritySummary}` : ""}.`,
     progressionRules: [
       "Leave 2-3 repetitions in reserve while learning each movement.",
       "Add repetitions before increasing load by 2-5%.",
@@ -196,6 +221,11 @@ export function deriveDeterministicWorkoutPlan(profile: any): ScanWorkoutPlan {
       ...(injuries.length
         ? [
             "Use conservative exercise selection around the limitations listed in your profile.",
+          ]
+        : []),
+      ...(prioritySummary
+        ? [
+            `Use the photo-based development profile only to prioritize a small amount of additional ${prioritySummary} training volume; reassess with consistent future scans.`,
           ]
         : []),
     ],
@@ -573,7 +603,10 @@ export const processQueuedScan = onDocumentWritten(
         bodyFatPercent: analysis.estimate.bodyFatPercent,
         profile,
       });
-      const workoutPlan = deriveDeterministicWorkoutPlan(profile);
+      const workoutPlan = deriveDeterministicWorkoutPlan(
+        profile,
+        analysis.estimate.physiqueScores ?? {}
+      );
 
       await scanRef.set(
         {
@@ -616,6 +649,7 @@ export const processQueuedScan = onDocumentWritten(
             heightCm: heightOk,
             bodyFatEstimate: bfRange,
             ...(analysis.estimate.visualObservations ?? {}),
+            physiqueScores: analysis.estimate.physiqueScores ?? null,
           },
           usedFallback: false,
           resultSource: "ai",

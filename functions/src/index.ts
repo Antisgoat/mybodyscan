@@ -13,6 +13,8 @@ import { nutritionRouter } from "./nutrition.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { stripeSecretKeyParam, stripeSecretParam } from "./stripe/keys.js";
 import { systemRouter } from "./systemRouter.js";
+import { registerWhoopRoutes } from "./health/whoopRouter.js";
+import { whoopClientIdParam, whoopClientSecretParam } from "./health/whoop.js";
 
 export { health } from "./health.js";
 export { systemHealth } from "./systemHealth.js";
@@ -237,6 +239,7 @@ apiRouter.use("/billing", billingRouter);
 apiRouter.use("/coach", coachRouter);
 apiRouter.use("/nutrition", nutritionRouter);
 apiRouter.use("/system", systemRouter);
+registerWhoopRoutes(apiRouter);
 
 app.use("/", apiRouter);
 app.use("/api", apiRouter);
@@ -279,6 +282,8 @@ export const api = onRequest(
       stripeSecretParam,
       stripeSecretKeyParam,
       usdaFdcApiKeyParam,
+      whoopClientIdParam,
+      whoopClientSecretParam,
     ],
   },
   app
