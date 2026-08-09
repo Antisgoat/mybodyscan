@@ -112,9 +112,11 @@ Current release snapshot (2026-08-09):
 - Build 17 (`1.0.0`) is the current device-acceptance candidate. It includes
   the complete launch release merged through `bb65e38`, with WHOOP explicitly
   deferred and removed from the launch runtime path.
-- Builds 15 and 16 are superseded. Upload build 17 to `Internal QA`, retain the
-  saved beta metadata, and select build 17 for App Store version 1.0 only after the
-  clean-install physical-device checklist passes.
+- Build 17 was archived, validated, and uploaded successfully on 2026-08-09.
+  It was processing when this snapshot was recorded. After processing, add
+  only build 17 to `Internal QA`, retain the saved beta metadata, and select it
+  for App Store version 1.0 only after the clean-install physical-device
+  checklist passes.
 - Build 17 has not yet passed that checklist and has not been submitted for
   review. Builds 2 through 16 are superseded; do not submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved

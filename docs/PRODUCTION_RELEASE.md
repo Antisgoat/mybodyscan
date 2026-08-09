@@ -445,19 +445,21 @@ the current-state notes below say it was configured:
       internal-test install. No real card charge is required or acceptable for
       release verification.
 
-Current Android external state on 2026-08-04: the Firebase Android app exists
+Current Android external state on 2026-08-09: the Firebase Android app exists
 in `mybodyscan-f3daf` with package `com.mybodyscan.app`; its ignored
 `google-services.json`, local debug fingerprints, API-36 project, and release
 bundle are verified. The ADLR LABS LLC Play organization now owns app
 `4973106928551115866`, named `MyBodyScan: Body Progress`, for package
-`com.mybodyscan.app`. Signed bundle version code 1/version 1.0 was accepted by
+`com.mybodyscan.app`. Signed bundle version code 2/version 1.0 was accepted by
 Play and published on the private internal-testing track as
-`1.0 Internal Test 1`; tester list `Internal QA Testers` contains one licensed
+`1.0 Internal Test 2`; tester list `Internal QA Testers` contains one licensed
 tester. The track reports the release as active and available to internal
-testers. It is not a public production release and is not reviewed.
+testers. Version code 1 (`1.0 Internal Test 1`) is superseded. This is not a
+public production release and has not been reviewed by Google. Play's missing
+deobfuscation-file warning is expected for this build because release
+minification is disabled; it is not a blocking validation error.
 
-The next internal acceptance candidate uses version code 2/version 1.0 and
-must supersede `1.0 Internal Test 1` on the same private track. It must not be
+Version code 2 is the current Android acceptance candidate. It must not be
 promoted to production until the Android device and purchase smoke tests pass.
 
 Play App Signing is active. The upload certificate and both current
@@ -480,10 +482,12 @@ under service `MyBodyScan Android Upload Keystore` and account
 The upload certificate SHA-1 is
 `6F:FF:1F:AF:9A:98:E1:7D:37:60:92:42:55:57:C7:1E:3A:2F:AB:AB` and SHA-256 is
 `FE:0F:86:19:89:5B:D8:39:3F:3F:C1:01:6C:30:C6:A4:59:F0:A5:38:62:98:6C:C0:FD:9C:C0:4D:0A:5D:21:4D`.
-The backup hash matches the working keystore. A release AAB was built through
+The backup hash matches the working keystore. The version-code-2 release AAB
+was built through
 the production credential guard, unit tests, Android lint, and Gradle release
-signing, and `jarsigner -verify` accepted it. Rebuild it from the final reviewed
-commit before upload; never upload an AAB produced from a different commit.
+signing, and `jarsigner -verify` accepted it before the internal-track upload.
+Never promote an AAB produced from a different commit than the reviewed
+candidate.
 
 Play Integrity API registration is not enabled; enable it only after accepting
 the applicable Google API terms and observing valid internal-test tokens before
@@ -498,16 +502,16 @@ yet; the internal-track build still requires Google sign-in, cold launch,
 camera/barcode, four-photo scan, push, App Check, purchase/restore, and account
 deletion tests on a supported Android device.
 
-Current iOS external state on 2026-07-31: the App Store app record exists;
+Current iOS external state on 2026-08-09: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
 Developer Mode; and the internal tester invitation has been accepted. Version
-1.0.0 build 15 was archived from main merge `9e1d4cf`, validated, exported, and
-uploaded successfully on 2026-07-31. Apple reported the package as processing;
+1.0.0 build 17 was archived from main merge `6380cc6`, validated, exported, and
+uploaded successfully on 2026-08-09. Apple reported the package as processing;
 do not treat it as available to testers until App Store Connect reports that
 processing has completed and it has been manually added to `Internal QA`.
-Builds 2 through 14 are superseded and must not be submitted.
+Builds 2 through 16 are superseded and must not be submitted.
 
-Build 15 includes the native request-routing and CORS fixes, four-photo upload
+Build 17 includes the native request-routing and CORS fixes, four-photo upload
 normalization, safe-area layout, user-facing Coach/nutrition error handling,
 the final customer terminology cleanup, and the reviewed Food Diary typography
 and responsive layout. It also corrects goal-preview orientation, strengthens
@@ -520,7 +524,7 @@ cold-launch, offline, nutrition, Coach-adjustment, and account-deletion
 checklist remains mandatory.
 
 The matching production web and backend are deployed from main merge
-`9e1d4cf`. Guarded deployment run `30656127887` completed successfully after
+`6380cc6`. Guarded deployment run `31329100070` completed successfully after
 the web and Functions builds, rules emulator checks, scan/credit/refund/account
 deletion pipeline, and dependency audits passed. Post-deploy verification
 confirmed the public and direct regional health endpoints, production CORS,
