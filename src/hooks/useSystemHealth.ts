@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { fetchJson, type BackendError } from "@/lib/backend/fetchJson";
 import { getFunctionsOrigin } from "@/lib/backend/functionsOrigin";
-import { fetchSystemHealth } from "@/lib/system";
+import { fetchSystemHealth, HEALTH_ENDPOINT } from "@/lib/system";
 
 export interface SystemHealthSnapshot {
   openaiKeyPresent?: boolean;
@@ -58,7 +58,7 @@ function safeFunctionsOrigin(): string {
 }
 
 async function loadSystemHealth(): Promise<SystemHealthLoad> {
-  const healthCheck = await fetchJson<{ ok?: boolean }>("/health", { method: "GET" }, 2500);
+  const healthCheck = await fetchJson<{ ok?: boolean }>(HEALTH_ENDPOINT, { method: "GET" }, 2500);
   if (!healthCheck?.ok) {
     throw new Error("health_check_failed");
   }

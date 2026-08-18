@@ -33,6 +33,7 @@ CHECKOUT_URL="${BASE_URL}/api/createCheckout"
 NUTRITION_URL="${BASE_URL}/api/nutrition/search?q=chicken%20breast"
 BARCODE_URL="${BASE_URL}/api/nutrition/barcode?code=737628064502"
 SYSTEM_URL="${BASE_URL}/systemHealth?clientKey=${FIREBASE_API_KEY}"
+CURL_RETRY=(--connect-timeout 5 --max-time 20 --retry 2 --retry-delay 1 --retry-max-time 45 --retry-all-errors)
 
 PRICE_ID="${VITE_PRICE_STARTER:-}"
 if [[ -z "$PRICE_ID" ]]; then
@@ -53,7 +54,7 @@ if [[ -z "$PRICE_ID" ]]; then
 fi
 
 echo "[smoke] Requesting anonymous ID token"
-SIGNUP_RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
+SIGNUP_RESPONSE=$(curl "${CURL_RETRY[@]}" -s -X POST -H "Content-Type: application/json" \
   -d '{"returnSecureToken":true}' \
   "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}")
 
@@ -67,7 +68,7 @@ fi
 
 cleanup() {
   if [[ -n "$ID_TOKEN" ]]; then
-    curl -s -o /dev/null -X POST -H "Content-Type: application/json" \
+    curl "${CURL_RETRY[@]}" -s -o /dev/null -X POST -H "Content-Type: application/json" \
       -d "{\"idToken\":\"${ID_TOKEN}\"}" \
       "https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${FIREBASE_API_KEY}" || true
   fi
@@ -88,9 +89,9 @@ call_endpoint() {
   echo "[smoke] ${name}: ${method} ${display_url}"
   local response
   if [[ "$method" == "GET" ]]; then
-    response=$(curl -s -w '\n%{http_code}' -H "Accept: application/json" -H "Authorization: Bearer ${ID_TOKEN}" "$url")
+    response=$(curl "${CURL_RETRY[@]}" -s -w '\n%{http_code}' -H "Accept: application/json" -H "Authorization: Bearer ${ID_TOKEN}" "$url")
   else
-    response=$(curl -s -w '\n%{http_code}' -H "Accept: application/json" -H "Authorization: Bearer ${ID_TOKEN}" -H "Content-Type: application/json" -d "$body" "$url")
+    response=$(curl "${CURL_RETRY[@]}" -s -w '\n%{http_code}' -H "Accept: application/json" -H "Authorization: Bearer ${ID_TOKEN}" -H "Content-Type: application/json" -d "$body" "$url")
   fi
 
   local status=$(echo "$response" | tail -n1)

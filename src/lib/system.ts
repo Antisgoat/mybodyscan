@@ -9,6 +9,11 @@ type BootstrapResponse = {
   claimsUpdated?: boolean;
 };
 
+// `/health` is a client-side page on Hosting. Use the API route so web builds
+// reach the aggregate Function, while native builds map this path to the
+// dedicated health Function in resolveEndpoint.
+export const HEALTH_ENDPOINT = "/api/health";
+
 const SOFT_BOOTSTRAP_STATUSES = new Set([404, 405]);
 
 function isSoftBootstrapStatus(status?: number): boolean {
@@ -66,7 +71,11 @@ export async function fetchSystemHealth(): Promise<any | null> {
   try {
     return await fetchJson("/systemHealth", { method: "GET" }, 3500);
   } catch {
-    const health = await fetchJson<{ ok?: boolean }>("/health", { method: "GET" }, 3500);
+    const health = await fetchJson<{ ok?: boolean }>(
+      HEALTH_ENDPOINT,
+      { method: "GET" },
+      3500
+    );
     return { functionsReachable: health?.ok === true };
   }
 }
