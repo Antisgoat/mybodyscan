@@ -1,44 +1,14 @@
-# Release Checklist (MyBodyScan)
+# MyBodyScan release checklist
 
-## Pre-flight
+Use [`PRODUCTION_RELEASE.md`](PRODUCTION_RELEASE.md) as the single source of
+truth for web, Firebase, iOS, and Android release gates, deployment order,
+post-deploy verification, and rollback.
 
-- [ ] Run `npm run doctor` to ensure native prerequisites are present.
-- [ ] Run `npm ci` in the repo root.
-- [ ] Run `npm --prefix functions ci`.
-- [ ] Verify `.env.production` is updated (see `.env.example`).
-- [ ] Confirm Firebase secrets are configured (see README “Secrets & Deploy”).
+Platform-specific operator details are limited to:
 
-## Versioning
+- [`AppStoreReleaseChecklist.md`](AppStoreReleaseChecklist.md) for iOS;
+- [`../ios/RELEASE_IOS.md`](../ios/RELEASE_IOS.md) for the iOS build appendix;
+- the Android sections of [`PRODUCTION_RELEASE.md`](PRODUCTION_RELEASE.md).
 
-- [ ] Update `version` in `package.json` (web).
-- [ ] iOS: bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in Xcode (App target).
-- [ ] Android: bump `versionName` and `versionCode` in `android/app/build.gradle`.
-
-## Web + Native assets
-
-- [ ] `npm run build:web`
-- [ ] `npm run sync:ios`
-- [ ] `npm run sync:android`
-
-## iOS release
-
-- [ ] `npm run build:ios`
-- [ ] Xcode → Archive → Distribute App.
-- [ ] Confirm App Store Connect upload success and processing.
-
-## Android release
-
-- [ ] `npm run build:android`
-- [ ] Generate bundle: `./gradlew bundleRelease` (from `android/`).
-- [ ] Upload `app-release.aab` to Play Console.
-
-## Firebase Functions
-
-- [ ] `npm --prefix functions run build`
-- [ ] `firebase deploy --only functions --project <projectId>`
-
-## Post-deploy sanity
-
-- [ ] Hosting smoke: visit `/systemHealth` and `/__diag`.
-- [ ] Payments: run `npm run smoke` (requires `VITE_FIREBASE_API_KEY` + price IDs).
-- [ ] Auth: verify Google + Apple sign-in flows on web and iOS.
+If any checklist disagrees with the canonical runbook, stop and correct the
+documentation before building or deploying.
