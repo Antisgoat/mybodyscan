@@ -445,7 +445,7 @@ the current-state notes below say it was configured:
       internal-test install. No real card charge is required or acceptable for
       release verification.
 
-Current Android external state on 2026-08-09: the Firebase Android app exists
+Current Android external state on 2026-08-19: the Firebase Android app exists
 in `mybodyscan-f3daf` with package `com.mybodyscan.app`; its ignored
 `google-services.json`, local debug fingerprints, API-36 project, and release
 bundle are verified. The ADLR LABS LLC Play organization now owns app
@@ -459,8 +459,14 @@ public production release and has not been reviewed by Google. Play's missing
 deobfuscation-file warning is expected for this build because release
 minification is disabled; it is not a blocking validation error.
 
-Version code 2 is the current Android acceptance candidate. It must not be
-promoted to production until the Android device and purchase smoke tests pass.
+Signed version code 3/version 1.0 was built, verified, and uploaded on
+2026-08-19 as draft `1.0 Internal Test 3`. Google Play returned transient error
+`5317C37E` while publishing it, so version code 2 remains the active internal
+release until the console confirms version 3 is available to testers. Do not
+discard or recreate the version-3 draft; retry publishing it from the internal
+track. Once active, version code 3 is the Android acceptance candidate. It must
+not be promoted to production until the Android device and purchase smoke tests
+pass.
 
 Play App Signing is active. The upload certificate and both current
 Play-managed signing identities are registered on the Firebase Android app,
@@ -502,16 +508,16 @@ yet; the internal-track build still requires Google sign-in, cold launch,
 camera/barcode, four-photo scan, push, App Check, purchase/restore, and account
 deletion tests on a supported Android device.
 
-Current iOS external state on 2026-08-09: the App Store app record exists;
+Current iOS external state on 2026-08-19: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
 Developer Mode; and the internal tester invitation has been accepted. Version
-1.0.0 build 17 was archived from main merge `6380cc6`, validated, exported, and
-uploaded successfully on 2026-08-09. Apple reported the package as processing;
+1.0.0 build 18 was archived, validated, exported, and uploaded successfully on
+2026-08-19. Apple reported the package as processing;
 do not treat it as available to testers until App Store Connect reports that
 processing has completed and it has been manually added to `Internal QA`.
-Builds 2 through 16 are superseded and must not be submitted.
+Builds 2 through 17 are superseded and must not be submitted.
 
-Build 17 includes the native request-routing and CORS fixes, four-photo upload
+Build 18 includes the native request-routing and CORS fixes, four-photo upload
 normalization, safe-area layout, user-facing Coach/nutrition error handling,
 the final customer terminology cleanup, and the reviewed Food Diary typography
 and responsive layout. It also corrects goal-preview orientation, strengthens

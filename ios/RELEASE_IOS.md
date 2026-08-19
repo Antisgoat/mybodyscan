@@ -107,18 +107,18 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
-Current release snapshot (2026-08-09):
+Current release snapshot (2026-08-19):
 
-- Build 17 (`1.0.0`) is the current device-acceptance candidate. It includes
-  the complete launch release merged through `bb65e38`, with WHOOP explicitly
-  deferred and removed from the launch runtime path.
-- Build 17 was archived, validated, and uploaded successfully on 2026-08-09.
+- Build 18 (`1.0.0`) is the current device-acceptance candidate. It includes
+  the release-hardening dependency, CI, and native-candidate updates, with
+  WHOOP explicitly deferred and removed from the launch runtime path.
+- Build 18 was archived, validated, and uploaded successfully on 2026-08-19.
   It was processing when this snapshot was recorded. After processing, add
-  only build 17 to `Internal QA`, retain the saved beta metadata, and select it
+  only build 18 to `Internal QA`, retain the saved beta metadata, and select it
   for App Store version 1.0 only after the clean-install physical-device
   checklist passes.
-- Build 17 has not yet passed that checklist and has not been submitted for
-  review. Builds 2 through 16 are superseded; do not submit any of them.
+- Build 18 has not yet passed that checklist and has not been submitted for
+  review. Builds 2 through 17 are superseded; do not submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
