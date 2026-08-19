@@ -124,7 +124,7 @@ describe("production deployment authentication", () => {
   });
 
   it("uses the current Firebase CLI toolchain", () => {
-    expect(PACKAGE_JSON.devDependencies["firebase-tools"]).toBe("15.24.0");
+    expect(PACKAGE_JSON.devDependencies["firebase-tools"]).toBe("15.27.0");
     expect(PACKAGE_JSON.devDependencies.picomatch).toBe("4.0.5");
   });
 
@@ -134,7 +134,7 @@ describe("production deployment authentication", () => {
       "^14.2.0"
     );
     expect(FUNCTIONS_PACKAGE_JSON.dependencies["firebase-functions"]).toBe(
-      "7.3.0"
+      "7.3.2"
     );
     expect(FIREBASE_JSON.functions[0].runtime).toBe("nodejs22");
     expect(FIREBASE_JSON.functions[0].predeploy).toEqual([
@@ -154,9 +154,9 @@ describe("production deployment authentication", () => {
   });
 
   it("pins Java 21 anywhere the current Firebase emulators run", () => {
-    expect(WORKFLOW).toContain("actions/setup-java@v4");
+    expect(WORKFLOW).toContain("actions/setup-java@v5");
     expect(WORKFLOW).toMatch(/java-version:\s*["']?21/);
-    expect(VERIFY_WORKFLOW.match(/actions\/setup-java@v4/g)).toHaveLength(2);
+    expect(VERIFY_WORKFLOW.match(/actions\/setup-java@v5/g)).toHaveLength(2);
     expect(VERIFY_WORKFLOW.match(/java-version:\s*["']?21/g)).toHaveLength(2);
   });
 
