@@ -530,7 +530,7 @@ cold-launch, offline, nutrition, Coach-adjustment, and account-deletion
 checklist remains mandatory.
 
 The matching production web and backend are deployed from main merge
-`6380cc6`. Guarded deployment run `31329100070` completed successfully after
+`d24644f`. Guarded deployment run `32260042834` completed successfully after
 the web and Functions builds, rules emulator checks, scan/credit/refund/account
 deletion pipeline, and dependency audits passed. Post-deploy verification
 confirmed the public and direct regional health endpoints, production CORS,
