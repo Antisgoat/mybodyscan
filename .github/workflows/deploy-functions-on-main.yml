@@ -21,15 +21,15 @@ jobs:
       VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
       VITE_APP_BASE_URL: https://mybodyscanapp.com
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
 
       - name: Setup Java 21 for Firebase emulators
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
@@ -63,7 +63,7 @@ jobs:
       - name: Verify Firestore rules in emulator
         run: npx firebase emulators:exec --only firestore --project demo-mbs "npm run test:rules"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
