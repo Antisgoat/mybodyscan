@@ -1,4 +1,4 @@
-name: Verify build (web Node 20, Functions Node 22)
+name: Verify build (Node 22)
 
 on:
   push:
@@ -17,10 +17,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Setup Java 21 for Firebase emulators
