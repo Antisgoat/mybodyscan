@@ -99,11 +99,21 @@ requireText(
   "Firebase Messaging auto-init must stay disabled until the user opts in."
 );
 requireText(
+  info,
+  "<key>UIBackgroundModes</key>\n\t<array>\n\t\t<string>remote-notification</string>\n\t</array>",
+  "Info.plist must declare background remote-notification delivery."
+);
+requireText(
   archive,
   "npm run build:native:release",
   "The archive command must build a fresh guarded native release bundle."
 );
 const appDelegate = read("ios/App/App/AppDelegate.swift");
+requireText(
+  appDelegate,
+  "FirebaseApp.configure()",
+  "AppDelegate must configure Firebase before Capacitor plugins initialize."
+);
 requireText(
   appDelegate,
   ".capacitorDidRegisterForRemoteNotifications",
