@@ -155,6 +155,46 @@ service cloud.firestore {
         && (!request.resource.data.keys().hasAny(['updatedAt']) || request.resource.data.updatedAt is timestamp);
     }
 
+    function isValidGymEquipmentPreference() {
+      let data = request.resource.data;
+      let inventoryIds = [
+        'open_floor', 'adjustable_bench', 'flat_bench', 'dumbbells',
+        'kettlebells', 'barbell', 'squat_rack', 'smith_machine',
+        'cable_station', 'lat_pulldown', 'seated_row', 'chest_press',
+        'shoulder_press', 'leg_press', 'leg_extension', 'leg_curl',
+        'functional_trainer', 'other_strength_machines', 'pull_up_bar',
+        'dip_station', 'resistance_bands', 'suspension_trainer',
+        'medicine_balls', 'ab_wheel', 'sled', 'treadmill',
+        'stationary_bike', 'rower', 'elliptical', 'stair_climber'
+      ];
+      let exerciseEquipment = [
+        'barbell', 'dumbbell', 'machine', 'cables', 'smith', 'bands',
+        'bodyweight', 'kettlebell'
+      ];
+      return data is map
+        && data.keys().hasOnly([
+          'inventory', 'exerciseEquipment', 'source', 'locationName', 'notes',
+          'confirmedByUser', 'version', 'updatedAt'
+        ])
+        && data.inventory is list
+        && data.inventory.size() > 0
+        && data.inventory.size() <= 30
+        && data.inventory.hasOnly(inventoryIds)
+        && data.exerciseEquipment is list
+        && data.exerciseEquipment.size() > 0
+        && data.exerciseEquipment.size() <= 8
+        && data.exerciseEquipment.hasOnly(exerciseEquipment)
+        && data.confirmedByUser == true
+        && data.version == 1
+        && data.source is string
+        && (data.source == 'manual' || data.source == 'photo' || data.source == 'video' || data.source == 'mixed')
+        && data.locationName is string
+        && data.locationName.size() <= 80
+        && data.notes is string
+        && data.notes.size() <= 280
+        && data.updatedAt is timestamp;
+    }
+
     function isValidCoachThreadWrite(uid) {
       // NOTE: Thread docs may include server-maintained fields (e.g. lastMessagePreview)
       // written by Cloud Functions (Admin SDK). Client updates should not be rejected
@@ -289,8 +329,11 @@ service cloud.firestore {
       }
 
       match /preferences/{docId} {
-        allow read: if isOwner(uid);
-        allow write: if !isDemoUser() && isOwner(uid);
+        allow read: if isOwner(uid)
+          && (docId != 'gymEquipment' || hasActivePro(uid));
+        allow write: if !isDemoUser() && isOwner(uid)
+          && (docId != 'gymEquipment' ||
+            (hasActivePro(uid) && isValidGymEquipmentPreference()));
       }
 
       match /workoutPlans/{planId} {

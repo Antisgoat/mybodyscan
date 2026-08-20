@@ -113,10 +113,17 @@ export function deriveDeterministicWorkoutPlan(
   const experience = ["intermediate", "advanced"].includes(experienceRaw)
     ? (experienceRaw as "intermediate" | "advanced")
     : "beginner";
-  const equipmentValues = [
-    ...normalizeTextList(profile?.equipment),
-    ...normalizeTextList(profile?.programPreferences?.equipment),
-  ].flatMap((item) => item.split(/[,/|]+/).map((part) => part.trim()));
+  const detailedEquipment = normalizeTextList(profile?.equipmentInventory);
+  // A confirmed inventory is authoritative. Do not let a legacy broad value
+  // such as `full_gym` undo the user's exact equipment constraints.
+  const equipmentValues = (
+    detailedEquipment.length
+      ? detailedEquipment
+      : [
+          ...normalizeTextList(profile?.equipment),
+          ...normalizeTextList(profile?.programPreferences?.equipment),
+        ]
+  ).flatMap((item) => item.split(/[,/|]+/).map((part) => part.trim()));
   const equipment = new Set<string>();
   for (const item of equipmentValues) {
     const normalized = item.replace(/[\s-]+/g, "_");
@@ -125,8 +132,19 @@ export function deriveDeterministicWorkoutPlan(
     else if (/home_gym/.test(normalized)) equipment.add("home_gym");
     else if (/dumbbell|free_weight/.test(normalized))
       equipment.add("dumbbells");
-    else if (/machine/.test(normalized)) equipment.add("machines");
+    else if (/barbell|kettlebell|squat_rack/.test(normalized))
+      equipment.add("home_gym");
+    else if (
+      /machine|cable_station|functional_trainer|lat_pulldown|seated_row|chest_press|shoulder_press|leg_press|leg_extension|leg_curl/.test(
+        normalized
+      )
+    )
+      equipment.add("machines");
     else if (/band/.test(normalized)) equipment.add("bands");
+    else if (
+      /open_floor|pull_up_bar|dip_station|suspension_trainer/.test(normalized)
+    )
+      equipment.add("bodyweight");
     else if (/bodyweight|none|no_equipment/.test(normalized))
       equipment.add("bodyweight");
   }
@@ -442,8 +460,7 @@ export const processQueuedScan = onDocumentWritten(
       });
 
       const photoPaths = scan.photoPaths as
-        | ScanDocument["photoPaths"]
-        | undefined;
+        ScanDocument["photoPaths"] | undefined;
       const input = scan.input as ScanDocument["input"] | undefined;
       if (!hasAllRequiredPhotoPaths(photoPaths)) {
         throw new Error("missing_photo_paths");

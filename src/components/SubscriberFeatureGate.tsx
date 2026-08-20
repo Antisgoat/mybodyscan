@@ -17,6 +17,7 @@ const SUBSCRIBER_PREFIXES = [
   "/barcode",
   "/health",
   "/settings/health",
+  "/settings/gym",
 ] as const;
 
 export function isSubscriberOnlyPath(pathname: string): boolean {

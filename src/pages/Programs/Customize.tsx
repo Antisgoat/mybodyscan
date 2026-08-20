@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowLeft, Loader2, ScanSearch, Sparkles } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,14 @@ import {
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { validateWorkoutPlanDays } from "@/lib/workoutsCustomValidation";
 import type { Equipment, MovementPattern } from "@/data/exercises";
+import { db } from "@/lib/firebase";
+import { useAuthUser } from "@/auth/mbs-auth";
+import {
+  exerciseAllowedByGymInventory,
+  normalizeGymEquipment,
+  workoutEquipmentSet,
+  type GymEquipmentId,
+} from "@/lib/gymEquipment";
 import {
   getExerciseByExactName,
   normalizeExerciseName,
@@ -43,29 +52,21 @@ function allowedEquipmentFromPrefs(prefs: CustomPlanPrefs): {
   mode: "full_gym" | "minimal";
   allowed: Set<Equipment>;
 } {
-  const eq = new Set(
-    (prefs.equipment ?? []).map((s) => String(s).toLowerCase())
-  );
+  const eq = workoutEquipmentSet(prefs.equipment ?? []);
   const minimal =
     prefs.trainingStyle === "minimal_equipment" ||
-    (!eq.has("gym") && (eq.has("dumbbells") || eq.has("bodyweight")));
+    !["barbell", "machine", "cables", "smith", "kettlebell", "bands"].some(
+      (item) => eq.has(item as Equipment)
+    );
   if (minimal) {
     return {
       mode: "minimal",
-      allowed: new Set<Equipment>(["dumbbell", "bodyweight"]),
+      allowed: eq,
     };
   }
   return {
     mode: "full_gym",
-    allowed: new Set<Equipment>([
-      "barbell",
-      "dumbbell",
-      "machine",
-      "cables",
-      "smith",
-      "bodyweight",
-      "kettlebell",
-    ]),
+    allowed: eq,
   };
 }
 
@@ -93,6 +94,7 @@ function normalizeDaysPerWeek(value: number) {
 export default function CustomizeProgram() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuthUser();
   const fromActive = searchParams.get("fromActive") === "1";
 
   const [goal, setGoal] = useState<CustomPlanGoal>("build_muscle");
@@ -111,6 +113,10 @@ export default function CustomizeProgram() {
   const [timePerWorkout, setTimePerWorkout] =
     useState<CustomPlanPrefs["timePerWorkout"]>("45");
   const [equipment, setEquipment] = useState<string[]>(["bodyweight"]);
+  const [equipmentInventory, setEquipmentInventory] = useState<
+    GymEquipmentId[]
+  >([]);
+  const [gymProfileName, setGymProfileName] = useState("");
   const [emphasis, setEmphasis] = useState<string[]>([]);
   const [injuries, setInjuries] = useState<string>("");
   const [avoidExercises, setAvoidExercises] = useState<string>("");
@@ -139,6 +145,7 @@ export default function CustomizeProgram() {
       preferredDays: preferredDays.slice(0, daysPerWeek),
       timePerWorkout,
       equipment,
+      equipmentInventory,
       emphasis,
       injuries: injuries.trim() ? injuries.trim() : null,
       avoidExercises: avoidExercises.trim() ? avoidExercises.trim() : null,
@@ -155,12 +162,59 @@ export default function CustomizeProgram() {
       preferredDays,
       timePerWorkout,
       equipment,
+      equipmentInventory,
       emphasis,
       injuries,
       avoidExercises,
       cardioPreference,
     ]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!user?.uid)
+      return () => {
+        cancelled = true;
+      };
+    void getDoc(doc(db, "users", user.uid, "preferences", "gymEquipment"))
+      .then((snapshot) => {
+        if (cancelled || !snapshot.exists()) return;
+        const data = snapshot.data() as Record<string, unknown>;
+        const inventory = normalizeGymEquipment(data.inventory);
+        const exerciseEquipment = Array.isArray(data.exerciseEquipment)
+          ? data.exerciseEquipment.filter(
+              (item): item is string => typeof item === "string"
+            )
+          : [];
+        if (inventory.length) setEquipmentInventory(inventory);
+        if (exerciseEquipment.length) {
+          setEquipment(
+            Array.from(new Set([...exerciseEquipment, "bodyweight"]))
+          );
+          if (
+            !exerciseEquipment.some((item) =>
+              [
+                "barbell",
+                "machine",
+                "cables",
+                "smith",
+                "kettlebell",
+                "bands",
+              ].includes(item)
+            )
+          ) {
+            setTrainingStyle("minimal_equipment");
+          }
+        }
+        setGymProfileName(
+          typeof data.locationName === "string" ? data.locationName : ""
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
 
   const swapContext = useMemo(() => {
     if (!swapTarget || !generatedDays) return null;
@@ -212,7 +266,9 @@ export default function CustomizeProgram() {
       mode: swapContext.mode,
       excludeIds,
       limit: 80,
-    });
+    }).filter((exercise) =>
+      exerciseAllowedByGymInventory(exercise, equipmentInventory)
+    );
 
     // Keep a stable order when query is empty to feel deterministic.
     if (!q) {
@@ -226,7 +282,7 @@ export default function CustomizeProgram() {
         .slice(0, 30);
     }
     return candidates.slice(0, 30);
-  }, [swapContext, swapQuery]);
+  }, [equipmentInventory, swapContext, swapQuery]);
 
   const preferredDaySet = useMemo(
     () => new Set(preferredDays),
@@ -609,7 +665,23 @@ export default function CustomizeProgram() {
             </section>
 
             <section className="space-y-2">
-              <Label>Equipment</Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <Label>Equipment</Label>
+                  {equipmentInventory.length ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Using {gymProfileName || "your saved gym"} ·{" "}
+                      {equipmentInventory.length} confirmed items
+                    </p>
+                  ) : null}
+                </div>
+                <Button type="button" variant="outline" size="sm" asChild>
+                  <Link to="/settings/gym?returnTo=%2Fprograms%2Fcustomize">
+                    <ScanSearch className="mr-2 h-4 w-4" /> Record or list my
+                    gym
+                  </Link>
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -617,6 +689,7 @@ export default function CustomizeProgram() {
                   variant={equipment.includes("gym") ? "default" : "outline"}
                   onClick={() => {
                     setEquipment(["gym"]);
+                    setEquipmentInventory([]);
                     if (trainingStyle === "minimal_equipment") {
                       setTrainingStyle("balanced");
                     }
@@ -628,13 +701,15 @@ export default function CustomizeProgram() {
                   type="button"
                   size="sm"
                   variant={
-                    equipment.includes("dumbbells") &&
+                    (equipment.includes("dumbbells") ||
+                      equipment.includes("dumbbell")) &&
                     equipment.includes("bodyweight")
                       ? "default"
                       : "outline"
                   }
                   onClick={() => {
-                    setEquipment(["dumbbells", "bodyweight"]);
+                    setEquipment(["dumbbell", "bodyweight"]);
+                    setEquipmentInventory([]);
                     setTrainingStyle("minimal_equipment");
                   }}
                 >
@@ -644,8 +719,13 @@ export default function CustomizeProgram() {
               <div className="grid gap-2 md:grid-cols-2">
                 {[
                   ["bodyweight", "Bodyweight"],
-                  ["dumbbells", "Dumbbells"],
-                  ["bands", "Bands"],
+                  ["dumbbell", "Dumbbells"],
+                  ["kettlebell", "Kettlebells"],
+                  ["cables", "Cable station"],
+                  ["machine", "Machines"],
+                  ["smith", "Smith machine"],
+                  ["barbell", "Barbell"],
+                  ["bands", "Resistance bands"],
                   ["gym", "Full gym"],
                 ].map(([value, label]) => (
                   <Label
@@ -654,7 +734,10 @@ export default function CustomizeProgram() {
                   >
                     <Checkbox
                       checked={equipment.includes(value)}
-                      onCheckedChange={() => toggleEquipment(value)}
+                      onCheckedChange={() => {
+                        setEquipmentInventory([]);
+                        toggleEquipment(value);
+                      }}
                     />
                     <span>{label}</span>
                   </Label>

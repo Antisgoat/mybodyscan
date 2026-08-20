@@ -745,6 +745,23 @@ export default function Onboarding() {
                     <SelectItem value="none">No equipment</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-3 w-full"
+                  onClick={() =>
+                    navigate(
+                      "/settings/gym?returnTo=" +
+                        encodeURIComponent("/onboarding")
+                    )
+                  }
+                >
+                  Record or list my exact gym equipment
+                </Button>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  Optional, but recommended when your gym has limited or unusual
+                  equipment.
+                </p>
               </div>
               <div>
                 <Label htmlFor="injuries">Injuries or limitations</Label>
