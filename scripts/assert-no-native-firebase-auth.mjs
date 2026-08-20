@@ -126,11 +126,13 @@ if (!/CapacitorFirebaseAuthentication\/Google/.test(podfile)) {
 
 const appDelegate = read("ios/App/App/AppDelegate.swift");
 if (
+  !/import FirebaseCore/.test(appDelegate) ||
+  !/FirebaseApp\.configure\(\)/.test(appDelegate) ||
   !/import FirebaseAuth/.test(appDelegate) ||
   !/Auth\.auth\(\)\.canHandle\(url\)/.test(appDelegate)
 ) {
   failures.push(
-    "The iOS app delegate must let Firebase Auth handle authentication callback URLs."
+    "The iOS app delegate must configure Firebase before letting Firebase Auth handle callback URLs."
   );
 }
 

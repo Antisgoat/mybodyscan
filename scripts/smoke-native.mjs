@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { findMissingLocalAssets } from "./lib/static-bundle-integrity.mjs";
 
 const repoRoot = process.cwd();
 const packageJsonPath = path.join(repoRoot, "package.json");
@@ -75,7 +76,22 @@ async function assertPublicIndex() {
       `Missing ${publicAssetsDir}. Run npm run ios:reset or npx cap sync ios.`
     );
   }
-  pass("iOS web bundle exists and is large enough.");
+  const html = await fs.readFile(publicIndex, "utf8");
+  const { references, missing } = await findMissingLocalAssets(
+    path.dirname(publicIndex),
+    html
+  );
+  if (missing.length) {
+    fail(
+      `iOS web bundle references missing assets:\n${missing
+        .map(({ publicPath }) => ` - ${publicPath}`)
+        .join("\n")}\nRun npm run ios:sync.`
+    );
+  }
+  if (!references.some((reference) => /\.js$/i.test(reference))) {
+    fail("iOS web bundle does not reference a JavaScript entry point.");
+  }
+  pass("iOS web bundle and referenced assets are present.");
 }
 
 async function assertWorkspace() {
@@ -191,20 +207,23 @@ async function assertAppDelegateAuthRouting() {
     .replace(/\/\/.*$/gm, "")
     .replace(/"(?:\\.|[^"\\])*"/g, '""');
   const authHandlerIndex = executable.indexOf("Auth.auth().canHandle(url)");
+  const firebaseConfigureIndex = executable.indexOf("FirebaseApp.configure()");
   const capacitorHandlerIndex = executable.indexOf(
     "ApplicationDelegateProxy.shared.application"
   );
   if (
+    !/^\s*import\s+FirebaseCore\s*$/m.test(executable) ||
     !/^\s*import\s+FirebaseAuth\s*$/m.test(executable) ||
+    firebaseConfigureIndex === -1 ||
     authHandlerIndex === -1 ||
     capacitorHandlerIndex === -1 ||
     authHandlerIndex > capacitorHandlerIndex
   ) {
     fail(
-      "AppDelegate.swift must route Firebase Auth callbacks before Capacitor URL handling."
+      "AppDelegate.swift must configure Firebase and route Firebase Auth callbacks before Capacitor URL handling."
     );
   }
-  pass("AppDelegate.swift routes native Firebase Auth callbacks safely.");
+  pass("AppDelegate.swift configures Firebase and routes native Auth callbacks safely.");
 }
 
 async function assertIosProjectFirebaseReferences() {

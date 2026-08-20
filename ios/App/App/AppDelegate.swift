@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import FirebaseCore
 import FirebaseAuth
 
 @UIApplicationMain
@@ -8,6 +9,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    // Native Firebase plugins can be called as soon as Capacitor boots. Configure
+    // the default app first so Authentication, Messaging, and App Check never
+    // race application initialization and leave the WebView on a blank screen.
+    FirebaseApp.configure()
     return true
   }
 

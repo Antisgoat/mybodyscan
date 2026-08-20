@@ -14,6 +14,8 @@ if [[ ! -d ios/App/App.xcworkspace ]]; then
   exit 1
 fi
 
+node scripts/assert-ios-public-bundle.mjs
+
 log_path="/tmp/mbs-debug.log"
 if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build | tee "$log_path"; then
   echo "error: xcodebuild Debug failed. Showing the first error lines:" >&2

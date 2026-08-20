@@ -14,6 +14,8 @@ if [[ ! -d ios/App/App.xcworkspace ]]; then
   exit 1
 fi
 
+node scripts/assert-ios-public-bundle.mjs
+
 log_path="/tmp/mbs-release.log"
 if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tee "$log_path"; then
   echo "error: xcodebuild Release failed. Showing the first error lines:" >&2
