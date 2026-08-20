@@ -109,16 +109,17 @@ enabled on the device.
 
 Current release snapshot (2026-08-19):
 
-- Build 18 (`1.0.0`) is the current device-acceptance candidate. It includes
-  the release-hardening dependency, CI, and native-candidate updates, with
-  WHOOP explicitly deferred and removed from the launch runtime path.
-- Build 18 was archived, validated, and uploaded successfully on 2026-08-19.
+- Build 19 (`1.0.0`) is the current device-acceptance candidate. It includes
+  the release-hardening dependency, CI, native-candidate updates, early
+  Firebase initialization, background remote-notification support, and native
+  bundle-integrity guards. WHOOP remains deferred and outside the launch path.
+- Build 19 was archived, validated, and uploaded successfully on 2026-08-19.
   It was processing when this snapshot was recorded. After processing, add
-  only build 18 to `Internal QA`, retain the saved beta metadata, and select it
+  only build 19 to `Internal QA`, retain the saved beta metadata, and select it
   for App Store version 1.0 only after the clean-install physical-device
   checklist passes.
-- Build 18 has not yet passed that checklist and has not been submitted for
-  review. Builds 2 through 17 are superseded; do not submit any of them.
+- Build 19 has not yet passed that checklist and has not been submitted for
+  review. Builds 2 through 18 are superseded; do not submit any of them.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.
