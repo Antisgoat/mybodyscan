@@ -23,7 +23,9 @@ export function getExerciseById(id: string): Exercise | null {
 export function getExerciseByExactName(name: string): Exercise | null {
   const target = normalizeExerciseName(name);
   if (!target) return null;
-  const found = EXERCISES.find((ex) => normalizeExerciseName(ex.name) === target);
+  const found = EXERCISES.find(
+    (ex) => normalizeExerciseName(ex.name) === target
+  );
   return found ?? null;
 }
 
@@ -35,9 +37,17 @@ export function filterByEquipment(
   return exercises.filter((ex) => ex.equipment.some((eq) => allowed.has(eq)));
 }
 
-export function filterByMode(exercises: Exercise[], mode: EquipmentMode): Exercise[] {
+export function filterByMode(
+  exercises: Exercise[],
+  mode: EquipmentMode
+): Exercise[] {
   if (mode === "minimal") {
-    const allowed = new Set<Equipment>(["dumbbell", "bodyweight"]);
+    const allowed = new Set<Equipment>([
+      "dumbbell",
+      "bodyweight",
+      "kettlebell",
+      "bands",
+    ]);
     return filterByEquipment(exercises, allowed);
   }
   // full gym: prefer exercises tagged full_gym, but don't hard-exclude home-safe moves.
@@ -69,7 +79,9 @@ export function searchExercises(params: {
   }
   if (params.includeTags?.length) {
     const tags = params.includeTags.map((t) => t.toLowerCase());
-    list = list.filter((ex) => tags.every((t) => ex.tags.some((x) => x.toLowerCase() === t)));
+    list = list.filter((ex) =>
+      tags.every((t) => ex.tags.some((x) => x.toLowerCase() === t))
+    );
   }
   if (params.excludeIds?.size) {
     list = list.filter((ex) => !params.excludeIds!.has(ex.id));
@@ -116,4 +128,3 @@ export function getSubstitutionPool(params: {
   }
   return out;
 }
-

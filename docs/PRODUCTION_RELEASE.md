@@ -181,6 +181,13 @@ subscription signal, and native builds do not bypass this check.
   A swap keeps the exercise slot ID so prior history remains connected. Pain
   language routes to conservative Coach guidance and must never be framed as a
   diagnosis.
+- The Pro-only gym setup accepts a manual checklist, 1–6 photos, or a short
+  walkthrough video. Video is sampled locally and the full recording is never
+  uploaded. The analysis returns only a draft inventory; the member must review
+  and confirm it. Plan generation and exercise swaps must remain inside that
+  confirmed inventory. A specific machine (for example, leg press) must not
+  unlock unrelated machine exercises, and rack- or bench-dependent movements
+  must be withheld when the required item is absent.
 
 FatSecret Search v5 is the evaluated third-provider candidate because it adds
 international branded coverage and localized serving data. Its standard
@@ -855,6 +862,12 @@ providers and does not replace the subscribed real-account checks below.
 - With Monthly and then Yearly active, every subscriber feature above opens and
   its backend request succeeds. Expiry/cancellation removes access after the
   paid period without deleting prior scan reports.
+- In Gym equipment setup, save a manual inventory and confirm a regenerated
+  plan contains only supported equipment. Repeat using gym photos and a short
+  walkthrough video, review the detected draft, remove one detected item, and
+  confirm the saved plan respects the edited list. Specifically verify that a
+  barbell without a rack never produces barbell squats/presses and that a leg
+  press does not unlock unrelated selectorized machines.
 - Nutrition text search returns USDA data and a known barcode exercises the
   Open Food Facts/USDA fallback path. A product with sufficient category and
   nutrient data shows at most three alternatives that share a declared

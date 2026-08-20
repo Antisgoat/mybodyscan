@@ -48,9 +48,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We use the camera to capture body scan photos and scan food barcodes.</string>
+	<string>We use the camera to capture body scan photos, gym walkthroughs, and food barcodes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We use your photo library to select photos for your body scan.</string>
+	<string>We use your photo library to select body scan photos and gym views you choose to analyze.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>We save body scan photos to your photo library when you choose to export or save them.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

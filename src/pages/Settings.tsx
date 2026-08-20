@@ -639,8 +639,7 @@ const Settings = () => {
           doc(db, `users/${currentUser.uid}/private/credits`)
         );
         const remaining = snapshot.data()?.creditsSummary?.totalAvailable as
-          | number
-          | undefined;
+          number | undefined;
         if (typeof remaining === "number" && Number.isFinite(remaining)) {
           description = `Credits remaining: ${remaining}`;
         }
@@ -1200,6 +1199,9 @@ const Settings = () => {
               >
                 Account &amp; Privacy
               </a>
+              <Button variant="outline" asChild className="w-full">
+                <Link to="/settings/gym">Gym equipment setup</Link>
+              </Button>
               <Button
                 variant="outline"
                 onClick={handleExportData}

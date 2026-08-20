@@ -18,6 +18,7 @@ describe("subscriber-only route policy", () => {
       "/barcode",
       "/health",
       "/settings/health",
+      "/settings/gym",
       "/results/scan-1/transformation-preview",
     ].forEach((path) => expect(isSubscriberOnlyPath(path)).toBe(true));
   });

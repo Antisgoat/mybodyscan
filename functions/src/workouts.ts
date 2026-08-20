@@ -23,6 +23,7 @@ import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { structuredJsonChat } from "./openai/client.js";
 import { openAiSecretParam } from "./openai/keys.js";
+import { GYM_EQUIPMENT_IDS } from "./gymEquipmentCatalog.js";
 
 const db = getFirestore();
 type BodyFeel = "great" | "ok" | "tired" | "sore";
@@ -73,11 +74,7 @@ interface PlanPrefs {
 type CustomPlanGoal = "lose_fat" | "build_muscle" | "recomp" | "performance";
 type CustomPlanExperience = "beginner" | "intermediate" | "advanced";
 type CustomPlanStyle =
-  | "strength"
-  | "hypertrophy"
-  | "athletic"
-  | "minimal_equipment"
-  | "balanced";
+  "strength" | "hypertrophy" | "athletic" | "minimal_equipment" | "balanced";
 type CustomFocus =
   | "full_body"
   | "upper_lower"
@@ -91,6 +88,7 @@ interface CustomPlanPrefs {
   preferredDays?: string[];
   timePerWorkout?: "30" | "45" | "60" | "75+";
   equipment?: string[];
+  equipmentInventory?: string[];
   trainingStyle?: CustomPlanStyle;
   experience?: CustomPlanExperience;
   focus?: CustomFocus;
@@ -128,10 +126,16 @@ function uniqStrings(values: unknown, maxItems: number, maxLen = 24): string[] {
 function sanitizePlanPrefs(raw: any): PlanPrefs {
   const prefs: PlanPrefs = {};
   const focus = typeof raw?.focus === "string" ? raw.focus.trim() : "";
-  if (focus === "back" || focus === "legs" || focus === "core" || focus === "full") {
+  if (
+    focus === "back" ||
+    focus === "legs" ||
+    focus === "core" ||
+    focus === "full"
+  ) {
     prefs.focus = focus as PlanPrefs["focus"];
   }
-  const equipment = typeof raw?.equipment === "string" ? raw.equipment.trim() : "";
+  const equipment =
+    typeof raw?.equipment === "string" ? raw.equipment.trim() : "";
   if (
     equipment === "none" ||
     equipment === "dumbbells" ||
@@ -166,11 +170,18 @@ function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
   prefs.preferredDays = uniqStrings(raw?.preferredDays, 7, 3).filter((d) =>
     VALID_CATALOG_DAY_SET.has(d)
   );
-  const time = typeof raw?.timePerWorkout === "string" ? raw.timePerWorkout : "";
+  const time =
+    typeof raw?.timePerWorkout === "string" ? raw.timePerWorkout : "";
   if (time === "30" || time === "45" || time === "60" || time === "75+") {
     prefs.timePerWorkout = time;
   }
   prefs.equipment = uniqStrings(raw?.equipment, 8, 32);
+  const knownGymEquipment = new Set<string>(GYM_EQUIPMENT_IDS);
+  prefs.equipmentInventory = uniqStrings(
+    raw?.equipmentInventory,
+    GYM_EQUIPMENT_IDS.length,
+    32
+  ).filter((item) => knownGymEquipment.has(item));
   const style = typeof raw?.trainingStyle === "string" ? raw.trainingStyle : "";
   if (
     style === "strength" ||
@@ -205,7 +216,8 @@ function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
       ? raw.avoidExercises.trim().slice(0, 240)
       : null;
   prefs.cardioPreference =
-    typeof raw?.cardioPreference === "string" && raw.cardioPreference.trim().length
+    typeof raw?.cardioPreference === "string" &&
+    raw.cardioPreference.trim().length
       ? raw.cardioPreference.trim().slice(0, 120)
       : null;
   return prefs;
@@ -572,16 +584,17 @@ function toWorkoutDaysFromTemplates(
   const days = preferredDays.slice(0, daysPerWeek);
   const pickedTemplates = templates.length
     ? templates
-    : CUSTOM_TEMPLATES.full_body.days[3] ?? [];
+    : (CUSTOM_TEMPLATES.full_body.days[3] ?? []);
   return days.map((dayName, index) => {
     const template = pickedTemplates[index % pickedTemplates.length];
-    const exercises = (template?.exercises?.length
-      ? template.exercises
-      : [
-          { name: "Session", sets: 3, reps: "10" },
-          { name: "Accessory", sets: 3, reps: "10-12" },
-          { name: "Core", sets: 3, reps: "30-45s" },
-        ]
+    const exercises = (
+      template?.exercises?.length
+        ? template.exercises
+        : [
+            { name: "Session", sets: 3, reps: "10" },
+            { name: "Accessory", sets: 3, reps: "10-12" },
+            { name: "Core", sets: 3, reps: "30-45s" },
+          ]
     ).slice(0, 12);
     return {
       day: dayName,
@@ -640,48 +653,198 @@ function deterministicPlan(prefs: PlanPrefs): WorkoutDay[] {
     focus === "legs"
       ? "Steps/cardio: 20-30 min easy walk or bike after upper/rest days."
       : "Steps/cardio: 7k-10k daily steps plus 2 easy Zone-2 sessions/week.";
-  const templates: Array<Array<{ id: string; name: string; sets: number; reps: string }>> = [
+  const templates: Array<
+    Array<{ id: string; name: string; sets: number; reps: string }>
+  > = [
     [
-      { id: randomUUID(), name: "Warm-up: 5 min incline walk + dynamic hips/shoulders", sets: 1, reps: "5-8 min" },
-      { id: randomUUID(), name: focus === "back" ? "Assisted Pull-Up or Lat Pulldown" : "Goblet Squat", sets: 3, reps: "8-12 @ RPE 7" },
-      { id: randomUUID(), name: "Dumbbell Bench Press (sub: push-up)", sets: 3, reps: "8-12 @ RPE 7" },
-      { id: randomUUID(), name: "Chest-Supported Row (sub: band row)", sets: 3, reps: "10-12 @ RPE 7" },
-      { id: randomUUID(), name: injuryNote, sets: 1, reps: "review before lifting" },
+      {
+        id: randomUUID(),
+        name: "Warm-up: 5 min incline walk + dynamic hips/shoulders",
+        sets: 1,
+        reps: "5-8 min",
+      },
+      {
+        id: randomUUID(),
+        name:
+          focus === "back"
+            ? "Assisted Pull-Up or Lat Pulldown"
+            : "Goblet Squat",
+        sets: 3,
+        reps: "8-12 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Dumbbell Bench Press (sub: push-up)",
+        sets: 3,
+        reps: "8-12 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Chest-Supported Row (sub: band row)",
+        sets: 3,
+        reps: "10-12 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: injuryNote,
+        sets: 1,
+        reps: "review before lifting",
+      },
     ],
     [
-      { id: randomUUID(), name: "Warm-up: 5 min bike + glute/core activation", sets: 1, reps: "5-8 min" },
-      { id: randomUUID(), name: focus === "core" ? "Dead Bug + Side Plank" : "Romanian Deadlift", sets: 3, reps: "8-10 @ RPE 7" },
-      { id: randomUUID(), name: "Split Squat (sub: leg press or step-up)", sets: 3, reps: "8-10/side @ RPE 7" },
-      { id: randomUUID(), name: "Cable or Band Row", sets: 3, reps: "10-15 @ RPE 7" },
+      {
+        id: randomUUID(),
+        name: "Warm-up: 5 min bike + glute/core activation",
+        sets: 1,
+        reps: "5-8 min",
+      },
+      {
+        id: randomUUID(),
+        name: focus === "core" ? "Dead Bug + Side Plank" : "Romanian Deadlift",
+        sets: 3,
+        reps: "8-10 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Split Squat (sub: leg press or step-up)",
+        sets: 3,
+        reps: "8-10/side @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Cable or Band Row",
+        sets: 3,
+        reps: "10-15 @ RPE 7",
+      },
       { id: randomUUID(), name: cardio, sets: 1, reps: "weekly target" },
     ],
     [
-      { id: randomUUID(), name: "Warm-up: mobility flow + ramp-up sets", sets: 1, reps: "8 min" },
-      { id: randomUUID(), name: "Front Squat or Leg Press", sets: 3, reps: "6-10 @ RPE 7-8" },
-      { id: randomUUID(), name: "Overhead Press (sub: landmine press)", sets: 3, reps: "8-10 @ RPE 7" },
-      { id: randomUUID(), name: "Lat Pulldown", sets: 3, reps: "10-12 @ RPE 7" },
-      { id: randomUUID(), name: "Progression: add 1 rep weekly, then +5 lb when top reps are clean", sets: 1, reps: "4-week block" },
+      {
+        id: randomUUID(),
+        name: "Warm-up: mobility flow + ramp-up sets",
+        sets: 1,
+        reps: "8 min",
+      },
+      {
+        id: randomUUID(),
+        name: "Front Squat or Leg Press",
+        sets: 3,
+        reps: "6-10 @ RPE 7-8",
+      },
+      {
+        id: randomUUID(),
+        name: "Overhead Press (sub: landmine press)",
+        sets: 3,
+        reps: "8-10 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Lat Pulldown",
+        sets: 3,
+        reps: "10-12 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Progression: add 1 rep weekly, then +5 lb when top reps are clean",
+        sets: 1,
+        reps: "4-week block",
+      },
     ],
     [
-      { id: randomUUID(), name: "Warm-up: easy cardio + band circuit", sets: 1, reps: "8 min" },
-      { id: randomUUID(), name: "Hip Thrust (sub: glute bridge)", sets: 3, reps: "10-12 @ RPE 7" },
-      { id: randomUUID(), name: "Incline Dumbbell Press", sets: 3, reps: "8-12 @ RPE 7" },
-      { id: randomUUID(), name: "Single-Arm Row", sets: 3, reps: "10-12/side @ RPE 7" },
-      { id: randomUUID(), name: "Substitutions: use machines, cables, bands, or bodyweight to match equipment", sets: 1, reps: "as needed" },
+      {
+        id: randomUUID(),
+        name: "Warm-up: easy cardio + band circuit",
+        sets: 1,
+        reps: "8 min",
+      },
+      {
+        id: randomUUID(),
+        name: "Hip Thrust (sub: glute bridge)",
+        sets: 3,
+        reps: "10-12 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Incline Dumbbell Press",
+        sets: 3,
+        reps: "8-12 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Single-Arm Row",
+        sets: 3,
+        reps: "10-12/side @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Substitutions: use machines, cables, bands, or bodyweight to match equipment",
+        sets: 1,
+        reps: "as needed",
+      },
     ],
     [
-      { id: randomUUID(), name: "Warm-up: movement prep + ramp sets", sets: 1, reps: "8 min" },
-      { id: randomUUID(), name: "Trap-Bar Deadlift or Kettlebell Deadlift", sets: 3, reps: "5-8 @ RPE 7" },
-      { id: randomUUID(), name: "Walking Lunge", sets: 3, reps: "10/side @ RPE 7" },
-      { id: randomUUID(), name: "Face Pull + Curl superset", sets: 3, reps: "12-15 @ RPE 7" },
-      { id: randomUUID(), name: "Recovery: sleep 7-9h; deload every 4th week if soreness accumulates", sets: 1, reps: "weekly" },
+      {
+        id: randomUUID(),
+        name: "Warm-up: movement prep + ramp sets",
+        sets: 1,
+        reps: "8 min",
+      },
+      {
+        id: randomUUID(),
+        name: "Trap-Bar Deadlift or Kettlebell Deadlift",
+        sets: 3,
+        reps: "5-8 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Walking Lunge",
+        sets: 3,
+        reps: "10/side @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Face Pull + Curl superset",
+        sets: 3,
+        reps: "12-15 @ RPE 7",
+      },
+      {
+        id: randomUUID(),
+        name: "Recovery: sleep 7-9h; deload every 4th week if soreness accumulates",
+        sets: 1,
+        reps: "weekly",
+      },
     ],
     [
-      { id: randomUUID(), name: "Warm-up: easy cardio + mobility", sets: 1, reps: "8 min" },
-      { id: randomUUID(), name: "Technique full-body circuit", sets: 3, reps: "8-12 @ RPE 6-7" },
-      { id: randomUUID(), name: "Core carry: farmer carry or suitcase carry", sets: 3, reps: "30-45 sec" },
-      { id: randomUUID(), name: "Optional conditioning finisher", sets: 6, reps: "30 sec easy/hard intervals" },
-      { id: randomUUID(), name: injuryNote, sets: 1, reps: "review before lifting" },
+      {
+        id: randomUUID(),
+        name: "Warm-up: easy cardio + mobility",
+        sets: 1,
+        reps: "8 min",
+      },
+      {
+        id: randomUUID(),
+        name: "Technique full-body circuit",
+        sets: 3,
+        reps: "8-12 @ RPE 6-7",
+      },
+      {
+        id: randomUUID(),
+        name: "Core carry: farmer carry or suitcase carry",
+        sets: 3,
+        reps: "30-45 sec",
+      },
+      {
+        id: randomUUID(),
+        name: "Optional conditioning finisher",
+        sets: 6,
+        reps: "30 sec easy/hard intervals",
+      },
+      {
+        id: randomUUID(),
+        name: injuryNote,
+        sets: 1,
+        reps: "review before lifting",
+      },
     ],
   ];
 
@@ -1161,11 +1324,7 @@ export function resolveAdjustmentDate(
   const targetIndex = VALID_CATALOG_DAYS.indexOf(
     targetDayId as (typeof VALID_CATALOG_DAYS)[number]
   );
-  if (
-    requestedIndex < 0 ||
-    targetIndex < 0 ||
-    requestedIndex === targetIndex
-  ) {
+  if (requestedIndex < 0 || targetIndex < 0 || requestedIndex === targetIndex) {
     return date;
   }
   const offset = (targetIndex - requestedIndex + 7) % 7;
@@ -1223,9 +1382,7 @@ export async function persistDailyWorkoutAdjustment(input: {
   };
 
   await db
-    .doc(
-      `users/${input.uid}/workoutPlans/${plan.id}/dailyAdjustments/${date}`
-    )
+    .doc(`users/${input.uid}/workoutPlans/${plan.id}/dailyAdjustments/${date}`)
     .set(
       scrubUndefined({
         ...result,
@@ -1324,7 +1481,9 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
     const metaSnap = await metaRef.get();
     const activePlanId = (metaSnap.data()?.activePlanId as string) || "";
     if (activePlanId) {
-      const activeSnap = await db.doc(`users/${uid}/workoutPlans/${activePlanId}`).get();
+      const activeSnap = await db
+        .doc(`users/${uid}/workoutPlans/${activePlanId}`)
+        .get();
       if (activeSnap.exists) {
         const active = activeSnap.data() as any;
         const isCatalog = active?.source === "catalog";
@@ -1338,7 +1497,8 @@ async function handleApplyCatalogPlan(req: Request, res: Response) {
               : typeof createdAt?.seconds === "number"
                 ? createdAt.seconds * 1000
                 : NaN;
-        const isRecent = Number.isFinite(createdMs) && Date.now() - createdMs < 10 * 60 * 1000;
+        const isRecent =
+          Number.isFinite(createdMs) && Date.now() - createdMs < 10 * 60 * 1000;
         if (isCatalog && sameProgram && isRecent) {
           await metaRef.set(
             scrubUndefined({
@@ -1425,7 +1585,7 @@ async function handleApplyCustomPlan(req: Request, res: Response) {
   const level =
     typeof req.body?.level === "string" && req.body.level.trim().length
       ? req.body.level.trim().slice(0, 40)
-      : prefs.experience ?? undefined;
+      : (prefs.experience ?? undefined);
 
   // Reuse catalog sanitizer for days payload shape + strict weekday validation.
   const sanitized = sanitizeCatalogPlan({
@@ -1535,7 +1695,8 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
   if (!snap.exists) throw new HttpsError("not-found", "Plan not found.");
   const plan = snap.data() as WorkoutPlan;
   const days = Array.isArray(plan.days) ? [...plan.days] : [];
-  if (!days.length) throw new HttpsError("failed-precondition", "Plan is empty.");
+  if (!days.length)
+    throw new HttpsError("failed-precondition", "Plan is empty.");
 
   if (op.type === "update_exercise") {
     assertIndex("dayIndex", op.dayIndex, days.length);
@@ -1556,7 +1717,7 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
           ? String(op.reps)
           : typeof op.reps === "string" && op.reps.trim().length
             ? op.reps.trim().slice(0, 40)
-            : ex.reps ?? "10";
+            : (ex.reps ?? "10");
       ex.reps = reps;
     }
     exercises[op.exerciseIndex] = ex;
@@ -1567,16 +1728,28 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
     const exercises = Array.isArray(day.exercises) ? [...day.exercises] : [];
     assertIndex("fromIndex", op.fromIndex, exercises.length);
     assertIndex("toIndex", op.toIndex, exercises.length);
-    days[op.dayIndex] = { ...day, exercises: spliceMove(exercises, op.fromIndex, op.toIndex) };
+    days[op.dayIndex] = {
+      ...day,
+      exercises: spliceMove(exercises, op.fromIndex, op.toIndex),
+    };
   } else if (op.type === "move_exercise") {
     assertIndex("fromDayIndex", op.fromDayIndex, days.length);
     assertIndex("toDayIndex", op.toDayIndex, days.length);
     const fromDay = days[op.fromDayIndex]!;
     const toDay = days[op.toDayIndex]!;
-    const fromExercises = Array.isArray(fromDay.exercises) ? [...fromDay.exercises] : [];
-    const toExercises = Array.isArray(toDay.exercises) ? [...toDay.exercises] : [];
+    const fromExercises = Array.isArray(fromDay.exercises)
+      ? [...fromDay.exercises]
+      : [];
+    const toExercises = Array.isArray(toDay.exercises)
+      ? [...toDay.exercises]
+      : [];
     assertIndex("fromIndex", op.fromIndex, fromExercises.length);
-    const insertAt = clampInt(op.toIndex, 0, Math.max(0, toExercises.length), toExercises.length);
+    const insertAt = clampInt(
+      op.toIndex,
+      0,
+      Math.max(0, toExercises.length),
+      toExercises.length
+    );
     const [moved] = fromExercises.splice(op.fromIndex, 1);
     toExercises.splice(insertAt, 0, moved);
     days[op.fromDayIndex] = { ...fromDay, exercises: fromExercises };
@@ -1615,7 +1788,8 @@ async function handleSetWorkoutPlanStatus(req: Request, res: Response) {
   const planId =
     typeof req.body?.planId === "string" ? req.body.planId.trim() : "";
   if (!planId) throw new HttpsError("invalid-argument", "Missing planId.");
-  const statusRaw = typeof req.body?.status === "string" ? req.body.status.trim() : "";
+  const statusRaw =
+    typeof req.body?.status === "string" ? req.body.status.trim() : "";
   const status =
     statusRaw === "paused" || statusRaw === "ended" ? statusRaw : null;
   if (!status) throw new HttpsError("invalid-argument", "Invalid status.");
@@ -1623,7 +1797,10 @@ async function handleSetWorkoutPlanStatus(req: Request, res: Response) {
   const now = Timestamp.now();
   const planRef = db.doc(`users/${uid}/workoutPlans/${planId}`);
   const metaRef = db.doc(`users/${uid}/workoutPlans_meta/current`);
-  const [planSnap, metaSnap] = await Promise.all([planRef.get(), metaRef.get()]);
+  const [planSnap, metaSnap] = await Promise.all([
+    planRef.get(),
+    metaRef.get(),
+  ]);
   if (!planSnap.exists) throw new HttpsError("not-found", "Plan not found.");
   const activePlanId = (metaSnap.data()?.activePlanId as string) || null;
   const isActive = activePlanId === planId;
@@ -1773,9 +1950,13 @@ async function handleLogWorkoutExercise(req: Request, res: Response) {
     const completed: string[] = snap.exists
       ? (snap.data()?.completed as string[]) || []
       : [];
-    const logs = snap.exists && snap.data()?.logs && typeof snap.data()?.logs === "object"
-      ? ({ ...(snap.data()?.logs as Record<string, any>) } as Record<string, any>)
-      : ({} as Record<string, any>);
+    const logs =
+      snap.exists && snap.data()?.logs && typeof snap.data()?.logs === "object"
+        ? ({ ...(snap.data()?.logs as Record<string, any>) } as Record<
+            string,
+            any
+          >)
+        : ({} as Record<string, any>);
     logs[exerciseId] = scrubUndefined({
       load: load ?? null,
       repsDone: repsDone ?? null,
@@ -1878,7 +2059,9 @@ export const adjustWorkout = onRequest(
       });
       const bodySize = JSON.stringify(req.body ?? {}).length;
       if (bodySize > MAX_WORKOUT_PREFS_SIZE) {
-        res.status(400).json({ error: "payload_too_large", debugId: requestId });
+        res
+          .status(400)
+          .json({ error: "payload_too_large", debugId: requestId });
         return;
       }
       await enforceRateLimit({

@@ -1,12 +1,34 @@
-import type { CatalogPlanDay, CatalogPlanExercise, CustomPlanPrefs } from "@/lib/workouts";
-import type { Difficulty, Equipment, Exercise, MovementPattern } from "@/data/exercises";
-import { allExercises, getExerciseByExactName, getSubstitutionPool, normalizeExerciseName, searchExercises } from "@/lib/exercises/library";
+import type {
+  CatalogPlanDay,
+  CatalogPlanExercise,
+  CustomPlanPrefs,
+} from "@/lib/workouts";
+import type {
+  Difficulty,
+  Equipment,
+  Exercise,
+  MovementPattern,
+} from "@/data/exercises";
+import {
+  allExercises,
+  getExerciseByExactName,
+  getSubstitutionPool,
+  normalizeExerciseName,
+  searchExercises,
+} from "@/lib/exercises/library";
+import {
+  exerciseAllowedByGymInventory,
+  normalizeGymEquipment,
+  workoutEquipmentSet,
+  type GymEquipmentId,
+} from "@/lib/gymEquipment";
 
 type Experience = NonNullable<CustomPlanPrefs["experience"]>;
 type Goal = NonNullable<CustomPlanPrefs["goal"]>;
 type Focus = NonNullable<CustomPlanPrefs["focus"]>;
 
-type MuscleGroup = "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
+type MuscleGroup =
+  "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
 type MuscleTargets = Record<MuscleGroup, { min: number; max: number }>;
 type MuscleVolume = Record<MuscleGroup, number>;
 
@@ -62,7 +84,9 @@ function stableShuffle<T>(items: T[], seed: string): T[] {
   return arr;
 }
 
-function pickWeekdays(count: number): Array<"Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"> {
+function pickWeekdays(
+  count: number
+): Array<"Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun"> {
   const presets: Record<number, any> = {
     2: ["Mon", "Thu"],
     3: ["Mon", "Wed", "Fri"],
@@ -74,21 +98,17 @@ function pickWeekdays(count: number): Array<"Mon" | "Tue" | "Wed" | "Thu" | "Fri
   return (presets[clamped] ?? presets[4]) as any;
 }
 
-function allowedEquipFromPrefs(prefs: CustomPlanPrefs): { mode: "full_gym" | "minimal"; allowed: Set<Equipment> } {
-  const eq = new Set((prefs.equipment ?? []).map((s) => String(s).toLowerCase()));
+function allowedEquipFromPrefs(prefs: CustomPlanPrefs): {
+  mode: "full_gym" | "minimal";
+  allowed: Set<Equipment>;
+} {
+  const allowed = workoutEquipmentSet(prefs.equipment ?? []);
   const minimal =
     prefs.trainingStyle === "minimal_equipment" ||
-    (!eq.has("gym") && (eq.has("dumbbells") || eq.has("bodyweight")));
-
-  if (minimal) {
-    return { mode: "minimal", allowed: new Set<Equipment>(["dumbbell", "bodyweight"]) };
-  }
-
-  // Default full gym (even if user didn't tick "gym", we prefer broad access as requested).
-  return {
-    mode: "full_gym",
-    allowed: new Set<Equipment>(["barbell", "dumbbell", "machine", "cables", "smith", "bodyweight", "kettlebell"]),
-  };
+    !["barbell", "machine", "cables", "smith", "kettlebell", "bands"].some(
+      (item) => allowed.has(item as Equipment)
+    );
+  return { mode: minimal ? "minimal" : "full_gym", allowed };
 }
 
 function maxMovesForTime(time: CustomPlanPrefs["timePerWorkout"]): number {
@@ -161,9 +181,15 @@ function volumeTargets(params: {
     chest: { min, max: max + broBoost },
     back: { min, max: max + broBoost },
     legs: { min, max: max + broBoost },
-    shoulders: { min: Math.max(3, min - 1), max: Math.max(6, max - 1 + broBoost) },
+    shoulders: {
+      min: Math.max(3, min - 1),
+      max: Math.max(6, max - 1 + broBoost),
+    },
     arms: { min: Math.max(3, min - 2), max: Math.max(6, max - 2 + broBoost) },
-    calves: { min: goal === "performance" ? 3 : 2, max: goal === "build_muscle" ? 8 : 6 },
+    calves: {
+      min: goal === "performance" ? 3 : 2,
+      max: goal === "build_muscle" ? 8 : 6,
+    },
     core: { min: goal === "performance" ? 4 : 3, max: 10 },
   };
 }
@@ -172,29 +198,53 @@ function tagsSet(ex: Exercise): Set<string> {
   return new Set((ex.tags ?? []).map((t) => t.toLowerCase()));
 }
 
-function exerciseMuscleContribution(ex: Exercise, sets: number): Partial<MuscleVolume> {
+function exerciseMuscleContribution(
+  ex: Exercise,
+  sets: number
+): Partial<MuscleVolume> {
   const t = tagsSet(ex);
   const out: Partial<MuscleVolume> = {};
 
   // Legs
-  if (t.has("quads") || t.has("hamstrings") || t.has("glutes") || ex.movementPattern === "squat" || ex.movementPattern === "hinge") {
+  if (
+    t.has("quads") ||
+    t.has("hamstrings") ||
+    t.has("glutes") ||
+    ex.movementPattern === "squat" ||
+    ex.movementPattern === "hinge"
+  ) {
     out.legs = (out.legs ?? 0) + sets;
   }
   if (t.has("calves")) out.calves = (out.calves ?? 0) + sets;
 
   // Push
-  if (t.has("chest") || ex.movementPattern === "horizontal_push") out.chest = (out.chest ?? 0) + sets;
-  if (t.has("lateral_delts") || t.has("rear_delts") || ex.movementPattern === "vertical_push") out.shoulders = (out.shoulders ?? 0) + sets;
+  if (t.has("chest") || ex.movementPattern === "horizontal_push")
+    out.chest = (out.chest ?? 0) + sets;
+  if (
+    t.has("lateral_delts") ||
+    t.has("rear_delts") ||
+    ex.movementPattern === "vertical_push"
+  )
+    out.shoulders = (out.shoulders ?? 0) + sets;
   if (t.has("triceps")) out.arms = (out.arms ?? 0) + sets;
 
   // Pull
-  if (t.has("lats") || t.has("back") || ex.movementPattern === "horizontal_pull" || ex.movementPattern === "vertical_pull") {
+  if (
+    t.has("lats") ||
+    t.has("back") ||
+    ex.movementPattern === "horizontal_pull" ||
+    ex.movementPattern === "vertical_pull"
+  ) {
     out.back = (out.back ?? 0) + sets;
   }
   if (t.has("biceps")) out.arms = (out.arms ?? 0) + sets;
 
   // Core/carry
-  if (ex.movementPattern === "core" || ex.movementPattern === "carry" || t.has("core")) {
+  if (
+    ex.movementPattern === "core" ||
+    ex.movementPattern === "carry" ||
+    t.has("core")
+  ) {
     out.core = (out.core ?? 0) + sets;
   }
 
@@ -216,16 +266,36 @@ function setsRepsForSlot(params: {
 }): { sets: number; reps: string } {
   const exp = params.experience;
   const goal = params.goal;
-  const isCoreOrCarry = params.movementPattern === "core" || params.movementPattern === "carry";
+  const isCoreOrCarry =
+    params.movementPattern === "core" || params.movementPattern === "carry";
   const isAccessory = !params.isPrimaryCompound && !isCoreOrCarry;
 
   const baseSets =
-    exp === "beginner" ? (params.isPrimaryCompound ? 3 : 3) : exp === "intermediate" ? 4 : params.isPrimaryCompound ? 4 : 3;
+    exp === "beginner"
+      ? params.isPrimaryCompound
+        ? 3
+        : 3
+      : exp === "intermediate"
+        ? 4
+        : params.isPrimaryCompound
+          ? 4
+          : 3;
 
   if (isCoreOrCarry) {
-    if (goal === "performance") return { sets: 3, reps: params.movementPattern === "carry" ? "30-60s" : "8-12" };
-    if (goal === "lose_fat") return { sets: 3, reps: params.movementPattern === "carry" ? "40-80s" : "10-15" };
-    return { sets: 3, reps: params.movementPattern === "carry" ? "30-60s" : "8-12" };
+    if (goal === "performance")
+      return {
+        sets: 3,
+        reps: params.movementPattern === "carry" ? "30-60s" : "8-12",
+      };
+    if (goal === "lose_fat")
+      return {
+        sets: 3,
+        reps: params.movementPattern === "carry" ? "40-80s" : "10-15",
+      };
+    return {
+      sets: 3,
+      reps: params.movementPattern === "carry" ? "30-60s" : "8-12",
+    };
   }
 
   if (goal === "performance") {
@@ -255,176 +325,506 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
   const pushA: DayTemplate = {
     name: "Push A",
     slots: [
-      { key: "push_h1", label: "Horizontal push", movementPattern: "horizontal_push", isPrimaryCompound: true },
-      { key: "push_v1", label: "Vertical push", movementPattern: "vertical_push", isPrimaryCompound: true },
-      { key: "push_delts", label: "Lateral delts", includeTags: ["lateral_delts"] },
+      {
+        key: "push_h1",
+        label: "Horizontal push",
+        movementPattern: "horizontal_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "push_v1",
+        label: "Vertical push",
+        movementPattern: "vertical_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "push_delts",
+        label: "Lateral delts",
+        includeTags: ["lateral_delts"],
+      },
       { key: "push_tri", label: "Triceps", includeTags: ["triceps"] },
-      { key: "push_health", label: "Rear delts / shoulder health", includeTags: ["rear_delts"], optional: true },
+      {
+        key: "push_health",
+        label: "Rear delts / shoulder health",
+        includeTags: ["rear_delts"],
+        optional: true,
+      },
     ],
   };
   const pushB: DayTemplate = {
     name: "Push B",
     slots: [
-      { key: "push_v1", label: "Vertical push", movementPattern: "vertical_push", isPrimaryCompound: true },
-      { key: "push_h1", label: "Horizontal push", movementPattern: "horizontal_push", isPrimaryCompound: true },
+      {
+        key: "push_v1",
+        label: "Vertical push",
+        movementPattern: "vertical_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "push_h1",
+        label: "Horizontal push",
+        movementPattern: "horizontal_push",
+        isPrimaryCompound: true,
+      },
       { key: "push_chest", label: "Chest accessory", includeTags: ["chest"] },
       { key: "push_tri", label: "Triceps", includeTags: ["triceps"] },
-      { key: "push_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "push_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
 
   const pullA: DayTemplate = {
     name: "Pull A",
     slots: [
-      { key: "pull_v1", label: "Vertical pull", movementPattern: "vertical_pull", isPrimaryCompound: true },
-      { key: "pull_h1", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
+      {
+        key: "pull_v1",
+        label: "Vertical pull",
+        movementPattern: "vertical_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "pull_h1",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+        isPrimaryCompound: true,
+      },
       { key: "pull_rear", label: "Rear delts", includeTags: ["rear_delts"] },
       { key: "pull_bi", label: "Biceps", includeTags: ["biceps"] },
-      { key: "pull_carry", label: "Carry", movementPattern: "carry", optional: true },
+      {
+        key: "pull_carry",
+        label: "Carry",
+        movementPattern: "carry",
+        optional: true,
+      },
     ],
   };
   const pullB: DayTemplate = {
     name: "Pull B",
     slots: [
-      { key: "pull_h1", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
-      { key: "pull_v1", label: "Vertical pull", movementPattern: "vertical_pull", isPrimaryCompound: true },
+      {
+        key: "pull_h1",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "pull_v1",
+        label: "Vertical pull",
+        movementPattern: "vertical_pull",
+        isPrimaryCompound: true,
+      },
       { key: "pull_lats", label: "Lats accessory", includeTags: ["lats"] },
       { key: "pull_bi", label: "Biceps", includeTags: ["biceps"] },
-      { key: "pull_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "pull_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
 
   const legsA: DayTemplate = {
     name: "Legs A",
     slots: [
-      { key: "legs_squat", label: "Squat", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "legs_hinge", label: "Hinge", movementPattern: "hinge", isPrimaryCompound: true },
+      {
+        key: "legs_squat",
+        label: "Squat",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "legs_hinge",
+        label: "Hinge",
+        movementPattern: "hinge",
+        isPrimaryCompound: true,
+      },
       { key: "legs_quads", label: "Quads", includeTags: ["quads"] },
       { key: "legs_hams", label: "Hamstrings", includeTags: ["hamstrings"] },
-      { key: "legs_calves", label: "Calves", includeTags: ["calves"], optional: true },
+      {
+        key: "legs_calves",
+        label: "Calves",
+        includeTags: ["calves"],
+        optional: true,
+      },
     ],
   };
   const legsB: DayTemplate = {
     name: "Legs B",
     slots: [
-      { key: "legs_hinge", label: "Hinge", movementPattern: "hinge", isPrimaryCompound: true },
-      { key: "legs_squat", label: "Squat", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "legs_glutes", label: "Glutes", includeTags: ["glutes"], optional: false },
-      { key: "legs_calves", label: "Calves", includeTags: ["calves"], optional: true },
-      { key: "legs_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "legs_hinge",
+        label: "Hinge",
+        movementPattern: "hinge",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "legs_squat",
+        label: "Squat",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "legs_glutes",
+        label: "Glutes",
+        includeTags: ["glutes"],
+        optional: false,
+      },
+      {
+        key: "legs_calves",
+        label: "Calves",
+        includeTags: ["calves"],
+        optional: true,
+      },
+      {
+        key: "legs_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
 
   const upperA: DayTemplate = {
     name: "Upper A",
     slots: [
-      { key: "upper_hp", label: "Horizontal push", movementPattern: "horizontal_push", isPrimaryCompound: true },
-      { key: "upper_hl", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
-      { key: "upper_vp", label: "Vertical push", movementPattern: "vertical_push" },
-      { key: "upper_vl", label: "Vertical pull", movementPattern: "vertical_pull" },
+      {
+        key: "upper_hp",
+        label: "Horizontal push",
+        movementPattern: "horizontal_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "upper_hl",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "upper_vp",
+        label: "Vertical push",
+        movementPattern: "vertical_push",
+      },
+      {
+        key: "upper_vl",
+        label: "Vertical pull",
+        movementPattern: "vertical_pull",
+      },
       { key: "upper_arms", label: "Arms", includeTags: ["biceps"] },
     ],
   };
   const upperB: DayTemplate = {
     name: "Upper B",
     slots: [
-      { key: "upper_vl", label: "Vertical pull", movementPattern: "vertical_pull", isPrimaryCompound: true },
-      { key: "upper_vp", label: "Vertical push", movementPattern: "vertical_push", isPrimaryCompound: true },
-      { key: "upper_hp", label: "Horizontal push", movementPattern: "horizontal_push" },
-      { key: "upper_hl", label: "Horizontal pull", movementPattern: "horizontal_pull" },
+      {
+        key: "upper_vl",
+        label: "Vertical pull",
+        movementPattern: "vertical_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "upper_vp",
+        label: "Vertical push",
+        movementPattern: "vertical_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "upper_hp",
+        label: "Horizontal push",
+        movementPattern: "horizontal_push",
+      },
+      {
+        key: "upper_hl",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+      },
       { key: "upper_arms", label: "Arms", includeTags: ["triceps"] },
     ],
   };
   const lowerA: DayTemplate = {
     name: "Lower A",
     slots: [
-      { key: "lower_squat", label: "Squat", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "lower_hinge", label: "Hinge", movementPattern: "hinge", isPrimaryCompound: true },
-      { key: "lower_unilateral", label: "Unilateral legs", includeTags: ["unilateral"], optional: false },
-      { key: "lower_calves", label: "Calves", includeTags: ["calves"], optional: true },
-      { key: "lower_core", label: "Core/Carry", movementPattern: "carry", optional: true },
+      {
+        key: "lower_squat",
+        label: "Squat",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "lower_hinge",
+        label: "Hinge",
+        movementPattern: "hinge",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "lower_unilateral",
+        label: "Unilateral legs",
+        includeTags: ["unilateral"],
+        optional: false,
+      },
+      {
+        key: "lower_calves",
+        label: "Calves",
+        includeTags: ["calves"],
+        optional: true,
+      },
+      {
+        key: "lower_core",
+        label: "Core/Carry",
+        movementPattern: "carry",
+        optional: true,
+      },
     ],
   };
   const lowerB: DayTemplate = {
     name: "Lower B",
     slots: [
-      { key: "lower_hinge", label: "Hinge", movementPattern: "hinge", isPrimaryCompound: true },
-      { key: "lower_squat", label: "Squat", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "lower_hams", label: "Hamstrings", includeTags: ["hamstrings"], optional: false },
-      { key: "lower_quads", label: "Quads", includeTags: ["quads"], optional: false },
-      { key: "lower_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "lower_hinge",
+        label: "Hinge",
+        movementPattern: "hinge",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "lower_squat",
+        label: "Squat",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "lower_hams",
+        label: "Hamstrings",
+        includeTags: ["hamstrings"],
+        optional: false,
+      },
+      {
+        key: "lower_quads",
+        label: "Quads",
+        includeTags: ["quads"],
+        optional: false,
+      },
+      {
+        key: "lower_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
 
   const fbA: DayTemplate = {
     name: "Full Body A",
     slots: [
-      { key: "fb_squat", label: "Squat", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "fb_hp", label: "Horizontal push", movementPattern: "horizontal_push", isPrimaryCompound: true },
-      { key: "fb_hl", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
-      { key: "fb_core", label: "Core", movementPattern: "core", optional: true },
-      { key: "fb_delts", label: "Delts", includeTags: ["lateral_delts"], optional: true },
+      {
+        key: "fb_squat",
+        label: "Squat",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_hp",
+        label: "Horizontal push",
+        movementPattern: "horizontal_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_hl",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
+      {
+        key: "fb_delts",
+        label: "Delts",
+        includeTags: ["lateral_delts"],
+        optional: true,
+      },
     ],
   };
   const fbB: DayTemplate = {
     name: "Full Body B",
     slots: [
-      { key: "fb_hinge", label: "Hinge", movementPattern: "hinge", isPrimaryCompound: true },
-      { key: "fb_vp", label: "Vertical push", movementPattern: "vertical_push", isPrimaryCompound: true },
-      { key: "fb_vl", label: "Vertical pull", movementPattern: "vertical_pull", isPrimaryCompound: true },
-      { key: "fb_carry", label: "Carry", movementPattern: "carry", optional: true },
-      { key: "fb_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "fb_hinge",
+        label: "Hinge",
+        movementPattern: "hinge",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_vp",
+        label: "Vertical push",
+        movementPattern: "vertical_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_vl",
+        label: "Vertical pull",
+        movementPattern: "vertical_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_carry",
+        label: "Carry",
+        movementPattern: "carry",
+        optional: true,
+      },
+      {
+        key: "fb_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
   const fbC: DayTemplate = {
     name: "Full Body C",
     slots: [
-      { key: "fb_squat2", label: "Squat / unilateral", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "fb_hp2", label: "Horizontal push", movementPattern: "horizontal_push", isPrimaryCompound: true },
-      { key: "fb_hl2", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
-      { key: "fb_hams", label: "Hamstrings", includeTags: ["hamstrings"], optional: true },
-      { key: "fb_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "fb_squat2",
+        label: "Squat / unilateral",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_hp2",
+        label: "Horizontal push",
+        movementPattern: "horizontal_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_hl2",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "fb_hams",
+        label: "Hamstrings",
+        includeTags: ["hamstrings"],
+        optional: true,
+      },
+      {
+        key: "fb_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
 
   const broChest: DayTemplate = {
     name: "Chest + Triceps",
     slots: [
-      { key: "bro_chest1", label: "Chest compound", movementPattern: "horizontal_push", isPrimaryCompound: true, includeTags: ["chest"] },
+      {
+        key: "bro_chest1",
+        label: "Chest compound",
+        movementPattern: "horizontal_push",
+        isPrimaryCompound: true,
+        includeTags: ["chest"],
+      },
       { key: "bro_chest2", label: "Chest accessory", includeTags: ["chest"] },
       { key: "bro_tri1", label: "Triceps", includeTags: ["triceps"] },
-      { key: "bro_delts", label: "Delts", includeTags: ["lateral_delts"], optional: true },
-      { key: "bro_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "bro_delts",
+        label: "Delts",
+        includeTags: ["lateral_delts"],
+        optional: true,
+      },
+      {
+        key: "bro_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
   const broBack: DayTemplate = {
     name: "Back + Biceps",
     slots: [
-      { key: "bro_vl", label: "Vertical pull", movementPattern: "vertical_pull", isPrimaryCompound: true },
-      { key: "bro_hl", label: "Horizontal pull", movementPattern: "horizontal_pull", isPrimaryCompound: true },
+      {
+        key: "bro_vl",
+        label: "Vertical pull",
+        movementPattern: "vertical_pull",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "bro_hl",
+        label: "Horizontal pull",
+        movementPattern: "horizontal_pull",
+        isPrimaryCompound: true,
+      },
       { key: "bro_rear", label: "Rear delts", includeTags: ["rear_delts"] },
       { key: "bro_bi", label: "Biceps", includeTags: ["biceps"] },
-      { key: "bro_carry", label: "Carry", movementPattern: "carry", optional: true },
+      {
+        key: "bro_carry",
+        label: "Carry",
+        movementPattern: "carry",
+        optional: true,
+      },
     ],
   };
   const broLegs: DayTemplate = {
     name: "Legs",
     slots: [
-      { key: "bro_squat", label: "Squat", movementPattern: "squat", isPrimaryCompound: true },
-      { key: "bro_hinge", label: "Hinge", movementPattern: "hinge", isPrimaryCompound: true },
+      {
+        key: "bro_squat",
+        label: "Squat",
+        movementPattern: "squat",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "bro_hinge",
+        label: "Hinge",
+        movementPattern: "hinge",
+        isPrimaryCompound: true,
+      },
       { key: "bro_quads", label: "Quads", includeTags: ["quads"] },
       { key: "bro_hams", label: "Hamstrings", includeTags: ["hamstrings"] },
-      { key: "bro_calves", label: "Calves", includeTags: ["calves"], optional: true },
+      {
+        key: "bro_calves",
+        label: "Calves",
+        includeTags: ["calves"],
+        optional: true,
+      },
     ],
   };
   const broShoulders: DayTemplate = {
     name: "Shoulders",
     slots: [
-      { key: "bro_vp", label: "Vertical push", movementPattern: "vertical_push", isPrimaryCompound: true },
-      { key: "bro_delts", label: "Lateral delts", includeTags: ["lateral_delts"] },
+      {
+        key: "bro_vp",
+        label: "Vertical push",
+        movementPattern: "vertical_push",
+        isPrimaryCompound: true,
+      },
+      {
+        key: "bro_delts",
+        label: "Lateral delts",
+        includeTags: ["lateral_delts"],
+      },
       { key: "bro_rear", label: "Rear delts", includeTags: ["rear_delts"] },
-      { key: "bro_tri", label: "Triceps", includeTags: ["triceps"], optional: true },
-      { key: "bro_core", label: "Core", movementPattern: "core", optional: true },
+      {
+        key: "bro_tri",
+        label: "Triceps",
+        includeTags: ["triceps"],
+        optional: true,
+      },
+      {
+        key: "bro_core",
+        label: "Core",
+        movementPattern: "core",
+        optional: true,
+      },
     ],
   };
   const broArms: DayTemplate = {
@@ -432,14 +832,31 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
     slots: [
       { key: "bro_bi", label: "Biceps", includeTags: ["biceps"] },
       { key: "bro_tri", label: "Triceps", includeTags: ["triceps"] },
-      { key: "bro_bi2", label: "Biceps (variation)", includeTags: ["biceps"], optional: true },
-      { key: "bro_tri2", label: "Triceps (variation)", includeTags: ["triceps"], optional: true },
+      {
+        key: "bro_bi2",
+        label: "Biceps (variation)",
+        includeTags: ["biceps"],
+        optional: true,
+      },
+      {
+        key: "bro_tri2",
+        label: "Triceps (variation)",
+        includeTags: ["triceps"],
+        optional: true,
+      },
       { key: "bro_core", label: "Core", movementPattern: "core" },
     ],
   };
 
   if (focus === "push_pull_legs") {
-    const cycle = days <= 3 ? [pushA, pullA, legsA] : days === 4 ? [pushA, pullA, legsA, pushB] : days === 5 ? [pushA, pullA, legsA, pushB, pullB] : [pushA, pullA, legsA, pushB, pullB, legsB];
+    const cycle =
+      days <= 3
+        ? [pushA, pullA, legsA]
+        : days === 4
+          ? [pushA, pullA, legsA, pushB]
+          : days === 5
+            ? [pushA, pullA, legsA, pushB, pullB]
+            : [pushA, pullA, legsA, pushB, pullB, legsB];
     return cycle.slice(0, days);
   }
   if (focus === "upper_lower") {
@@ -460,14 +877,26 @@ function buildTemplates(focus: Focus, daysPerWeek: number): DayTemplate[] {
   }
 
   // full_body + fallbacks
-  const fbCycle = days === 2 ? [fbA, fbB] : days === 3 ? [fbA, fbB, fbC] : days === 4 ? [fbA, fbB, fbC, fbA] : days === 5 ? [fbA, fbB, fbC, fbA, fbB] : [fbA, fbB, fbC, fbA, fbB, fbC];
+  const fbCycle =
+    days === 2
+      ? [fbA, fbB]
+      : days === 3
+        ? [fbA, fbB, fbC]
+        : days === 4
+          ? [fbA, fbB, fbC, fbA]
+          : days === 5
+            ? [fbA, fbB, fbC, fbA, fbB]
+            : [fbA, fbB, fbC, fbA, fbB, fbC];
   return fbCycle.slice(0, days);
 }
 
 function matchesAvoidList(ex: Exercise, avoid: string | null): boolean {
   const a = avoid ? normalizeExerciseName(avoid) : "";
   if (!a) return false;
-  const tokens = a.split(/[,\n]/).map((t) => normalizeExerciseName(t)).filter(Boolean);
+  const tokens = a
+    .split(/[,\n]/)
+    .map((t) => normalizeExerciseName(t))
+    .filter(Boolean);
   if (!tokens.length) return false;
   const name = normalizeExerciseName(ex.name);
   return tokens.some((t) => t && name.includes(t));
@@ -488,15 +917,29 @@ function scoreCandidate(params: {
   let score = 0;
 
   // Prefer matching pattern/tags (already filtered), but boost primary compounds in primary slots.
-  if (params.slot.isPrimaryCompound && params.ex.tags.includes("primary_compound")) score += 6;
-  if (params.slot.isPrimaryCompound && params.ex.tags.includes("compound")) score += 2;
-  if (!params.slot.isPrimaryCompound && params.ex.tags.includes("accessory")) score += 1;
+  if (
+    params.slot.isPrimaryCompound &&
+    params.ex.tags.includes("primary_compound")
+  )
+    score += 6;
+  if (params.slot.isPrimaryCompound && params.ex.tags.includes("compound"))
+    score += 2;
+  if (!params.slot.isPrimaryCompound && params.ex.tags.includes("accessory"))
+    score += 1;
 
   // Goal biases.
   if (params.goal === "performance") {
-    if (params.ex.tags.includes("conditioning") || params.ex.tags.includes("carry")) score += 2;
+    if (
+      params.ex.tags.includes("conditioning") ||
+      params.ex.tags.includes("carry")
+    )
+      score += 2;
   } else if (params.goal === "lose_fat") {
-    if (params.ex.tags.includes("conditioning") || params.ex.movementPattern === "carry") score += 2;
+    if (
+      params.ex.tags.includes("conditioning") ||
+      params.ex.movementPattern === "carry"
+    )
+      score += 2;
     if (params.ex.tags.includes("primary_compound")) score += 1;
   } else {
     // build muscle / recomp
@@ -505,14 +948,19 @@ function scoreCandidate(params: {
   }
 
   // Experience gating preference (we still allow slightly harder moves if needed).
-  const diff = difficultyOrder(params.ex.difficulty) - experienceOrder(params.experience);
+  const diff =
+    difficultyOrder(params.ex.difficulty) - experienceOrder(params.experience);
   if (diff <= 0) score += 2;
   else if (diff === 1) score += 0;
   else score -= 3;
 
   // Variety penalties.
   if (params.usedIds.has(params.ex.id)) score -= 6;
-  if (params.ex.tags.includes("primary_compound") && params.usedPrimaryCompounds.has(params.ex.id)) score -= 25;
+  if (
+    params.ex.tags.includes("primary_compound") &&
+    params.usedPrimaryCompounds.has(params.ex.id)
+  )
+    score -= 25;
 
   // Full gym preference: prefer explicitly tagged full_gym unless minimal.
   if (params.mode === "full_gym") {
@@ -543,6 +991,7 @@ function pickExerciseForSlot(params: {
   experience: Experience;
   mode: "full_gym" | "minimal";
   allowedEquipment: Set<Equipment>;
+  equipmentInventory: GymEquipmentId[];
   avoidExercises: string | null;
   usedIds: Set<string>;
   usedPrimaryCompounds: Set<string>;
@@ -553,48 +1002,70 @@ function pickExerciseForSlot(params: {
   const baseFilter = (list: Exercise[]) =>
     list.filter((ex) => {
       if (matchesAvoidList(ex, params.avoidExercises)) return false;
+      if (!exerciseAllowedByGymInventory(ex, params.equipmentInventory))
+        return false;
       // Guardrail: avoid stacking too many hinges/squats in one day.
-      if ((params.slot.movementPattern === "hinge" || ex.movementPattern === "hinge") && (params.perDayPatternCounts.hinge ?? 0) >= 1) {
+      if (
+        (params.slot.movementPattern === "hinge" ||
+          ex.movementPattern === "hinge") &&
+        (params.perDayPatternCounts.hinge ?? 0) >= 1
+      ) {
         if (params.slot.isPrimaryCompound) return false;
       }
-      if ((params.slot.movementPattern === "squat" || ex.movementPattern === "squat") && (params.perDayPatternCounts.squat ?? 0) >= 2) {
+      if (
+        (params.slot.movementPattern === "squat" ||
+          ex.movementPattern === "squat") &&
+        (params.perDayPatternCounts.squat ?? 0) >= 2
+      ) {
         return false;
       }
       // Guardrail: avoid 3+ push or pull patterns in one session.
-      const pushCount = (params.perDayPatternCounts.horizontal_push ?? 0) + (params.perDayPatternCounts.vertical_push ?? 0);
-      const pullCount = (params.perDayPatternCounts.horizontal_pull ?? 0) + (params.perDayPatternCounts.vertical_pull ?? 0);
-      if ((ex.movementPattern === "horizontal_push" || ex.movementPattern === "vertical_push") && pushCount >= 2 && !params.slot.isPrimaryCompound) {
+      const pushCount =
+        (params.perDayPatternCounts.horizontal_push ?? 0) +
+        (params.perDayPatternCounts.vertical_push ?? 0);
+      const pullCount =
+        (params.perDayPatternCounts.horizontal_pull ?? 0) +
+        (params.perDayPatternCounts.vertical_pull ?? 0);
+      if (
+        (ex.movementPattern === "horizontal_push" ||
+          ex.movementPattern === "vertical_push") &&
+        pushCount >= 2 &&
+        !params.slot.isPrimaryCompound
+      ) {
         return false;
       }
-      if ((ex.movementPattern === "horizontal_pull" || ex.movementPattern === "vertical_pull") && pullCount >= 2 && !params.slot.isPrimaryCompound) {
+      if (
+        (ex.movementPattern === "horizontal_pull" ||
+          ex.movementPattern === "vertical_pull") &&
+        pullCount >= 2 &&
+        !params.slot.isPrimaryCompound
+      ) {
         return false;
       }
       return true;
     });
 
-  // Passes: strict equipment -> broad equipment -> allow repeats.
+  // Never broaden beyond confirmed equipment. Later passes may accept a harder
+  // movement or a repeated compound, but remain inside the user's inventory.
   const passes: Array<{
-    relaxEquipment: boolean;
     allowRepeatPrimary: boolean;
     allowHarderMoves: boolean;
   }> = [
-    { relaxEquipment: false, allowRepeatPrimary: false, allowHarderMoves: false },
-    { relaxEquipment: true, allowRepeatPrimary: false, allowHarderMoves: true },
-    { relaxEquipment: true, allowRepeatPrimary: true, allowHarderMoves: true },
+    { allowRepeatPrimary: false, allowHarderMoves: false },
+    { allowRepeatPrimary: false, allowHarderMoves: true },
+    { allowRepeatPrimary: true, allowHarderMoves: true },
   ];
 
   for (const pass of passes) {
-    const equipment = pass.relaxEquipment
-      ? params.mode === "minimal"
-        ? new Set<Equipment>(["dumbbell", "bodyweight"])
-        : new Set<Equipment>(["barbell", "dumbbell", "machine", "cables", "smith", "bodyweight", "kettlebell"])
-      : params.allowedEquipment;
+    const equipment = params.allowedEquipment;
 
     // Use the substitution pool as a "front of line" for better swaps/consistency.
-    const substitution =
-      params.slot.movementPattern
-        ? getSubstitutionPool({ movementPattern: params.slot.movementPattern, equipment })
-        : [];
+    const substitution = params.slot.movementPattern
+      ? getSubstitutionPool({
+          movementPattern: params.slot.movementPattern,
+          equipment,
+        })
+      : [];
 
     const searched = searchExercises({
       query: "",
@@ -605,14 +1076,22 @@ function pickExerciseForSlot(params: {
       limit: 200,
     });
 
-    const candidates = baseFilter([...substitution, ...searched]).filter((ex) => {
-      if (!pass.allowRepeatPrimary && ex.tags.includes("primary_compound") && params.usedPrimaryCompounds.has(ex.id)) return false;
-      if (!pass.allowHarderMoves) {
-        const diff = difficultyOrder(ex.difficulty) - experienceOrder(params.experience);
-        if (diff >= 2) return false;
+    const candidates = baseFilter([...substitution, ...searched]).filter(
+      (ex) => {
+        if (
+          !pass.allowRepeatPrimary &&
+          ex.tags.includes("primary_compound") &&
+          params.usedPrimaryCompounds.has(ex.id)
+        )
+          return false;
+        if (!pass.allowHarderMoves) {
+          const diff =
+            difficultyOrder(ex.difficulty) - experienceOrder(params.experience);
+          if (diff >= 2) return false;
+        }
+        return true;
       }
-      return true;
-    });
+    );
 
     if (!candidates.length) continue;
 
@@ -644,8 +1123,13 @@ function pickExerciseForSlot(params: {
       .sort((a, b) => b.score - a.score);
 
     const topScore = ranked[0]!.score;
-    const topBand = ranked.filter((r) => r.score >= topScore - 2).map((r) => r.ex);
-    const shuffled = stableShuffle(topBand, `${params.seed}::${params.slot.key}`);
+    const topBand = ranked
+      .filter((r) => r.score >= topScore - 2)
+      .map((r) => r.ex);
+    const shuffled = stableShuffle(
+      topBand,
+      `${params.seed}::${params.slot.key}`
+    );
     return shuffled[0] ?? ranked[0]!.ex;
   }
 
@@ -657,13 +1141,17 @@ export function generateCustomPlanDaysFromLibrary(
   options?: { variant?: number }
 ): CatalogPlanDay[] {
   const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
-  const weekdays = (Array.isArray(prefs.preferredDays) && prefs.preferredDays.length ? prefs.preferredDays : pickWeekdays(daysPerWeek)).slice(0, daysPerWeek) as CatalogPlanDay["day"][];
+  const weekdays = (
+    Array.isArray(prefs.preferredDays) && prefs.preferredDays.length
+      ? prefs.preferredDays
+      : pickWeekdays(daysPerWeek)
+  ).slice(0, daysPerWeek) as CatalogPlanDay["day"][];
   const goal = (prefs.goal ?? "build_muscle") as Goal;
   const experience = (prefs.experience ?? "beginner") as Experience;
   const requestedFocus = (prefs.focus ?? "full_body") as Focus;
   const hasInjuryConstraint = Boolean(
     (typeof prefs.injuries === "string" && prefs.injuries.trim()) ||
-      (typeof prefs.avoidExercises === "string" && prefs.avoidExercises.trim())
+    (typeof prefs.avoidExercises === "string" && prefs.avoidExercises.trim())
   );
   const equipmentList = Array.isArray(prefs.equipment) ? prefs.equipment : [];
   const hasFullGym = equipmentList.some((item) =>
@@ -682,6 +1170,7 @@ export function generateCustomPlanDaysFromLibrary(
           : "upper_lower"
         : requestedFocus;
   const { mode, allowed } = allowedEquipFromPrefs(prefs);
+  const equipmentInventory = normalizeGymEquipment(prefs.equipmentInventory);
   const maxMoves = maxMovesForTime(prefs.timePerWorkout);
   const targets = volumeTargets({ goal, experience, daysPerWeek, focus });
 
@@ -695,6 +1184,7 @@ export function generateCustomPlanDaysFromLibrary(
       daysPerWeek,
       timePerWorkout: prefs.timePerWorkout ?? "45",
       mode,
+      equipmentInventory,
       variant,
       preferredDays: weekdays,
     })
@@ -738,6 +1228,7 @@ export function generateCustomPlanDaysFromLibrary(
         experience,
         mode,
         allowedEquipment: allowed,
+        equipmentInventory,
         avoidExercises: prefs.avoidExercises ?? null,
         usedIds,
         usedPrimaryCompounds,
@@ -753,16 +1244,25 @@ export function generateCustomPlanDaysFromLibrary(
             ? "Farmer’s Carry (Dumbbells)"
             : slot.label;
 
-      const ex = picked ?? getExerciseByExactName(fallbackName);
-      if (!ex) {
-        chosen.push({ name: fallbackName, sets: 3, reps: "10" });
-        continue;
-      }
+      const namedFallback = getExerciseByExactName(fallbackName);
+      const ex =
+        picked ??
+        (namedFallback &&
+        namedFallback.equipment.some((item) => allowed.has(item)) &&
+        exerciseAllowedByGymInventory(namedFallback, equipmentInventory)
+          ? namedFallback
+          : null);
+      // If this movement cannot be performed with confirmed equipment, omit
+      // the slot. Never replace it with a generic label that may imply gear the
+      // user does not have.
+      if (!ex) continue;
 
       const sr = setsRepsForSlot({
         goal,
         experience,
-        isPrimaryCompound: Boolean(slot.isPrimaryCompound && ex.tags.includes("primary_compound")),
+        isPrimaryCompound: Boolean(
+          slot.isPrimaryCompound && ex.tags.includes("primary_compound")
+        ),
         movementPattern: ex.movementPattern,
         includeTags: slot.includeTags,
       });
@@ -773,7 +1273,8 @@ export function generateCustomPlanDaysFromLibrary(
       if (slot.isPrimaryCompound && ex.tags.includes("primary_compound")) {
         usedPrimaryCompounds.add(ex.id);
       }
-      perDayPatternCounts[ex.movementPattern] = (perDayPatternCounts[ex.movementPattern] ?? 0) + 1;
+      perDayPatternCounts[ex.movementPattern] =
+        (perDayPatternCounts[ex.movementPattern] ?? 0) + 1;
       addVolume(weekVolume, exerciseMuscleContribution(ex, sr.sets));
     }
 
@@ -809,4 +1310,3 @@ export function buildCustomPlanTitleFromPrefs(prefs: CustomPlanPrefs): string {
             : "Plan";
   return `${goal} • ${focus}`;
 }
-

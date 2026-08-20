@@ -32,6 +32,8 @@ MyBodyScan maintains incident-response procedures for unauthorized access to ide
 
 Photos and related inputs may be sent to contracted cloud and automated analysis service providers solely to operate the requested scan or optional preview. Outputs are estimates and may be inaccurate. A transformation preview is a motivational illustration, not a prediction or guarantee of future appearance.
 
+If you use the optional gym-setup feature, a walkthrough video is processed on your device to select a small number of still frames. The full video is not uploaded or saved to your MyBodyScan account. The sampled frames may be sent to a contracted automated-analysis provider to draft an equipment list, are not added to your MyBodyScan account, and must be reviewed and confirmed by you. Avoid recording other people, access codes, addresses, or other private information.
+
 ## Sharing and Service Providers
 
 We do not sell personal information. We disclose information only as needed to:

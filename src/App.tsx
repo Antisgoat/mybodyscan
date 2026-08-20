@@ -56,6 +56,7 @@ import CoachOnboarding from "./pages/CoachOnboarding";
 import CoachTracker from "./pages/CoachTracker";
 import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
+import GymSetup from "./pages/GymSetup";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
 import { isNative } from "@/lib/platform";
@@ -1041,6 +1042,23 @@ const App = () => (
                 <SettingsUnits />
               </AuthedLayout>
             </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/gym"
+          element={
+            <FeatureGate
+              name="workouts"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <RouteBoundary>
+                    <GymSetup />
+                  </RouteBoundary>
+                </AuthedLayout>
+              </ProtectedRoute>
+            </FeatureGate>
           }
         />
         <Route

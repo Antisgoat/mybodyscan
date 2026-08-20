@@ -66,17 +66,10 @@ export interface CatalogPlanSubmission {
 }
 
 export type CustomPlanGoal =
-  | "lose_fat"
-  | "build_muscle"
-  | "recomp"
-  | "performance";
+  "lose_fat" | "build_muscle" | "recomp" | "performance";
 export type CustomPlanExperience = "beginner" | "intermediate" | "advanced";
 export type CustomPlanStyle =
-  | "strength"
-  | "hypertrophy"
-  | "athletic"
-  | "minimal_equipment"
-  | "balanced";
+  "strength" | "hypertrophy" | "athletic" | "minimal_equipment" | "balanced";
 export type CustomPlanFocus =
   | "full_body"
   | "upper_lower"
@@ -90,6 +83,7 @@ export interface CustomPlanPrefs {
   preferredDays?: Array<"Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun">;
   timePerWorkout?: "30" | "45" | "60" | "75+";
   equipment?: string[];
+  equipmentInventory?: string[];
   trainingStyle?: CustomPlanStyle;
   experience?: CustomPlanExperience;
   focus?: CustomPlanFocus;
@@ -168,7 +162,8 @@ function normalizeWorkoutDays(value: unknown): WorkoutDay[] | null {
   if (!Array.isArray(value)) return null;
   const days: WorkoutDay[] = [];
   for (const entry of value) {
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry))
+      return null;
     const raw = entry as Record<string, unknown>;
     const day = typeof raw.day === "string" ? raw.day.trim() : "";
     if (!day || !Array.isArray(raw.exercises)) return null;

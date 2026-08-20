@@ -62,6 +62,7 @@ export { grantProAllowlist } from "./admin/grantProAllowlist.js";
 export { adminGrantProEntitlements } from "./admin/adminGrantProEntitlements.js";
 export { deleteMyAccount, exportMyData } from "./account.js";
 export { requestTransformationPreview } from "./transformationPreview.js";
+export { analyzeGymEquipment } from "./gymEquipment.js";
 export {
   registerPushToken,
   unregisterPushToken,

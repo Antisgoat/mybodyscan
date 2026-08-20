@@ -170,6 +170,63 @@ d("Firestore security rules", () => {
     await assertFails(free.doc(`users/${uid}/nutritionRecipes/recipe1`).get());
   });
 
+  it("allows only Pro owners to save a private gym inventory", async () => {
+    const proUid = "gym-pro";
+    const freeUid = "gym-free";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      const admin = ctx.firestore();
+      await admin
+        .doc(`users/${proUid}/entitlements/current`)
+        .set({ pro: true, source: "stripe" });
+      await admin
+        .doc(`users/${freeUid}/entitlements/current`)
+        .set({ pro: false, source: "stripe" });
+    });
+
+    const pro = testEnv.authenticatedContext(proUid).firestore();
+    await assertSucceeds(
+      pro.doc(`users/${proUid}/preferences/gymEquipment`).set({
+        inventory: ["dumbbells", "flat_bench"],
+        exerciseEquipment: ["bodyweight", "dumbbell"],
+        source: "manual",
+        locationName: "Apartment gym",
+        notes: "",
+        confirmedByUser: true,
+        version: 1,
+        updatedAt: new Date(),
+      })
+    );
+    await assertFails(
+      pro.doc(`users/${proUid}/preferences/gymEquipment`).set({
+        inventory: ["imaginary_machine"],
+        exerciseEquipment: ["machine"],
+        source: "manual",
+        locationName: "",
+        notes: "",
+        confirmedByUser: true,
+        version: 1,
+        updatedAt: new Date(),
+      })
+    );
+
+    const free = testEnv.authenticatedContext(freeUid).firestore();
+    await assertFails(
+      free.doc(`users/${freeUid}/preferences/gymEquipment`).set({
+        inventory: ["dumbbells"],
+        exerciseEquipment: ["bodyweight", "dumbbell"],
+        source: "manual",
+        locationName: "",
+        notes: "",
+        confirmedByUser: true,
+        version: 1,
+        updatedAt: new Date(),
+      })
+    );
+    await assertFails(
+      free.doc(`users/${proUid}/preferences/gymEquipment`).get()
+    );
+  });
+
   it("validates saved allergy onboarding fields", async () => {
     const uid = "allergy-profile";
     const authed = testEnv.authenticatedContext(uid).firestore();

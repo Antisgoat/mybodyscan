@@ -27,6 +27,7 @@ These Terms of Service ("Terms") govern your access to and use of MyBodyScan, wh
 - Allergy and ingredient information may be incomplete, outdated, or affected by recipe changes and cross-contact. Saved allergy preferences help personalize warnings but are not a guarantee that a food is safe. You are responsible for checking the current package label and contacting the manufacturer or a qualified clinician when uncertain.
 - Exercise and nutrition involve risk. Consult a qualified professional before making material changes, particularly if you are pregnant, under 18, have an eating-disorder history, take medication, recently had surgery, or have a medical condition. Stop and seek appropriate care for concerning symptoms.
 - Weekly plan adjustments are conservative wellness suggestions. You decide whether to accept them and can undo them; do not use them as treatment or train through sharp, severe, or worsening pain.
+- Equipment detection is a convenience feature and may miss or misidentify items. You must confirm the available equipment before generating a plan and remain responsible for checking that equipment is present, suitable, maintained, and safe to use. Follow facility and manufacturer instructions and choose a listed substitution when needed.
 
 ## Your Content
 
