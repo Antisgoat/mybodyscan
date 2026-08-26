@@ -188,6 +188,13 @@ subscription signal, and native builds do not bypass this check.
   confirmed inventory. A specific machine (for example, leg press) must not
   unlock unrelated machine exercises, and rack- or bench-dependent movements
   must be withheld when the required item is absent.
+- The Pro-only Fridge Scan accepts 1–4 refrigerator, freezer, pantry, or
+  countertop photos and returns a draft ingredient list. The member must
+  correct and confirm that list before meal ideas are generated. Photos are
+  processed ephemerally and are not stored in the account. The feature must
+  never infer freshness, expiration, quantities, allergens, cross-contact, or
+  hidden package contents, and meal ideas must preserve the label and
+  food-safety warnings shown in the client.
 
 FatSecret Search v5 is the evaluated third-provider candidate because it adds
 international branded coverage and localized serving data. Its standard
@@ -873,6 +880,11 @@ providers and does not replace the subscribed real-account checks below.
   nutrient data shows at most three alternatives that share a declared
   category and score strictly higher under the published MBS Product Insight
   formula; incomplete or unrelated candidates are withheld.
+- In Fridge Scan, submit 1–4 real kitchen photos, remove one incorrect draft
+  item, add one missed item, and generate meal ideas. Confirm the ideas use only
+  the member-confirmed inventory plus clearly labeled optional staples, respect
+  saved diet/allergy preferences without claiming allergen safety, and leave no
+  kitchen photo in Storage or the member's account export.
 - An eligible adult explicitly consents to a Transformation Preview, one real
   front-photo edit completes, the image remains owner-only in Storage, and the
   UI presents it as a motivational illustration rather than a prediction.

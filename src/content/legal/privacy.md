@@ -7,7 +7,7 @@ MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This P
 ## Information We Collect
 
 - **Account and contact information:** your email address, display name, authentication provider, and messages you send to support.
-- **Scan media and wellness information you provide:** body photos, goals, preferences, equipment, allergy and dietary-restriction selections, workout and meal logs, weekly recovery check-ins, custom foods and recipes, and other information you choose to enter.
+- **Scan media and wellness information you provide:** body photos, optional gym or kitchen photos submitted for one-time analysis, goals, preferences, equipment, allergy and dietary-restriction selections, workout and meal logs, weekly recovery check-ins, custom foods and recipes, and other information you choose to enter. Gym and kitchen captures are processed to return a draft inventory and are not saved to your MyBodyScan account.
 - **Results and generated content:** scan estimates, visual observations, calculated values, plans, check-ins, food insights, and optional transformation-preview images.
 - **Connected health-provider information:** when you choose to connect a supported provider, the limited activity, sleep, workout, heart-rate, and recovery fields you authorize, along with connection and sync status. Provider access and refresh tokens are kept server-side.
 - **Device and usage information:** app version, device/browser type, IP-derived security information, crash and performance diagnostics, feature interactions, and push-notification tokens when you opt in.

@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CalendarDays,
   BookOpen,
+  Camera,
 } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -787,6 +788,17 @@ export default function Meals() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="col-span-2 h-12 justify-start border-primary/30 bg-primary/5 px-3 text-[13px]"
+              asChild
+            >
+              <a href="/meals/fridge">
+                <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
+                Scan your kitchen for meal ideas
+              </a>
+            </Button>
             <Button
               size="sm"
               className="h-11 justify-start px-3 text-[13px]"

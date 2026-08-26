@@ -145,6 +145,7 @@ export default function Billing() {
               "Three scan credits per renewal",
               "Personal Coach and weekly adaptive reviews",
               "Workout tracking, meal plans, recipes, and food insights",
+              "Kitchen photo meal ideas with ingredient confirmation",
             ].map((feature) => (
               <li key={feature} className="flex gap-2">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
@@ -195,6 +196,7 @@ export default function Billing() {
             {[
               "36 scan credits per renewal",
               "All ongoing Pro coaching and tracking",
+              "Kitchen photo meal ideas with ingredient confirmation",
               "Same features for about $6.67/month",
             ].map((feature) => (
               <li key={feature} className="flex gap-2">
