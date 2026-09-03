@@ -4,7 +4,8 @@
  * - Allows barcode scan or manual search, then uses `ServingEditor` to capture servings.
  * - Calls `addMeal` Cloud Function so Firestore `nutritionLogs/{day}` stays authoritative and totals update instantly.
  */
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { localDateKey } from "@/lib/time";
 import BarcodeScannerSheet from "@/features/barcode/BarcodeScanner";
 import {
   cameraAvailable,
@@ -30,6 +31,8 @@ import type { FoodItem as RichFoodItem } from "@/lib/nutrition/types";
 import { isCapacitorNative } from "@/lib/platform/isNative";
 
 type NutritionSearchProps = {
+  /** The diary day currently shown by the parent, not necessarily today. */
+  dateISO?: string;
   onMealLogged?: (item: FoodItem) => void;
   /** Default diary bucket to save into. */
   defaultMealType?: MealEntry["mealType"];
@@ -40,6 +43,7 @@ type NutritionSearchProps = {
 const INITIAL_RESULT_COUNT = 8;
 
 export default function NutritionSearch({
+  dateISO,
   onMealLogged,
   defaultMealType,
   onMealAdded,
@@ -58,9 +62,8 @@ export default function NutritionSearch({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<FoodItem[] | null>(null);
-  const [visibleResultCount, setVisibleResultCount] = useState(
-    INITIAL_RESULT_COUNT
-  );
+  const [visibleResultCount, setVisibleResultCount] =
+    useState(INITIAL_RESULT_COUNT);
   const [hasSearched, setHasSearched] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scannerCapability, setScannerCapability] = useState<{
@@ -73,14 +76,16 @@ export default function NutritionSearch({
   const [editorSource, setEditorSource] =
     useState<MealEntry["entrySource"]>("search");
   const editorMealIdRef = useRef<string | null>(null);
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const requestIdRef = useRef(0);
 
-  async function onSubmit(e?: FormEvent) {
+  async function onSubmit(e?: FormEvent, query = q) {
     e?.preventDefault();
+    const requestId = ++requestIdRef.current;
     setError(null);
     setResults(null);
+    setBusy(false);
     setVisibleResultCount(INITIAL_RESULT_COUNT);
-    if (!q.trim()) {
+    if (!query.trim()) {
       setHasSearched(false);
       return;
     }
@@ -93,7 +98,8 @@ export default function NutritionSearch({
     setHasSearched(true);
     setBusy(true);
     try {
-      const response = await nutritionSearch(q.trim());
+      const response = await nutritionSearch(query.trim());
+      if (requestId !== requestIdRef.current) return;
       setResults(response.results ?? []);
       if (response.status === "upstream_error") {
         const ref = response.debugId
@@ -104,6 +110,7 @@ export default function NutritionSearch({
         );
       }
     } catch (err: any) {
+      if (requestId !== requestIdRef.current) return;
       const code = typeof err?.code === "string" ? err.code : undefined;
       let message =
         typeof err?.message === "string" && err.message !== "Bad Request"
@@ -127,7 +134,7 @@ export default function NutritionSearch({
       const debugId = (err as { debugId?: string } | undefined)?.debugId;
       setError(debugId ? `${message} (ref ${debugId.slice(0, 8)})` : message);
     } finally {
-      setBusy(false);
+      if (requestId === requestIdRef.current) setBusy(false);
     }
   }
 
@@ -143,9 +150,9 @@ export default function NutritionSearch({
   function onDetectedFromScanner(code: string) {
     if (!nutritionEnabled) return;
     setQ(code);
-    setTimeout(() => {
-      void onSubmit();
-    }, 50);
+    setScanOpen(false);
+    // React state has not committed yet; search the detected code directly.
+    void onSubmit(undefined, code);
   }
 
   const liveScannerSupported = scannerCapability?.supported !== false;
@@ -191,7 +198,7 @@ export default function NutritionSearch({
   };
 
   async function handleConfirm({ meal }: { meal: MealEntry }) {
-    if (!editorItem) return;
+    if (!editorItem || editorBusy) return;
     if (!user) {
       toast({
         title: "Sign in required",
@@ -204,7 +211,8 @@ export default function NutritionSearch({
     setEditorBusy(true);
     try {
       // FIX: prior implementation rendered Add buttons with no handler, so nothing was persisted.
-      const result = await addMeal(todayISO, {
+      const targetDate = dateISO ?? localDateKey(new Date());
+      const result = await addMeal(targetDate, {
         ...meal,
         id: meal.id ?? editorMealIdRef.current ?? undefined,
         mealType: meal.mealType ?? defaultMealType ?? undefined,
@@ -212,7 +220,7 @@ export default function NutritionSearch({
       });
       toast({
         title: "Meal logged",
-        description: `${editorItem.name} added to today.`,
+        description: `${editorItem.name} added to ${targetDate}.`,
       });
       if (result?.meal && result?.totals) {
         onMealAdded?.({
@@ -252,6 +260,7 @@ export default function NutritionSearch({
       >
         <input
           data-testid="nutrition-search-input"
+          aria-label="Search foods or enter a barcode"
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -275,7 +284,9 @@ export default function NutritionSearch({
           }}
           className="h-11 rounded-lg border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Scan barcode"
-          disabled={!nutritionEnabled || !liveScannerSupported}
+          disabled={
+            busy || authLoading || !nutritionEnabled || !liveScannerSupported
+          }
           title={
             !liveScannerSupported ? (scannerWarning ?? undefined) : undefined
           }
@@ -379,7 +390,12 @@ export default function NutritionSearch({
                   )
                 }
               >
-                Show {Math.min(INITIAL_RESULT_COUNT, results.length - visibleResultCount)} more
+                Show{" "}
+                {Math.min(
+                  INITIAL_RESULT_COUNT,
+                  results.length - visibleResultCount
+                )}{" "}
+                more
               </button>
             </li>
           ) : null}
@@ -395,7 +411,11 @@ export default function NutritionSearch({
 
       <Dialog
         open={editorOpen}
-        onOpenChange={(next) => (next ? setEditorOpen(true) : closeEditor())}
+        onOpenChange={(next) => {
+          if (editorBusy) return;
+          if (next) setEditorOpen(true);
+          else closeEditor();
+        }}
       >
         <DialogContent className="max-w-xl">
           <DialogHeader>

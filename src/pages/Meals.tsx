@@ -1391,6 +1391,7 @@ export default function Meals() {
             <DialogTitle>Add to {MEAL_LABELS[addMealType]}</DialogTitle>
           </DialogHeader>
           <NutritionSearch
+            dateISO={dateISO}
             defaultMealType={addMealType}
             onMealLogged={handleSearchLogged}
             onMealAdded={(payload) => {

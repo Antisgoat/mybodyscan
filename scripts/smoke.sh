@@ -118,8 +118,8 @@ call_endpoint() {
 
   case "$name" in
     coachChat)
-      # Accept healthy responses or transient upstream failures.
-      if [[ "$status" =~ ^(200|501|502)$ ]]; then
+      # An upstream failure must fail the check, not masquerade as readiness.
+      if [[ "$status" == "200" ]]; then
         return
       fi
       if [[ "$status" == "401" ]] && echo "$content" | grep -q 'app_check'; then
@@ -129,15 +129,6 @@ call_endpoint() {
       if [[ "$status" == "403" ]] && echo "$content" | grep -q 'permission-denied'; then
         echo "[smoke] coachChat entitlement gate verified for disposable account"
         return
-      fi
-      # Treat missing OpenAI key / not-configured as a soft skip (still reported in logs).
-      if [[ "$status" == "400" ]]; then
-        local code
-        code="$(json_field code)"
-        if [[ "$code" == "failed-precondition" ]] || echo "$content" | grep -qiE 'not configured|openai'; then
-          echo "[smoke] coachChat skipped (backend not configured)"
-          return
-        fi
       fi
       FAILURES+=("coachChat:${status}")
       ;;

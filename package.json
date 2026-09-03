@@ -211,6 +211,7 @@
     "wait-on": "^7.2.0"
   },
   "overrides": {
+    "qs": "6.16.0",
     "simple-swizzle": "0.2.2",
     "@firebase/app": "0.13.2",
     "@firebase/auth": "1.10.8",

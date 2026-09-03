@@ -31,7 +31,21 @@ const userFacingCopyFiles = [
 describe("user-facing product language", () => {
   it("uses product-focused wording instead of implementation branding", () => {
     for (const file of userFacingCopyFiles) {
-      expect(read(file), file).not.toMatch(/\bAI\b|\bOpenAI\b|\bLLM\b/);
+      // Privacy disclosures must name the actual processor. Product/marketing
+      // copy should still avoid implementation branding.
+      const forbidden = file.includes("legal/privacy")
+        ? /\bAI\b|\bLLM\b/
+        : /\bAI\b|\bOpenAI\b|\bLLM\b/;
+      expect(read(file), file).not.toMatch(forbidden);
     }
+  });
+
+  it("clearly identifies the kitchen processor before optional data sharing", () => {
+    expect(read("src/content/legal/privacy.md")).toContain(
+      "to OpenAI for processing"
+    );
+    expect(read("src/pages/FridgeMeals.tsx")).toContain(
+      "kitchen-processing-consent"
+    );
   });
 });

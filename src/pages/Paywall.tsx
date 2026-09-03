@@ -219,6 +219,7 @@ export default function PaywallPage() {
               "Source-labeled four-photo body reports",
               "Workout sessions, progress logging, timers, and smart swaps",
               "7-day meal plans, nutrition tracking, recipes, and saved foods",
+              "Kitchen photo meal ideas from ingredients you confirm",
               "Barcode insights, label context, and same-category alternatives",
               "Personal Coach plus approval-based weekly plan reviews",
               "Scan comparisons and opt-in plateau check-ins",

@@ -8,6 +8,11 @@ export type TimestampLike =
   | null
   | undefined;
 
+/** Calendar date in the member's local timezone, never the UTC day. */
+export function localDateKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 export function toDateOrNull(value: TimestampLike): Date | null {
   if (value == null) return null;
   if (value instanceof Date) {
@@ -21,7 +26,9 @@ export function toDateOrNull(value: TimestampLike): Date | null {
     if (typeof (value as any).toDate === "function") {
       try {
         const date = (value as any).toDate();
-        return date instanceof Date && Number.isFinite(date.getTime()) ? date : null;
+        return date instanceof Date && Number.isFinite(date.getTime())
+          ? date
+          : null;
       } catch {
         return null;
       }
@@ -48,4 +55,3 @@ export function formatDateTime(value: TimestampLike): string {
   const date = toDateOrNull(value);
   return date ? date.toLocaleString() : "—";
 }
-

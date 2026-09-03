@@ -2,6 +2,8 @@
 
 **Effective date: July 27, 2026**
 
+Last updated: September 3, 2026 (optional kitchen meal helper).
+
 MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This Privacy Policy explains what information we collect, why we use it, how it is shared, and the choices available to you.
 
 ## Information We Collect
@@ -33,6 +35,8 @@ MyBodyScan maintains incident-response procedures for unauthorized access to ide
 Photos and related inputs may be sent to contracted cloud and automated analysis service providers solely to operate the requested scan or optional preview. Outputs are estimates and may be inaccurate. A transformation preview is a motivational illustration, not a prediction or guarantee of future appearance.
 
 If you use the optional gym-setup feature, a walkthrough video is processed on your device to select a small number of still frames. The full video is not uploaded or saved to your MyBodyScan account. The sampled frames may be sent to a contracted automated-analysis provider to draft an equipment list, are not added to your MyBodyScan account, and must be reviewed and confirmed by you. Avoid recording other people, access codes, addresses, or other private information.
+
+The optional kitchen meal helper asks for permission before sending selected photos, confirmed ingredients, and dietary preferences (including saved allergies) to OpenAI for processing. Kitchen photos are not saved to your MyBodyScan account. Provider security and abuse-monitoring retention may still apply; this is not a promise of zero retention by every service provider. You must review detected ingredients, current package labels, and any meal suggestions before use.
 
 ## Sharing and Service Providers
 

@@ -5,6 +5,10 @@ backend, and Capacitor iOS and Android apps. `docs/GO-LIVE.md`, `docs/DEPLOY.md`
 `ios/RELEASE_IOS.md`, and README deployment notes defer to this file; older
 audit reports are historical and must not be used as deployment instructions.
 
+Latest evidence checkpoint: [September 3, 2026 release audit](RELEASE_AUDIT_2026-09-03.md).
+Its dated observations supersede the older external-state snapshots below;
+unverified device/purchase gates remain open even when builds pass.
+
 ## Scope and release policy
 
 - Firebase project: `mybodyscan-f3daf`

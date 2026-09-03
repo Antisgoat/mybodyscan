@@ -51,6 +51,10 @@ jobs:
         run: npm run rules:check
       - name: Verify dist assets exist
         run: node scripts/verify-dist-assets.js
+      - name: Install browser test engines
+        run: npx playwright install --with-deps chromium webkit
+      - name: Desktop, Android, and iPhone browser checks
+        run: npx playwright test --config playwright.local.config.ts
       - name: Install Firestore rules test dependencies
         run: npm ci --prefix tests/rules --no-audit --no-fund
       - name: Firestore rules emulator tests

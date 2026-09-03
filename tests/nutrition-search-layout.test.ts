@@ -29,6 +29,6 @@ describe("nutrition search mobile layout", () => {
   it("reveals ranked results in a short, progressive list", () => {
     expect(searchSource).toContain("const INITIAL_RESULT_COUNT = 8");
     expect(searchSource).toContain("slice(0, visibleResultCount)");
-    expect(searchSource).toContain("Show {");
+    expect(searchSource).toMatch(/Show\s*\{/);
   });
 });

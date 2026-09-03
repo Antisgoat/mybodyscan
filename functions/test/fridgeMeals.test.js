@@ -8,7 +8,19 @@ import {
   validateFridgeAnalysis,
   validateFridgeFrames,
   validateFridgeMealSuggestions,
+  validateFridgeMealInventory,
+  requireFridgeProcessingConsent,
 } from "../lib/fridgeMeals.js";
+
+test("kitchen processing requires explicit permission", () => {
+  for (const value of [undefined, false, "true", 1]) {
+    assert.throws(
+      () => requireFridgeProcessingConsent(value),
+      /Confirm permission/
+    );
+  }
+  assert.doesNotThrow(() => requireFridgeProcessingConsent(true));
+});
 
 test("fridge functions bind only the server-side OpenAI secret", () => {
   for (const endpoint of [analyzeFridge, suggestFridgeMeals]) {
@@ -17,6 +29,29 @@ test("fridge functions bind only the server-side OpenAI secret", () => {
       .sort();
     assert.deepEqual(keys, ["OPENAI_API_KEY"]);
   }
+});
+
+test("meal inventory rejects food that the member never confirmed", () => {
+  const meal = {
+    title: "Skillet",
+    summary: "A simple meal",
+    steps: ["Cook the ingredients."],
+    uses: ["eggs"],
+    optional: ["oil"],
+  };
+  assert.equal(
+    validateFridgeMealInventory({ meals: [meal] }, ["Eggs"]).meals.length,
+    1
+  );
+  assert.throws(
+    () => validateFridgeMealInventory({ meals: [meal] }, ["spinach"]),
+    /unconfirmed_fridge_ingredient/
+  );
+  assert.throws(
+    () =>
+      validateFridgeMealInventory({ meals: [{ ...meal, uses: [] }] }, ["eggs"]),
+    /unconfirmed_fridge_ingredient/
+  );
 });
 
 test("fridge analysis normalizes and deduplicates visible ingredients", () => {

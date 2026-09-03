@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests-e2e",
+  // Firebase's reserved Hosting init.json endpoint does not exist in Vite.
+  // Keep that deployment-only diagnostic in playwright.config.ts.
+  testIgnore: "**/boot.spec.ts",
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
@@ -19,6 +22,14 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "android-chrome",
+      use: { ...devices["Pixel 7"] },
+    },
+    {
+      name: "iphone-webkit",
+      use: { ...devices["iPhone 13"] },
     },
   ],
   reporter: [["list"]],
