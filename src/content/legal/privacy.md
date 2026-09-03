@@ -2,12 +2,14 @@
 
 **Effective date: July 27, 2026**
 
+Last updated: September 3, 2026 (optional kitchen meal helper).
+
 MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This Privacy Policy explains what information we collect, why we use it, how it is shared, and the choices available to you.
 
 ## Information We Collect
 
 - **Account and contact information:** your email address, display name, authentication provider, and messages you send to support.
-- **Scan media and wellness information you provide:** body photos, goals, preferences, equipment, allergy and dietary-restriction selections, workout and meal logs, weekly recovery check-ins, custom foods and recipes, and other information you choose to enter.
+- **Scan media and wellness information you provide:** body photos, optional gym or kitchen photos submitted for one-time analysis, goals, preferences, equipment, allergy and dietary-restriction selections, workout and meal logs, weekly recovery check-ins, custom foods and recipes, and other information you choose to enter. Gym and kitchen captures are processed to return a draft inventory and are not saved to your MyBodyScan account.
 - **Results and generated content:** scan estimates, visual observations, calculated values, plans, check-ins, food insights, and optional transformation-preview images.
 - **Connected health-provider information:** when you choose to connect a supported provider, the limited activity, sleep, workout, heart-rate, and recovery fields you authorize, along with connection and sync status. Provider access and refresh tokens are kept server-side.
 - **Device and usage information:** app version, device/browser type, IP-derived security information, crash and performance diagnostics, feature interactions, and push-notification tokens when you opt in.
@@ -33,6 +35,8 @@ MyBodyScan maintains incident-response procedures for unauthorized access to ide
 Photos and related inputs may be sent to contracted cloud and automated analysis service providers solely to operate the requested scan or optional preview. Outputs are estimates and may be inaccurate. A transformation preview is a motivational illustration, not a prediction or guarantee of future appearance.
 
 If you use the optional gym-setup feature, a walkthrough video is processed on your device to select a small number of still frames. The full video is not uploaded or saved to your MyBodyScan account. The sampled frames may be sent to a contracted automated-analysis provider to draft an equipment list, are not added to your MyBodyScan account, and must be reviewed and confirmed by you. Avoid recording other people, access codes, addresses, or other private information.
+
+The optional kitchen meal helper asks for permission before sending selected photos, confirmed ingredients, and dietary preferences (including saved allergies) to OpenAI for processing. Kitchen photos are not saved to your MyBodyScan account. Provider security and abuse-monitoring retention may still apply; this is not a promise of zero retention by every service provider. You must review detected ingredients, current package labels, and any meal suggestions before use.
 
 ## Sharing and Service Providers
 

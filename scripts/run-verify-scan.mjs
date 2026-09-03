@@ -6,13 +6,19 @@
  * local env file. We generate a temporary `functions/.env.local` so the emulator can boot
  * unattended, then run the emulator exec command, then clean up.
  */
-import { writeFileSync, rmSync, existsSync } from "node:fs";
+import { createTemporaryEnv } from "./lib/temporary-env.mjs";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 
 const root = new URL("..", import.meta.url);
 const functionsEnvPath = new URL("../functions/.env.local", import.meta.url);
+const functionsSecretsPath = new URL(
+  "../functions/.secret.local",
+  import.meta.url
+);
 const emulatorBucket = "mybodyscan-f3daf.firebasestorage.app";
+let cleanupEnv;
+let cleanupSecrets;
 
 const mockVisionResult = {
   estimate: {
@@ -82,7 +88,19 @@ try {
     `STORAGE_BUCKET=${emulatorBucket}`,
     "",
   ];
-  writeFileSync(functionsEnvPath, envLines.join("\n"), "utf8");
+  cleanupEnv = createTemporaryEnv(functionsEnvPath, envLines.join("\n"));
+  // Prevent the emulator from attempting to retrieve live secrets for the
+  // callable functions exercised below. Never replace an operator-owned file.
+  cleanupSecrets = createTemporaryEnv(
+    functionsSecretsPath,
+    [
+      "OPENAI_API_KEY=test-openai-key",
+      "STRIPE_SECRET=sk_test_emulator_only",
+      "STRIPE_SECRET_KEY=sk_test_emulator_only",
+      "ADMIN_EMAIL_ALLOWLIST=emulator-only@example.invalid",
+      "",
+    ].join("\n")
+  );
 
   const firebaseBin = new URL("../node_modules/.bin/firebase", import.meta.url);
   const cmd =
@@ -106,7 +124,7 @@ try {
         // The verification client and Admin SDK must target the same bucket.
         STORAGE_BUCKET: process.env.STORAGE_BUCKET || emulatorBucket,
         // The local mock accepts this non-secret placeholder.
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY || "test-openai-key",
+        OPENAI_API_KEY: "test-openai-key",
         VERIFY_OPENAI_BASE_URL: `http://127.0.0.1:${address.port}`,
       },
     }
@@ -118,8 +136,7 @@ try {
   process.exitCode = typeof exitCode === "number" ? exitCode : 1;
 } finally {
   // Cleanup the temp env file so it doesn't pollute real local dev configs.
-  if (existsSync(functionsEnvPath)) {
-    rmSync(functionsEnvPath);
-  }
+  cleanupEnv?.();
+  cleanupSecrets?.();
   await new Promise((resolve) => mockOpenAi.close(resolve));
 }

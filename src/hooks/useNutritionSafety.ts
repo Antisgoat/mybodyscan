@@ -23,14 +23,18 @@ export function useNutritionSafety() {
   const [preferences, setPreferences] =
     useState<NutritionSafetyPreferences>(EMPTY_PREFERENCES);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.uid) {
       setPreferences(EMPTY_PREFERENCES);
+      setError(null);
       setLoading(false);
       return;
     }
     setLoading(true);
+    setPreferences(EMPTY_PREFERENCES);
+    setError(null);
     return onSnapshot(
       doc(db, "users", user.uid),
       (snapshot) => {
@@ -42,10 +46,14 @@ export function useNutritionSafety() {
               ? onboarding.allergyNotes.slice(0, 280)
               : "",
         });
+        setError(null);
         setLoading(false);
       },
       () => {
         setPreferences(EMPTY_PREFERENCES);
+        setError(
+          "Your allergy preferences could not be loaded. Please reconnect and try again."
+        );
         setLoading(false);
       }
     );
@@ -69,5 +77,5 @@ export function useNutritionSafety() {
     [user?.uid]
   );
 
-  return { preferences, loading, save };
+  return { preferences, loading, error, save };
 }
