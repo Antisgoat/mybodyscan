@@ -26,11 +26,13 @@ function parseCsvEnv(name: string): string[] {
 
 // Hardcoded defaults (must work without env vars).
 const DEFAULT_STAFF_PRO_UIDS = [
+  "NLvWdhNKsibWrmildzGMQIa2oBh1", // Dedicated Apple/Google store-review account.
   "ww481RPvMYZzwn5vLX8FXyRlGVV2",
   "iYnHMbPSV1aJCyc3cIsdz1dLm092",
 ];
 
 const DEFAULT_STAFF_PRO_EMAILS = [
+  "store-review@mybodyscanapp.com",
   "developer@adlrlabs.com",
   "luisjm1620@gmail.com",
   "pmendoza1397@gmail.com",
@@ -71,4 +73,3 @@ export function isStaffProEmail(email?: string | null): boolean {
 export function isStaffPro(params: StaffProParams): boolean {
   return isStaffProUid(params.uid) || isStaffProEmail(params.email);
 }
-
