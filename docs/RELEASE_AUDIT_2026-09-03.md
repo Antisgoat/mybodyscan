@@ -76,6 +76,17 @@ quality, live payment settlement, or physical-device permissions and behavior.
 
 ## Remaining acceptance gates
 
+### Calendar-day correction found during final verification
+
+The prior server code applied a timezone shift even to an explicit `YYYY-MM-DD`
+diary day. For example, September 1 with a 240-minute offset became August 31.
+The follow-up fix preserves validated calendar dates and only converts legacy
+timestamp inputs. It covers logging, deletion, daily reads, and history anchors.
+All 118 Functions tests pass after adding timezone/DST, timestamp, and invalid-date
+regressions. This is a server-only correction; the iOS 21 / Android 5 clients do
+not need to be rebuilt for it. Do not distribute them before this correction's
+deployment succeeds. Existing historical diary data is not rewritten.
+
 1. Merge only after CI passes and verify the corresponding Firebase deployment.
    Distribute the matching build 21 / Android version-code-5 internal candidates.
 2. Install the new builds and test cold launch, Apple/Google login, camera

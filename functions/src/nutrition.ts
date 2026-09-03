@@ -26,6 +26,7 @@ import type {
   NutritionItemSnapshot,
 } from "./types.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
+import { normalizeNutritionDate as normalizeDate } from "./lib/nutritionDate.js";
 
 const express = expressModule as any;
 const db = getFirestore();
@@ -39,14 +40,6 @@ async function requireSubscriberAuth(req: Request): Promise<string> {
 function round(value: number, decimals = 0) {
   const factor = 10 ** decimals;
   return Math.round(value * factor) / factor;
-}
-
-function normalizeDate(dateISO: string, offsetMins: number) {
-  const date = new Date(dateISO);
-  if (Number.isFinite(offsetMins)) {
-    date.setMinutes(date.getMinutes() - offsetMins);
-  }
-  return date.toISOString().slice(0, 10);
 }
 
 function defaultTotals(): DailyLogDocument["totals"] {
