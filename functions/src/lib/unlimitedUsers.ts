@@ -11,6 +11,7 @@ export type UnlimitedUserParams = {
  * - Email matching is case-insensitive.
  */
 export const UNLIMITED_UID_ALLOWLIST = new Set<string>([
+  "NLvWdhNKsibWrmildzGMQIa2oBh1", // Dedicated Apple/Google store-review account.
   "DbGEQQuSE2agIIqTUBkaAYCYCP92",
   "GBdtbwUcYGYMuA1QW0Ik6K9tP0w1",
   "ww481RPvMYZzwn5vLX8FXyRlGVV2",
@@ -18,6 +19,7 @@ export const UNLIMITED_UID_ALLOWLIST = new Set<string>([
 ]);
 
 export const UNLIMITED_EMAIL_ALLOWLIST = new Set<string>([
+  "store-review@mybodyscanapp.com",
   "developer@adlrlabs.com",
   "luisjm1620@gmail.com",
   "pmendoza1397@gmail.com",
@@ -45,4 +47,3 @@ export function isUnlimitedUser(params: UnlimitedUserParams): boolean {
 
   return false;
 }
-
