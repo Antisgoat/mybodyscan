@@ -11,6 +11,11 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
     if (
       /google\.com\/recaptcha\/enterprise\/clr\?.*due to access control checks/.test(
         error.message
+      ) ||
+      // iPhone WebKit can report Firestore's long-poll listener as a page
+      // error even though the listener reconnects and the UI renders normally.
+      /firestore\.googleapis\.com\/google\.firestore\.v1\.Firestore\/Listen\/channel\?.*due to access control checks/.test(
+        error.message
       )
     )
       return;
