@@ -6,6 +6,8 @@
  *   max_tokens / max_completion_tokens / temperature / response_format drift.
  */
 import { getOpenAIKey } from "./keys.js";
+import { randomUUID } from "node:crypto";
+import { normalizeProviderUsage, type ProviderUsage } from "./usage.js";
 
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_TIMEOUT_MS = 8_000;
@@ -69,7 +71,7 @@ export type StructuredJsonRequest<T> = {
 
 type ChatResponse = {
   content: string;
-  usage?: { promptTokens?: number; completionTokens?: number };
+  usage?: ProviderUsage;
 };
 
 function buildModelList(candidate?: string): string[] {
@@ -343,14 +345,32 @@ async function executeChat(
     let lastBadRequest: string | null = null;
 
     for (const body of bodies) {
+      const attemptId = randomUUID();
+      console.info({
+        event: "provider_request_started",
+        api: "chat.completions",
+        attemptId,
+        requestId: requestId ?? null,
+        model,
+      });
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${key}`,
+          "X-Client-Request-Id": attemptId,
         },
         body: JSON.stringify(body),
         signal: controller.signal,
+      });
+      console.info({
+        event: "provider_request_result",
+        api: "chat.completions",
+        attemptId,
+        requestId: requestId ?? null,
+        providerRequestId: response.headers.get("x-request-id"),
+        model,
+        status: response.status,
       });
 
       if (response.status === 429) {
@@ -400,6 +420,19 @@ async function executeChat(
         throw new OpenAIClientError("openai_failed", 502, "invalid_json");
       }
 
+      const usage = normalizeProviderUsage(data?.usage);
+      // Record even empty/invalid model outputs: the provider may bill them.
+      // Never log prompts, photos, credentials, or response content.
+      console.info({
+        event: "provider_usage",
+        api: "chat.completions",
+        attemptId,
+        requestId: requestId ?? null,
+        providerRequestId: response.headers.get("x-request-id"),
+        model: typeof data?.model === "string" ? data.model : model,
+        usage: usage ?? null,
+        usageAvailable: usage !== undefined,
+      });
       const message = extractMessage(data);
       if (!message) {
         throw new OpenAIClientError("openai_failed", 502, "empty_response");
@@ -407,7 +440,7 @@ async function executeChat(
 
       return {
         content: message,
-        usage: data?.usage,
+        usage,
       };
     }
 
