@@ -31,6 +31,7 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
     ["/home", "Your progress, at a glance"],
     ["/meals", "Food diary"],
     ["/meals/search", "Search Foods"],
+    ["/meals/photo", "Snap. Review. Log."],
     ["/meals/fridge", "What can you make right now?"],
   ]) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -62,6 +63,12 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
         path: testInfo.outputPath("home.png"),
         fullPage: true,
       });
+    }
+    if (route === "/meals/photo") {
+      await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Choose photo", exact: true })).toBeDisabled();
+      await expect(page.getByRole("checkbox")).toBeDisabled();
+      await page.screenshot({ path: testInfo.outputPath("meal-photo.png"), fullPage: true });
     }
   }
   await expect(

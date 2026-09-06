@@ -788,6 +788,9 @@ export default function Meals() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
+            <Button size="sm" variant="outline" className="col-span-2 h-12 justify-start px-3 text-[13px]" asChild>
+              <a href="/meals/photo"><Camera className="mr-2 h-4 w-4" aria-hidden="true" />Estimate a meal from a photo · Members</a>
+            </Button>
             <Button
               size="sm"
               variant="outline"

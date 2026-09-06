@@ -31,7 +31,7 @@ export async function hasProEntitlement(
   const data = snap.data() as any;
   if (data?.pro !== true) return false;
   const expiresAtMs = readNumber(data?.expiresAt);
-  if (expiresAtMs == null) return true;
+  if (expiresAtMs == null) return data?.expiresAt == null;
   return expiresAtMs > Date.now();
 }
 

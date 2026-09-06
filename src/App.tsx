@@ -58,6 +58,7 @@ import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
 import GymSetup from "./pages/GymSetup";
 import FridgeMeals from "./pages/FridgeMeals";
+import MealPhoto from "./pages/MealPhoto";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
 import { isNative } from "@/lib/platform";
@@ -707,6 +708,10 @@ const App = () => (
               </ProtectedRoute>
             </FeatureGate>
           }
+        />
+        <Route
+          path="/meals/photo"
+          element={<FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}><ProtectedRoute><PersonalizationGate><AuthedLayout><RouteBoundary><MealPhoto /></RouteBoundary></AuthedLayout></PersonalizationGate></ProtectedRoute></FeatureGate>}
         />
         <Route
           path="/meals/fridge"

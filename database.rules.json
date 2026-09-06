@@ -13,7 +13,14 @@ service cloud.firestore {
     function hasActivePro(uid) {
       return isOwner(uid)
         && exists(/databases/$(database)/documents/users/$(uid)/entitlements/current)
-        && get(/databases/$(database)/documents/users/$(uid)/entitlements/current).data.pro == true;
+        && get(/databases/$(database)/documents/users/$(uid)/entitlements/current).data.pro == true
+        && isUnexpiredEntitlement(get(/databases/$(database)/documents/users/$(uid)/entitlements/current).data);
+    }
+
+    function isUnexpiredEntitlement(data) {
+      return !data.keys().hasAny(['expiresAt']) || data.expiresAt == null
+        || (data.expiresAt is number && data.expiresAt > request.time.toMillis())
+        || (data.expiresAt is timestamp && data.expiresAt > request.time);
     }
 
     function isStaff() {
@@ -37,7 +44,7 @@ service cloud.firestore {
     }
 
     function serverOwnedKeys() {
-      return ['credits', 'stripe', 'plan', 'subscription', 'role', 'claims', 'stripeCustomerId'];
+      return ['credits', 'stripe', 'plan', 'subscription', 'role', 'claims', 'stripeCustomerId', 'unlimitedCredits', 'creditsUnlimited', 'unlimited', 'admin', 'staff', 'pro', 'unlimitedCreditsUpdatedAt'];
     }
 
     function isWritingServerOwnedFieldsOnCreate() {
@@ -47,7 +54,7 @@ service cloud.firestore {
 
     function isWritingServerOwnedFieldsOnUpdate() {
       // For updates, only block if the client is attempting to change a server-owned key.
-      return request.resource.data.diff(resource.data).changedKeys().hasAny(serverOwnedKeys());
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(serverOwnedKeys());
     }
 
     function onboardingFieldKeys() {
@@ -98,7 +105,7 @@ service cloud.firestore {
     function isValidOnboardingMetaWrite() {
       let incomingKeys = request.resource.data.keys();
       let changedKeys = exists(resource.name)
-        ? request.resource.data.diff(resource.data).changedKeys()
+        ? request.resource.data.diff(resource.data).affectedKeys()
         : incomingKeys;
       return (
         (!changedKeys.hasAny(['completed']) ||
@@ -133,7 +140,7 @@ service cloud.firestore {
       let docExists = exists(resource.name);
       return hasOnboarding &&
         (!docExists ||
-          request.resource.data.diff(resource.data).changedKeys().hasAny(['onboarding']));
+          request.resource.data.diff(resource.data).affectedKeys().hasAny(['onboarding']));
     }
 
     function isValidOnboardingUpdate() {
@@ -278,7 +285,7 @@ service cloud.firestore {
           && request.resource.data.status == 'queued';
 
         allow update: if !isDemoUser() && isOwner(uid)
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['note','notes']);
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note','notes']);
 
         allow read: if isOwner(uid);
         allow write: if false;
