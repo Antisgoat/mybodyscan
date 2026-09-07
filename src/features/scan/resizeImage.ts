@@ -492,7 +492,7 @@ export async function preprocessImageForUpload(
   try {
     for (const edge of edgeCandidates) {
       await yieldToMainThread();
-      const { canvas } = drawToCanvas({ source, orientation, maxEdge: edge });
+      const { canvas } = drawToCanvas({ source, orientation: 1, maxEdge: edge });
       for (const q of qualityCandidates) {
         const blob = await canvasToJpegMaybe(canvas, q);
         const blobBytes = blob ? blob.size : null;
@@ -550,7 +550,7 @@ export async function preprocessImageForUpload(
           // reset quality slightly upward after downscale so we don't over-crush.
           q = Math.max(minQuality, Math.min(q + 0.05, qualityInitial));
         }
-        const { canvas } = drawToCanvas({ source, orientation, maxEdge: edge });
+        const { canvas } = drawToCanvas({ source, orientation: 1, maxEdge: edge });
         const blob = await canvasToJpegMaybe(canvas, q);
         debug.steps.push({
           maxEdge: edge,
@@ -579,7 +579,7 @@ export async function preprocessImageForUpload(
     const dimensions = orientedOutputDimensions(
       source.width,
       source.height,
-      orientation,
+      1, // Both browser decoders return EXIF-oriented pixels already.
       bestEdge
     );
     debug.outputWidth = dimensions.width;
@@ -650,7 +650,7 @@ async function decodeToImageSource(file: File): Promise<ImageSource> {
   // Prefer createImageBitmap to avoid iOS Safari EXIF quirks with <img> decoding.
   if (typeof window !== "undefined" && "createImageBitmap" in window) {
     try {
-      const bitmap = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
       return {
         el: bitmap,
         width: bitmap.width,

@@ -32,18 +32,18 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   try {
     const orientation = readJpegExifOrientation(buffer, type);
     const blob = new Blob([buffer], { type });
-    const bitmap = await createImageBitmap(blob);
+    const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
     const srcW = bitmap.width;
     const srcH = bitmap.height;
     const cap = Math.max(1, Math.min(maxEdge ?? MAX_EDGE_DEFAULT, 3000));
     const scale = Math.min(1, cap / Math.max(srcW, srcH));
     const outW = Math.max(1, Math.round(srcW * scale));
     const outH = Math.max(1, Math.round(srcH * scale));
-    const swapDims = orientation >= 5 && orientation <= 8;
-    const canvas = new OffscreenCanvas(swapDims ? outH : outW, swapDims ? outW : outH);
+    // The decoder has already applied EXIF, including mirrored orientations.
+    // Applying it again rotates/crops the pixels while reporting valid dimensions.
+    const canvas = new OffscreenCanvas(outW, outH);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("ctx_unavailable");
-    applyExifOrientationTransform(ctx, orientation, canvas.width, canvas.height);
     ctx.drawImage(bitmap, 0, 0, outW, outH);
     const blobOut = await canvas.convertToBlob({
       type: "image/jpeg",

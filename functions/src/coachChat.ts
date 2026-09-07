@@ -881,6 +881,11 @@ async function generateCoachResponseForThread(
     userId: context.uid,
     requestId: context.requestId,
   });
+  const tokens = usage?.totalTokens ?? (
+    usage?.promptTokens !== undefined && usage?.completionTokens !== undefined
+      ? usage.promptTokens + usage.completionTokens
+      : undefined
+  );
   const parsed = parseMetadataLine(content);
   const adaptation = await maybeApplyCoachAdaptation(payload, context);
   const { replyText, metadata } = attachPlanAdaptation(
@@ -905,9 +910,7 @@ async function generateCoachResponseForThread(
     meta: {
       requestId: context.requestId,
       model,
-      tokens:
-        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) ||
-        undefined,
+      tokens,
       metadata,
     },
   });
@@ -931,9 +934,7 @@ async function generateCoachResponseForThread(
       debugId: context.requestId,
       metadata,
       model,
-      tokens:
-        (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0) ||
-        undefined,
+      tokens,
     },
   };
 }

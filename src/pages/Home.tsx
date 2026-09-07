@@ -13,7 +13,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowUpRight, Dumbbell, Salad, Sparkles } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { toast } from "@/hooks/use-toast";
 import { useOnboardingStatus } from "@/hooks/useOnboardingStatus";
@@ -167,7 +168,7 @@ const Home = () => {
     ? lastScan.createdAt.toLocaleDateString()
     : "—";
   const bf =
-    summary.bodyFatPercent != null ? summary.bodyFatPercent.toFixed(1) : "—";
+    summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
   const weight = summary.weightText;
   const bmi = summary.bmiText;
   const showOnboardingNudge =
@@ -203,9 +204,9 @@ const Home = () => {
   );
   const showPlateauAlert = Boolean(
     subscriberFeaturesAvailable &&
-      plateauAlert &&
-      plateauDismissKey &&
-      dismissedPlateauKey !== plateauDismissKey
+    plateauAlert &&
+    plateauDismissKey &&
+    dismissedPlateauKey !== plateauDismissKey
   );
 
   useEffect(() => {
@@ -333,15 +334,68 @@ const Home = () => {
         description="Your latest body scan and quick actions."
         canonical={window.location.href}
       />
-      <header>
-        <p className="text-sm font-semibold text-primary">Your dashboard</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">
+      <header className="relative overflow-hidden rounded-3xl bg-slate-950 p-6 text-white sm:p-8">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl"
+        />
+        <p className="relative flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-300">
+          <Sparkles className="h-4 w-4" aria-hidden="true" /> Your dashboard
+        </p>
+        <h1 className="relative mt-4 max-w-lg text-3xl font-semibold tracking-tight sm:text-4xl">
           Your progress, at a glance
         </h1>
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
-          Review your latest result and keep your next useful action simple.
+        <p className="relative mt-3 max-w-lg text-sm leading-relaxed text-slate-300 sm:text-base">
+          Your training, meals, and progress. One clear next step.
         </p>
       </header>
+      {subscriberFeaturesAvailable && (
+        <nav
+          aria-label="Personalized photo tools"
+          className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"
+        >
+          {[
+            {
+              to: "/settings/gym",
+              title: "Your gym. Your plan.",
+              description: "Add equipment photos",
+              Icon: Dumbbell,
+              color:
+                "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300",
+            },
+            {
+              to: "/meals/fridge",
+              title: "Make what's in your fridge",
+              description: "Find a meal that fits",
+              Icon: Salad,
+              color:
+                "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+            },
+          ].map(({ to, title, description, Icon, color }) => (
+            <Link
+              key={to}
+              to={to}
+              className="group min-w-0 rounded-2xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <span className="mb-4 flex items-center justify-between">
+                <span className={`inline-flex rounded-xl p-2.5 ${color}`}>
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <ArrowUpRight
+                  className="h-4 w-4 text-muted-foreground group-hover:text-primary"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="block text-sm font-semibold leading-snug">
+                {title}
+              </span>
+              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                {description}
+              </span>
+            </Link>
+          ))}
+        </nav>
+      )}
       <section className="space-y-4">
         {showOnboardingNudge && (
           <Card className="border-primary/40 bg-primary/5">
@@ -400,12 +454,12 @@ const Home = () => {
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">{created}</p>
                 {done ? (
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-3 gap-2 rounded-2xl bg-muted/60 px-2 py-5 text-center [&>div+div]:border-l [&>div+div]:border-border/70">
                     <div>
                       <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">
                         {bf}
                       </p>
-                      <p className="text-xs text-muted-foreground">Body Fat</p>
+                      <p className="text-xs text-muted-foreground">Est. body fat</p>
                     </div>
                     <div>
                       <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">

@@ -3,7 +3,7 @@ import { acceptPolicyGate } from "./helpers/policy";
 
 test("food diary, search, and kitchen helper fit the member viewport", async ({
   page,
-}) => {
+}, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => {
     // WebKit can block Google's optional reCAPTCHA telemetry. Token issuance
@@ -28,8 +28,10 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
   ).toBeVisible();
 
   for (const [route, heading] of [
+    ["/home", "Your progress, at a glance"],
     ["/meals", "Food diary"],
     ["/meals/search", "Search Foods"],
+    ["/meals/photo", "Snap. Review. Log."],
     ["/meals/fridge", "What can you make right now?"],
   ]) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -47,6 +49,27 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
     await expect(page.getByText("We hit a snag.", { exact: true })).toHaveCount(
       0
     );
+    if (route === "/home") {
+      await expect(
+        page.getByRole("navigation", { name: "Personalized photo tools" })
+      ).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: /Your gym. Your plan/ })
+      ).toHaveAttribute("href", "/settings/gym");
+      await expect(
+        page.getByRole("link", { name: /Make what's in your fridge/ })
+      ).toHaveAttribute("href", "/meals/fridge");
+      await page.screenshot({
+        path: testInfo.outputPath("home.png"),
+        fullPage: true,
+      });
+    }
+    if (route === "/meals/photo") {
+      await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Choose photo", exact: true })).toBeDisabled();
+      await expect(page.getByRole("checkbox")).toBeDisabled();
+      await page.screenshot({ path: testInfo.outputPath("meal-photo.png"), fullPage: true });
+    }
   }
   await expect(
     page.getByRole("button", { name: "Choose food photos" })

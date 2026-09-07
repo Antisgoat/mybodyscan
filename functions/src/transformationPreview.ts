@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getFirestore, getStorage } from "./firebase.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { getOpenAIKey, openAiSecretParam } from "./openai/keys.js";
+import { normalizeProviderUsage } from "./openai/usage.js";
 import { scanObjectPath } from "./scan/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
 
@@ -96,6 +97,12 @@ async function createImage(input: {
     new Blob([input.source], { type: input.contentType }),
     "front.jpg"
   );
+  console.info({
+    event: "provider_request_started",
+    api: "images.edits",
+    model: MODEL,
+    requestId: input.requestId,
+  });
   const response = await fetch("https://api.openai.com/v1/images/edits", {
     method: "POST",
     headers: {
@@ -106,6 +113,19 @@ async function createImage(input: {
     signal: AbortSignal.timeout(240_000),
   });
   const payload = (await response.json().catch(() => ({}))) as any;
+  const usage = normalizeProviderUsage(payload?.usage);
+  console.info({
+    event: "provider_usage",
+    api: "images.edits",
+    model: MODEL,
+    requestId: input.requestId,
+    providerRequestId: response.headers.get("x-request-id"),
+    status: response.status,
+    quality: "medium",
+    size: "1024x1536",
+    usage: usage ?? null,
+    usageAvailable: usage !== undefined,
+  });
   if (!response.ok) {
     console.error("transformation_preview_provider_error", {
       uid: input.uid,

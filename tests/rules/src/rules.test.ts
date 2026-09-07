@@ -63,6 +63,47 @@ d("Firestore security rules", () => {
     );
   });
 
+  it("blocks adding and removing server-owned fields on existing accounts", async () => {
+    const uid = "tamper-account";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      await ctx.firestore().doc(`users/${uid}`).set({ name: "Member", credits: 1 });
+    });
+    const ref = testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}`);
+    await assertFails(ref.update({ subscription: { status: "active" } }));
+    await assertFails(ref.update({ role: "admin" }));
+    await assertFails(ref.update({ unlimitedCredits: true }));
+    await assertFails(ref.update({ pro: true }));
+    await assertFails(ref.set({ name: "Member" }));
+    await assertSucceeds(ref.update({ name: "Updated" }));
+  });
+
+  it("blocks adding fabricated results and deleting scan status", async () => {
+    const uid = "tamper-scan";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      await ctx.firestore().doc(`users/${uid}/scans/one`).set({ status: "queued" });
+    });
+    const ref = testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}/scans/one`);
+    await assertFails(ref.update({ results: { bodyFat: 10 } }));
+    await assertFails(ref.set({ note: "Remove status" }));
+    await assertSucceeds(ref.update({ note: "My note" }));
+  });
+
+  it("rejects expired and malformed Pro expiry but allows current membership", async () => {
+    for (const [name, expiresAt, allowed] of [
+      ["expired", 1, false],
+      ["malformed", "invalid", false],
+      ["future", Date.now() + 86400000, true],
+      ["nonexpiring", null, true],
+    ] as const) {
+      const uid = `expiry-${name}`;
+      await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+        await ctx.firestore().doc(`users/${uid}/entitlements/current`).set({ pro: true, expiresAt });
+      });
+      const write = testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}/coachPlans/current`).set({ title: "My plan" });
+      await (allowed ? assertSucceeds(write) : assertFails(write));
+    }
+  });
+
   it("allows only note updates on scans", async () => {
     const uid = "alice";
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
