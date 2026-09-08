@@ -49,6 +49,9 @@ export default function FridgeMeals() {
   const [selected, setSelected] = useState<Map<string, string>>(new Map());
   const [manualIngredient, setManualIngredient] = useState("");
   const [servings, setServings] = useState(2);
+  const [shoppingMode, setShoppingMode] = useState<
+    "exact" | "staples" | "flexible"
+  >("staples");
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [suggestions, setSuggestions] = useState<FridgeMealSuggestions | null>(
@@ -172,6 +175,7 @@ export default function FridgeMeals() {
           allergies: string[];
           allergyNotes: string;
           processingConsent: boolean;
+          shoppingMode: "exact" | "staples" | "flexible";
         },
         FridgeMealSuggestions
       >("suggestFridgeMeals", {
@@ -182,6 +186,7 @@ export default function FridgeMeals() {
         allergies: preferences.allergies,
         allergyNotes: preferences.allergyNotes,
         processingConsent: true,
+        shoppingMode,
       });
       if (latestContext.current !== submittedContext) {
         setError(
@@ -485,6 +490,40 @@ export default function FridgeMeals() {
                     );
                   }}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Can meal ideas include anything else?</Label>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(
+                    [
+                      ["exact", "Only what I have"],
+                      ["staples", "Basic staples"],
+                      ["flexible", "A few groceries"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <Button
+                      key={value}
+                      type="button"
+                      variant={shoppingMode === value ? "default" : "outline"}
+                      className="min-h-11 whitespace-normal"
+                      aria-pressed={shoppingMode === value}
+                      onClick={() => {
+                        setShoppingMode(value);
+                        setSuggestions(null);
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {shoppingMode === "exact"
+                    ? "Recipes will use only your confirmed ingredients."
+                    : shoppingMode === "flexible"
+                      ? "Recipes may suggest up to three easy items to pick up."
+                      : "Water, oil, salt, pepper, and dried seasonings may be suggested."}
+                </p>
               </div>
             </fieldset>
 

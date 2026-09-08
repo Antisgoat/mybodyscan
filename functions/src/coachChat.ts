@@ -19,6 +19,8 @@ import { scrubUndefined } from "./lib/scrub.js";
 import { hasProEntitlement } from "./lib/proEntitlements.js";
 import { getEnvInt } from "./lib/env.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { enforceMonthlyQuota } from "./middleware/monthlyQuota.js";
+import { modelForFeature } from "./openai/models.js";
 import {
   persistDailyWorkoutAdjustment,
   type DailyWorkoutAdjustment,
@@ -722,6 +724,7 @@ async function generateCoachResponse(
   const answer = await chatOnce(prompt, {
     userId: context.uid ?? undefined,
     requestId: context.requestId,
+    model: modelForFeature("coach"),
   });
   const parsed = parseMetadataLine(answer);
   const adaptation = await maybeApplyCoachAdaptation(payload, context);
@@ -736,7 +739,7 @@ async function generateCoachResponse(
     meta: {
       debugId: context.requestId,
       metadata,
-      model: process.env.OPENAI_MODEL ?? "gpt-5.6-sol",
+      model: modelForFeature("coach"),
     },
   };
 }
@@ -880,12 +883,13 @@ async function generateCoachResponseForThread(
   const { content, usage, model } = await chatWithMessages(messages, {
     userId: context.uid,
     requestId: context.requestId,
+    model: modelForFeature("coach"),
   });
-  const tokens = usage?.totalTokens ?? (
-    usage?.promptTokens !== undefined && usage?.completionTokens !== undefined
+  const tokens =
+    usage?.totalTokens ??
+    (usage?.promptTokens !== undefined && usage?.completionTokens !== undefined
       ? usage.promptTokens + usage.completionTokens
-      : undefined
-  );
+      : undefined);
   const parsed = parseMetadataLine(content);
   const adaptation = await maybeApplyCoachAdaptation(payload, context);
   const { replyText, metadata } = attachPlanAdaptation(
@@ -1094,6 +1098,7 @@ export const coachChat = onCall<CoachChatRequest>(
       limit: coachRequestsPerMinute(),
       windowMs: 60_000,
     });
+    await enforceMonthlyQuota({ uid, key: "coachChat", limit: 300 });
 
     const identifier = identifierFromRequest(request.rawRequest as Request);
     try {
@@ -1191,6 +1196,7 @@ export async function coachChatHandler(
       limit: coachRequestsPerMinute(),
       windowMs: 60_000,
     });
+    await enforceMonthlyQuota({ uid, key: "coachChat", limit: 300 });
     payload.context = await buildServerContext({
       uid,
       requestId,

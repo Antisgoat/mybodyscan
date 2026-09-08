@@ -237,6 +237,29 @@ d("Firestore security rules", () => {
         updatedAt: new Date(),
       })
     );
+    await assertSucceeds(
+      pro.doc(`users/${proUid}/preferences/gymEquipment`).set({
+        inventory: ["open_floor"],
+        exerciseEquipment: ["bodyweight"],
+        source: "manual",
+        locationName: "Home",
+        notes: "",
+        confirmedByUser: true,
+        version: 1,
+        activeProfileId: "home",
+        profiles: [
+          {
+            id: "home",
+            name: "Home",
+            inventory: ["open_floor"],
+            exerciseEquipment: ["bodyweight"],
+            source: "manual",
+            notes: "",
+          },
+        ],
+        updatedAt: new Date(),
+      })
+    );
     await assertFails(
       pro.doc(`users/${proUid}/preferences/gymEquipment`).set({
         inventory: ["imaginary_machine"],

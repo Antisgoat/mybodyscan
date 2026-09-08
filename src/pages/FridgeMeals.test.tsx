@@ -141,6 +141,7 @@ describe("Fridge Scan member workflow", () => {
         allergies: ["egg"],
         allergyNotes: "Check every label",
         processingConsent: true,
+        shoppingMode: "staples",
       })
     );
     expect(

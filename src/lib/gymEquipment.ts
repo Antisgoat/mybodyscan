@@ -272,4 +272,15 @@ export type SavedGymProfile = {
   source?: "manual" | "photo" | "video" | "mixed";
   locationName?: string;
   notes?: string;
+  activeProfileId?: string;
+  profiles?: SavedGymLocation[];
+};
+
+export type SavedGymLocation = {
+  id: string;
+  name: string;
+  inventory: GymEquipmentId[];
+  exerciseEquipment: Equipment[];
+  source: "manual" | "photo" | "video" | "mixed";
+  notes: string;
 };
