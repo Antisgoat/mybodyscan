@@ -48,6 +48,18 @@ test("meal inventory rejects food that the member never confirmed", () => {
     /unconfirmed_fridge_ingredient/
   );
   assert.throws(
+    () => validateFridgeMealInventory({ meals: [meal] }, ["eggs"], "exact"),
+    /optional_ingredient_not_allowed/
+  );
+  assert.equal(
+    validateFridgeMealInventory(
+      { meals: [{ ...meal, optional: [] }] },
+      ["eggs"],
+      "exact"
+    ).meals.length,
+    1
+  );
+  assert.throws(
     () =>
       validateFridgeMealInventory({ meals: [{ ...meal, uses: [] }] }, ["eggs"]),
     /unconfirmed_fridge_ingredient/

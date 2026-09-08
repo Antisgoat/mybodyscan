@@ -3,6 +3,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { structuredJsonChat } from "./openai/client.js";
+import { modelForFeature } from "./openai/models.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
 
@@ -107,6 +108,7 @@ export async function processMealPhoto(
         { type: "image_url", image_url: { url: image, detail: "low" } },
       ],
       maxTokens: 700,
+      model: modelForFeature("mealPhoto"),
       temperature: 0.1,
       userId: uid,
       requestId,

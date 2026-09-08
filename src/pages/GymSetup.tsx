@@ -31,6 +31,7 @@ import {
   normalizeGymEquipment,
   type GymEquipmentAnalysis,
   type GymEquipmentId,
+  type SavedGymLocation,
   type SavedGymProfile,
 } from "@/lib/gymEquipment";
 import { sanitizeReturnTo } from "@/lib/returnTo";
@@ -57,6 +58,8 @@ export default function GymSetup() {
   const [selected, setSelected] = useState<Set<GymEquipmentId>>(new Set());
   const [locationName, setLocationName] = useState("");
   const [notes, setNotes] = useState("");
+  const [savedProfiles, setSavedProfiles] = useState<SavedGymLocation[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,11 +80,56 @@ export default function GymSetup() {
       .then((snapshot) => {
         if (cancelled || !snapshot.exists()) return;
         const data = snapshot.data() as Partial<SavedGymProfile>;
-        setSelected(new Set(normalizeGymEquipment(data.inventory)));
+        const profiles = Array.isArray(data.profiles)
+          ? data.profiles
+              .filter(
+                (item): item is SavedGymLocation =>
+                  Boolean(item) &&
+                  typeof item.id === "string" &&
+                  typeof item.name === "string" &&
+                  Array.isArray(item.inventory)
+              )
+              .slice(0, 8)
+              .map((item) => ({
+                ...item,
+                inventory: normalizeGymEquipment(item.inventory),
+                exerciseEquipment: deriveExerciseEquipment(
+                  normalizeGymEquipment(item.inventory)
+                ),
+                notes: typeof item.notes === "string" ? item.notes : "",
+              }))
+          : [];
+        const legacyInventory = normalizeGymEquipment(data.inventory);
+        const migratedProfiles =
+          profiles.length || !legacyInventory.length
+            ? profiles
+            : [
+                {
+                  id: "saved-gym",
+                  name:
+                    typeof data.locationName === "string" &&
+                    data.locationName.trim()
+                      ? data.locationName.trim()
+                      : "Saved gym",
+                  inventory: legacyInventory,
+                  exerciseEquipment: deriveExerciseEquipment(legacyInventory),
+                  source: data.source ?? "manual",
+                  notes: typeof data.notes === "string" ? data.notes : "",
+                },
+              ];
+        const active =
+          migratedProfiles.find((item) => item.id === data.activeProfileId) ??
+          migratedProfiles[0];
+        setSavedProfiles(migratedProfiles);
+        setActiveProfileId(active?.id ?? null);
+        setSelected(new Set(active?.inventory ?? legacyInventory));
         setLocationName(
-          typeof data.locationName === "string" ? data.locationName : ""
+          active?.name ??
+            (typeof data.locationName === "string" ? data.locationName : "")
         );
-        setNotes(typeof data.notes === "string" ? data.notes : "");
+        setNotes(
+          active?.notes ?? (typeof data.notes === "string" ? data.notes : "")
+        );
       })
       .catch(() => undefined)
       .finally(() => {
@@ -107,6 +155,24 @@ export default function GymSetup() {
       else next.delete(id);
       return next;
     });
+  };
+
+  const selectProfile = (profile: SavedGymLocation) => {
+    setActiveProfileId(profile.id);
+    setLocationName(profile.name);
+    setNotes(profile.notes);
+    setSelected(new Set(profile.inventory));
+    setAnalysis(null);
+    setMediaLabel(null);
+  };
+
+  const startNewProfile = () => {
+    setActiveProfileId(null);
+    setLocationName("");
+    setNotes("");
+    setSelected(new Set());
+    setAnalysis(null);
+    setMediaLabel(null);
   };
 
   const analyzeFrames = async (
@@ -206,6 +272,25 @@ export default function GymSetup() {
       const exerciseEquipment = deriveExerciseEquipment(selectedList);
       const profileEquipment = gymProfileEquipment(selectedList);
       const source = sourceFor(Boolean(analysis), mediaKind);
+      const profileId =
+        activeProfileId ??
+        globalThis.crypto?.randomUUID?.() ??
+        `gym-${Date.now().toString(36)}`;
+      const profileName =
+        locationName.trim().slice(0, 80) ||
+        (savedProfiles.length ? `Gym ${savedProfiles.length + 1}` : "My gym");
+      const savedProfile: SavedGymLocation = {
+        id: profileId,
+        name: profileName,
+        inventory: selectedList,
+        exerciseEquipment,
+        source,
+        notes: notes.trim().slice(0, 280),
+      };
+      const profiles = [
+        savedProfile,
+        ...savedProfiles.filter((profile) => profile.id !== profileId),
+      ].slice(0, 8);
       // Write the subscriber-protected preference first so a permission failure
       // cannot leave only the broader coach profile partially updated.
       await setDoc(
@@ -214,10 +299,12 @@ export default function GymSetup() {
           inventory: selectedList,
           exerciseEquipment,
           source,
-          locationName: locationName.trim().slice(0, 80),
+          locationName: profileName,
           notes: notes.trim().slice(0, 280),
           confirmedByUser: true,
           version: 1,
+          activeProfileId: profileId,
+          profiles,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
@@ -230,6 +317,8 @@ export default function GymSetup() {
           programPreferences: {
             equipment:
               profileEquipment === "gym" ? "full_gym" : profileEquipment,
+            gymProfileId: profileId,
+            gymProfileName: profileName,
           },
           updatedAt: serverTimestamp(),
         },
@@ -381,6 +470,52 @@ export default function GymSetup() {
               {analysis.notes ? ` ${analysis.notes}` : ""}
             </AlertDescription>
           </Alert>
+        ) : null}
+
+        {savedProfiles.length ? (
+          <Card>
+            <CardHeader className="space-y-1">
+              <CardTitle>Your saved gyms</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Choose today’s location and your workout will use only its
+                equipment.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {savedProfiles.map((profile) => (
+                  <Button
+                    key={profile.id}
+                    type="button"
+                    variant={
+                      activeProfileId === profile.id ? "default" : "outline"
+                    }
+                    className="min-h-12 justify-between whitespace-normal"
+                    aria-pressed={activeProfileId === profile.id}
+                    onClick={() => selectProfile(profile)}
+                  >
+                    <span className="truncate">{profile.name}</span>
+                    <Badge variant="secondary">
+                      {profile.inventory.length} items
+                    </Badge>
+                  </Button>
+                ))}
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={startNewProfile}
+                disabled={savedProfiles.length >= 8}
+              >
+                Add another gym
+              </Button>
+              {savedProfiles.length >= 8 ? (
+                <p className="text-xs text-muted-foreground">
+                  Up to eight saved gyms are supported.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
         ) : null}
 
         <Card>

@@ -181,7 +181,8 @@ service cloud.firestore {
       return data is map
         && data.keys().hasOnly([
           'inventory', 'exerciseEquipment', 'source', 'locationName', 'notes',
-          'confirmedByUser', 'version', 'updatedAt'
+          'confirmedByUser', 'version', 'updatedAt', 'activeProfileId',
+          'profiles'
         ])
         && data.inventory is list
         && data.inventory.size() > 0
@@ -199,6 +200,12 @@ service cloud.firestore {
         && data.locationName.size() <= 80
         && data.notes is string
         && data.notes.size() <= 280
+        && (!data.keys().hasAny(['activeProfileId']) ||
+          (data.activeProfileId is string && data.activeProfileId.size() <= 100))
+        // Each saved profile is normalized again before it affects a workout;
+        // cap the client-owned list here to bound document size and abuse.
+        && (!data.keys().hasAny(['profiles']) ||
+          (data.profiles is list && data.profiles.size() <= 8))
         && data.updatedAt is timestamp;
     }
 

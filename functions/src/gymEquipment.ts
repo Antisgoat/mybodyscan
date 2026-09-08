@@ -3,6 +3,8 @@ import { HttpsError } from "firebase-functions/v2/https";
 
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { enforceMonthlyQuota } from "./middleware/monthlyQuota.js";
+import { modelForFeature } from "./openai/models.js";
 import {
   OpenAIClientError,
   structuredJsonChat,
@@ -128,13 +130,14 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError("unauthenticated", "Sign in required.");
     await requireProEntitlement(uid);
+    const frames = validateGymFrames(request.data?.frames);
     await enforceRateLimit({
       uid,
       key: "analyzeGymEquipment",
       limit: 4,
       windowMs: 60 * 60 * 1000,
     });
-    const frames = validateGymFrames(request.data?.frames);
+    await enforceMonthlyQuota({ uid, key: "gymScans", limit: 4 });
     const requestId = randomUUID();
     const content: ChatContentPart[] = [
       {
@@ -156,6 +159,7 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
         userId: uid,
         requestId,
         timeoutMs: 30_000,
+        model: modelForFeature("gymInventory"),
         validate: validateGymEquipmentAnalysis,
       });
       return { ...data, reviewRequired: true, requestId };

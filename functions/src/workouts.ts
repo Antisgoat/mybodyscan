@@ -22,6 +22,7 @@ import { scrubUndefined } from "./lib/scrub.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { structuredJsonChat } from "./openai/client.js";
+import { modelForFeature } from "./openai/models.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { GYM_EQUIPMENT_IDS } from "./gymEquipmentCatalog.js";
 
@@ -29,7 +30,6 @@ const db = getFirestore();
 type BodyFeel = "great" | "ok" | "tired" | "sore";
 const BODY_FEEL_VALUES: BodyFeel[] = ["great", "ok", "tired", "sore"];
 const BODY_FEEL_SET = new Set<BodyFeel>(BODY_FEEL_VALUES);
-const ADJUST_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
 const ADJUST_TIMEOUT_MS = 8_000;
 const PLAN_TIMEOUT_MS = 10_000;
 const MAX_NOTE_LENGTH = 400;
@@ -1075,7 +1075,7 @@ async function requestAiAdjustment(input: {
     userId: input.uid,
     requestId: input.requestId,
     timeoutMs: ADJUST_TIMEOUT_MS,
-    model: ADJUST_MODEL,
+    model: modelForFeature("workoutAdjustment"),
     validate: validateAdjustmentResponse,
   });
 
@@ -1166,6 +1166,7 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
       temperature: 0.4,
       maxTokens: 800,
       timeoutMs: PLAN_TIMEOUT_MS,
+      model: modelForFeature("workoutPlan"),
       validate: validatePlanResponse,
     });
     const planDays = adaptAiPlanDays(data.days);
