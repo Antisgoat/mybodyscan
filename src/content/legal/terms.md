@@ -6,7 +6,7 @@ These Terms of Service ("Terms") govern your access to and use of MyBodyScan, wh
 
 ## Eligibility and Accounts
 
-- You must be at least 13. Users ages 13 through 17 may use MyBodyScan only with permission from a parent or legal guardian.
+- You must be at least 18 to create an account or use MyBodyScan.
 - Provide accurate information, keep your credentials secure, and promptly tell us about suspected unauthorized access.
 - You are responsible for activity through your account and for having the right and consent to upload every image or other item you submit.
 
@@ -26,7 +26,7 @@ These Terms of Service ("Terms") govern your access to and use of MyBodyScan, wh
 - Food scores and alternatives use MyBodyScan's own disclosed product-insight method. They are informational, may rely on third-party data, and are not endorsements or medical nutrition advice.
 - Allergy and ingredient information may be incomplete, outdated, or affected by recipe changes and cross-contact. Saved allergy preferences help personalize warnings but are not a guarantee that a food is safe. You are responsible for checking the current package label and contacting the manufacturer or a qualified clinician when uncertain.
 - Kitchen-photo results are draft visual observations only. They cannot establish an ingredient's identity, quantity, freshness, expiration, preparation history, allergen status, cross-contact risk, or safe cooking temperature. Review and correct the ingredient list and use current labels and ordinary food-safety practices before relying on a meal idea.
-- Exercise and nutrition involve risk. Consult a qualified professional before making material changes, particularly if you are pregnant, under 18, have an eating-disorder history, take medication, recently had surgery, or have a medical condition. Stop and seek appropriate care for concerning symptoms.
+- Exercise and nutrition involve risk. Consult a qualified professional before making material changes, particularly if you are pregnant, have an eating-disorder history, take medication, recently had surgery, or have a medical condition. Stop and seek appropriate care for concerning symptoms.
 - Weekly plan adjustments are conservative wellness suggestions. You decide whether to accept them and can undo them; do not use them as treatment or train through sharp, severe, or worsening pain.
 - Equipment detection is a convenience feature and may miss or misidentify items. You must confirm the available equipment before generating a plan and remain responsible for checking that equipment is present, suitable, maintained, and safe to use. Follow facility and manufacturer instructions and choose a listed substitution when needed.
 
@@ -65,4 +65,4 @@ These Terms are governed by the laws of the State of Florida, USA, without regar
 
 We may update these Terms prospectively. We will post the new effective date and provide additional notice for material changes when required. Continued use after updated Terms take effect means you accept them.
 
-For questions, contact support@mybodyscanapp.com.
+For questions, contact support@adlrlabs.com.

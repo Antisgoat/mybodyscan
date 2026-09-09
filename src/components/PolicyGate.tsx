@@ -5,15 +5,17 @@ import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 
 // Bump when materially new data/health terms require renewed acknowledgment.
-const KEY = "mbs_policy_ok_v2";
-const POLICY_VERSION = "2026-07-27";
+const KEY = "mbs_policy_ok_v3";
+const POLICY_VERSION = "2026-09-08";
 
 function hasAcceptedPolicies(): boolean {
   if (typeof window === "undefined") return true;
   try {
     return localStorage.getItem(KEY) === "1";
   } catch {
-    return true; // fail-open to avoid locking out browsers without storage
+    // Do not bypass legal consent when browser storage is unavailable. The
+    // current session can still proceed after explicit acceptance.
+    return false;
   }
 }
 
@@ -23,7 +25,9 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
   const [acceptedDisclaimer, setAcceptedDisclaimer] = useState(false);
-  const allAccepted = acceptedTerms && acceptedPrivacy && acceptedDisclaimer;
+  const [confirmedAdult, setConfirmedAdult] = useState(false);
+  const allAccepted =
+    acceptedTerms && acceptedPrivacy && acceptedDisclaimer && confirmedAdult;
   const syncedUserRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +42,7 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
         acceptedTerms: true,
         acceptedPrivacy: true,
         acceptedDisclaimer: true,
+        confirmedAge18OrOlder: true,
         acceptedAt: serverTimestamp(),
       },
       { merge: true }
@@ -74,6 +79,16 @@ export default function PolicyGate(_props: { children?: React.ReactNode }) {
           Before using our app, please review and accept our policies.
         </p>
         <ul style={list}>
+          <li>
+            <label>
+              <input
+                type="checkbox"
+                checked={confirmedAdult}
+                onChange={(event) => setConfirmedAdult(event.target.checked)}
+              />{" "}
+              I confirm that I am at least 18 years old
+            </label>
+          </li>
           <li>
             <label>
               <input

@@ -8,7 +8,7 @@ const Support = () => {
     <>
       <Seo
         title="Support – MyBodyScan"
-        description="Get help with MyBodyScan. Contact support@mybodyscanapp.com."
+        description="Get help with MyBodyScan. Contact support@adlrlabs.com."
         canonical="https://mybodyscanapp.com/support"
       />
       <section className="space-y-6">
@@ -16,8 +16,8 @@ const Support = () => {
           <h1 className="text-2xl font-semibold">Support</h1>
           <p className="text-sm text-muted-foreground mt-2">
             Email:{" "}
-            <a className="underline" href="mailto:support@mybodyscanapp.com">
-              support@mybodyscanapp.com
+            <a className="underline" href="mailto:support@adlrlabs.com">
+              support@adlrlabs.com
             </a>
           </p>
           <Button
@@ -45,10 +45,17 @@ const Support = () => {
               <p className="text-sm text-muted-foreground">
                 Open Settings, choose Account &amp; Privacy, then use Delete my
                 account. You can also email{" "}
-                <a className="underline" href="mailto:support@mybodyscanapp.com">
-                  support@mybodyscanapp.com
+                <a className="underline" href="mailto:support@adlrlabs.com">
+                  support@adlrlabs.com
                 </a>{" "}
                 if you cannot access the app.
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Full instructions are available at{" "}
+                <a className="underline" href="/account-deletion">
+                  Account deletion
+                </a>
+                .
               </p>
             </div>
           </div>

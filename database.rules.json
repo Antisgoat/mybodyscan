@@ -84,7 +84,7 @@ service cloud.firestore {
     function isValidOnboardingMap(data) {
       return data is map
         && data.keys().hasOnly(onboardingFieldKeys())
-        && (!data.keys().hasAny(['age']) || (data.age is int && data.age >= 13 && data.age <= 100))
+        && (!data.keys().hasAny(['age']) || (data.age is int && data.age >= 18 && data.age <= 100))
         && (!data.keys().hasAny(['sex']) || isSexValue(data.sex))
         && (!data.keys().hasAny(['height']) || (data.height is number && data.height >= 90 && data.height <= 260))
         && (!data.keys().hasAny(['goal']) || isGoalValue(data.goal))

@@ -19,7 +19,7 @@ describe("PolicyGate", () => {
     const checkboxes = screen.getAllByRole("checkbox");
 
     expect(dialog).toBeTruthy();
-    expect(checkboxes).toHaveLength(3);
+    expect(checkboxes).toHaveLength(4);
     checkboxes.forEach((checkbox) =>
       expect((checkbox as HTMLInputElement).checked).toBe(false)
     );
@@ -32,6 +32,9 @@ describe("PolicyGate", () => {
     expect((acceptButton as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(checkboxes[2]);
+    expect((acceptButton as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(checkboxes[3]);
     expect((acceptButton as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(acceptButton);
@@ -39,6 +42,6 @@ describe("PolicyGate", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).toBeNull();
     });
-    expect(window.localStorage.getItem("mbs_policy_ok_v2")).toBe("1");
+    expect(window.localStorage.getItem("mbs_policy_ok_v3")).toBe("1");
   });
 });

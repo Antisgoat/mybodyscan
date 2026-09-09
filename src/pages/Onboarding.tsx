@@ -193,7 +193,7 @@ const coerceFormFromStored = (raw: unknown): OnboardingForm => {
   if (!raw || typeof raw !== "object") return DEFAULT_FORM;
   const data = raw as Record<string, unknown>;
   return {
-    age: coerceNumber(data.age, 13, 100),
+    age: coerceNumber(data.age, 18, 100),
     sex: isAllowedSex(data.sex) ? (data.sex as Sex) : undefined,
     heightCm: coerceNumber(data.height, 90, 260),
     goal: isAllowedGoal(data.goal) ? (data.goal as Goal) : undefined,
@@ -235,7 +235,7 @@ const mergeForms = (...forms: OnboardingForm[]): OnboardingForm =>
 
 const normalizeForm = (form: OnboardingForm): OnboardingPayload => {
   const payload: OnboardingPayload = {};
-  const age = normalizeInteger(form.age, 13, 100);
+  const age = normalizeInteger(form.age, 18, 100);
   if (age != null) payload.age = age;
   if (isAllowedSex(form.sex)) payload.sex = form.sex;
   const height = normalizeInteger(form.heightCm, 90, 260);
@@ -276,7 +276,8 @@ const serializeProgress = (step: number, payload: OnboardingPayload) =>
 const validateStep = (step: number, form: OnboardingForm): string | null => {
   switch (step) {
     case 0:
-      if (normalizeInteger(form.age, 13, 100) == null) return "Add your age.";
+      if (normalizeInteger(form.age, 18, 100) == null)
+        return "MyBodyScan is currently available only to adults age 18 or older.";
       if (!isAllowedSex(form.sex)) return "Select your sex.";
       if (normalizeInteger(form.heightCm, 90, 260) == null)
         return "Enter your height.";
@@ -631,7 +632,7 @@ export default function Onboarding() {
                   id="age"
                   type="number"
                   inputMode="numeric"
-                  min={13}
+                  min={18}
                   max={100}
                   placeholder="25"
                   value={form.age ?? ""}

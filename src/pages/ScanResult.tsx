@@ -786,7 +786,7 @@ export default function ScanResultPage() {
                     variant="outline"
                     onClick={() =>
                       window.open(
-                        `mailto:support@mybodyscanapp.com?subject=MyBodyScan%20Scan%20Stuck&body=${encodeURIComponent(
+                        `mailto:support@adlrlabs.com?subject=MyBodyScan%20Scan%20Stuck&body=${encodeURIComponent(
                           `scanId=${scan.id}\nstatus=${scan.status}\nlastStep=${scan.lastStep ?? ""}\nuid=${user?.uid ?? ""}\nua=${navigator.userAgent}\n`
                         )}`,
                         "_blank"

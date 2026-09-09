@@ -49,6 +49,7 @@ const CoachOnboarding = () => {
   const update = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
 
   async function finish() {
+    if (form.age < 18 || form.medical_flags.under18) return;
     const payload: any = { ...form };
     const heightCm = form.height_cm ?? 0;
     const weightKg = form.weight_kg ?? 0;
@@ -439,12 +440,22 @@ const CoachOnboarding = () => {
               </Button>
               <Button
                 onClick={finish}
-                disabled={!form.ack.disclaimer}
+                disabled={
+                  !form.ack.disclaimer ||
+                  form.age < 18 ||
+                  Boolean(form.medical_flags.under18)
+                }
                 className="flex-1"
               >
                 Create My Plan <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
+            {(form.age < 18 || form.medical_flags.under18) && (
+              <p className="text-sm text-destructive" role="alert">
+                MyBodyScan is currently available only to adults age 18 or
+                older.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}

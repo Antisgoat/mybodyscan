@@ -31,5 +31,5 @@ export function supportMailto(extra?: Record<string, string>) {
   }
 
   const body = encodeURIComponent(lines.join("\n"));
-  return `mailto:support@mybodyscanapp.com?subject=MyBodyScan%20Support&body=${body}`;
+  return `mailto:support@adlrlabs.com?subject=MyBodyScan%20Support&body=${body}`;
 }

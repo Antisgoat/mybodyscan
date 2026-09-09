@@ -67,7 +67,13 @@ export default function Footer() {
               Health & Safety
             </Link>
             <a
-              href="mailto:support@mybodyscanapp.com"
+              href="/account-deletion"
+              className="hover:text-foreground transition-colors"
+            >
+              Delete account
+            </a>
+            <a
+              href="mailto:support@adlrlabs.com"
               className="hover:text-foreground transition-colors"
             >
               Support

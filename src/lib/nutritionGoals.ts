@@ -1,11 +1,7 @@
 export type NutritionGoal = "lose_fat" | "gain_muscle" | "maintain" | "recomp";
 
 export type ActivityLevel =
-  | "sedentary"
-  | "light"
-  | "moderate"
-  | "very"
-  | "extra";
+  "sedentary" | "light" | "moderate" | "very" | "extra";
 
 export type NutritionGoals = {
   calories: number;
@@ -57,7 +53,12 @@ function inferGoalFromWeights(args: {
 }): NutritionGoal {
   const current = Number(args.currentWeightKg);
   const goal = Number(args.goalWeightKg);
-  if (!Number.isFinite(current) || !Number.isFinite(goal) || current <= 0 || goal <= 0) {
+  if (
+    !Number.isFinite(current) ||
+    !Number.isFinite(goal) ||
+    current <= 0 ||
+    goal <= 0
+  ) {
     return "maintain";
   }
   if (goal < current - 0.25) return "lose_fat";
@@ -100,7 +101,12 @@ export function deriveNutritionGoals(input: {
    * Overrides from persisted plan data (e.g. coach plan).
    * If calories/protein are provided, carbs/fats are derived to match.
    */
-  overrides?: Partial<Pick<NutritionGoals, "calories" | "proteinGrams" | "carbsGrams" | "fatGrams">>;
+  overrides?: Partial<
+    Pick<
+      NutritionGoals,
+      "calories" | "proteinGrams" | "carbsGrams" | "fatGrams"
+    >
+  >;
 }): NutritionGoals {
   const weightKg = Number(input.weightKg);
   const weightOk = Number.isFinite(weightKg) && weightKg > 0 ? weightKg : null;
@@ -110,26 +116,41 @@ export function deriveNutritionGoals(input: {
 
   const goal: NutritionGoal =
     input.goal ??
-    inferGoalFromWeights({ currentWeightKg: weightOk, goalWeightKg: input.goalWeightKg });
+    inferGoalFromWeights({
+      currentWeightKg: weightOk,
+      goalWeightKg: input.goalWeightKg,
+    });
 
   const age =
-    typeof input.age === "number" && Number.isFinite(input.age) && input.age >= 13 && input.age <= 100
+    typeof input.age === "number" &&
+    Number.isFinite(input.age) &&
+    input.age >= 18 &&
+    input.age <= 100
       ? Math.round(input.age)
       : null;
   const heightCm =
-    typeof input.heightCm === "number" && Number.isFinite(input.heightCm) && input.heightCm > 0
+    typeof input.heightCm === "number" &&
+    Number.isFinite(input.heightCm) &&
+    input.heightCm > 0
       ? Number(input.heightCm)
       : null;
   const sex = input.sex === "male" || input.sex === "female" ? input.sex : null;
 
   // Katch-McArdle if possible: BMR = 370 + 21.6 * LBM_kg
   const lbmKg =
-    weightOk != null && bfOk != null ? Math.max(0, weightOk * (1 - bfOk)) : null;
+    weightOk != null && bfOk != null
+      ? Math.max(0, weightOk * (1 - bfOk))
+      : null;
   const bmr =
     lbmKg != null
       ? roundInt(370 + 21.6 * lbmKg)
       : weightOk != null && heightCm != null && age != null && sex
-        ? roundInt(10 * weightOk + 6.25 * heightCm - 5 * age + (sex === "male" ? 5 : -161))
+        ? roundInt(
+            10 * weightOk +
+              6.25 * heightCm -
+              5 * age +
+              (sex === "male" ? 5 : -161)
+          )
         : weightOk != null
           ? // fallback: ~22 kcal/kg/day (rough average), used only if BF%/height/age unknown
             roundInt(WEIGHT_KG_FALLBACK_BMR_MULTIPLIER * weightOk)
@@ -140,7 +161,8 @@ export function deriveNutritionGoals(input: {
 
   // Calorie target: small adjustments around TDEE.
   const calorieTarget =
-    typeof input.overrides?.calories === "number" && Number.isFinite(input.overrides.calories)
+    typeof input.overrides?.calories === "number" &&
+    Number.isFinite(input.overrides.calories)
       ? roundInt(input.overrides.calories)
       : tdee != null
         ? roundInt(
@@ -158,7 +180,9 @@ export function deriveNutritionGoals(input: {
   // Protein target: 0.8–1.0 g/lb body weight depending on goal.
   const weightLb = weightOk != null ? weightOk * KG_TO_LB : null;
   const goalWeightKg =
-    typeof input.goalWeightKg === "number" && Number.isFinite(input.goalWeightKg) && input.goalWeightKg > 0
+    typeof input.goalWeightKg === "number" &&
+    Number.isFinite(input.goalWeightKg) &&
+    input.goalWeightKg > 0
       ? input.goalWeightKg
       : null;
   const goalWeightLb = goalWeightKg != null ? goalWeightKg * KG_TO_LB : null;
@@ -167,7 +191,7 @@ export function deriveNutritionGoals(input: {
       ? lbmKg * KG_TO_LB
       : goalWeightLb != null && (goal === "lose_fat" || goal === "gain_muscle")
         ? goalWeightLb
-        : weightLb ?? goalWeightLb;
+        : (weightLb ?? goalWeightLb);
   const proteinPerLb =
     lbmKg != null
       ? goal === "lose_fat" || goal === "recomp"
@@ -177,7 +201,8 @@ export function deriveNutritionGoals(input: {
         ? 0.95
         : 0.85;
   const proteinTargetRaw =
-    typeof input.overrides?.proteinGrams === "number" && Number.isFinite(input.overrides.proteinGrams)
+    typeof input.overrides?.proteinGrams === "number" &&
+    Number.isFinite(input.overrides.proteinGrams)
       ? roundInt(input.overrides.proteinGrams)
       : proteinBaseLb != null
         ? roundInt(proteinBaseLb * proteinPerLb)
@@ -186,9 +211,16 @@ export function deriveNutritionGoals(input: {
 
   // Fat target: 0.25–0.4 g/lb depending on goal, but clamp to reasonable energy share.
   const fatPerLb =
-    goal === "lose_fat" ? 0.28 : goal === "recomp" ? 0.3 : goal === "maintain" ? 0.33 : 0.38;
+    goal === "lose_fat"
+      ? 0.28
+      : goal === "recomp"
+        ? 0.3
+        : goal === "maintain"
+          ? 0.33
+          : 0.38;
   const fatTarget =
-    typeof input.overrides?.fatGrams === "number" && Number.isFinite(input.overrides.fatGrams)
+    typeof input.overrides?.fatGrams === "number" &&
+    Number.isFinite(input.overrides.fatGrams)
       ? roundInt(input.overrides.fatGrams)
       : weightLb != null
         ? roundInt(weightLb * fatPerLb)
@@ -206,7 +238,11 @@ export function deriveNutritionGoals(input: {
     1,
     proteinTarget * 4 + carbsTarget * 4 + fatTarget * 9
   );
-  const proteinPct = clamp((proteinTarget * 4 * 100) / totalMacroCalories, 0, 100);
+  const proteinPct = clamp(
+    (proteinTarget * 4 * 100) / totalMacroCalories,
+    0,
+    100
+  );
   const carbsPct = clamp((carbsTarget * 4 * 100) / totalMacroCalories, 0, 100);
   const fatPct = clamp((fatTarget * 9 * 100) / totalMacroCalories, 0, 100);
 

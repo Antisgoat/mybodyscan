@@ -31,8 +31,8 @@ const Help = () => {
         <h2>Delete my data</h2>
         <p>
           Use Settings → Delete or email{" "}
-          <a href="mailto:support@mybodyscanapp.com">
-            support@mybodyscanapp.com
+            <a href="mailto:support@adlrlabs.com">
+              support@adlrlabs.com
           </a>
           .
         </p>
