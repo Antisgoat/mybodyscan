@@ -364,11 +364,11 @@ const Settings = () => {
     const parsedAge = trimmedAge.length > 0 ? Number(trimmedAge) : undefined;
     if (
       parsedAge != null &&
-      (!Number.isFinite(parsedAge) || parsedAge < 13 || parsedAge > 100)
+      (!Number.isFinite(parsedAge) || parsedAge < 18 || parsedAge > 100)
     ) {
       toast({
         title: "Enter a valid age",
-        description: "Age must be between 13 and 100.",
+        description: "Age must be between 18 and 100.",
         variant: "destructive",
       });
       return;
@@ -792,14 +792,14 @@ const Settings = () => {
                 id="age"
                 type="number"
                 inputMode="numeric"
-                min={13}
+                min={18}
                 max={100}
                 placeholder="Enter age in years"
                 value={ageInput}
                 onChange={(event) => setAgeInput(event.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Optional. Must be between 13 and 100.
+                Optional. Must be between 18 and 100.
               </p>
             </div>
             <div className="space-y-2">
@@ -1425,7 +1425,7 @@ const Settings = () => {
               ) : null}
             </div>
             <p className="text-center text-xs text-muted-foreground">
-              support@mybodyscanapp.com
+              support@adlrlabs.com
             </p>
           </CardContent>
         </Card>

@@ -2,7 +2,7 @@
 
 **Effective date: July 27, 2026**
 
-Last updated: September 6, 2026 (optional meal-photo estimates).
+Last updated: September 8, 2026 (account deletion and adult eligibility).
 
 MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This Privacy Policy explains what information we collect, why we use it, how it is shared, and the choices available to you.
 
@@ -63,20 +63,20 @@ Before deleting your account, export any history you want to keep. Deletion is i
 - Delete scans or your account using the available Settings controls.
 - Control optional notifications in Settings and your browser or device settings.
 - Connect or disconnect supported health providers in Health settings. Disconnecting revokes provider access where supported and removes MyBodyScan's stored provider token.
-- Contact support@mybodyscanapp.com to request access, correction, deletion, or export where applicable.
+- Visit https://mybodyscanapp.com/account-deletion or contact support@adlrlabs.com to request access, correction, deletion, or export where applicable.
 
 Depending on where you live, privacy law may provide additional rights, including rights to object to or restrict processing and to appeal or complain to a regulator. We may need to verify your identity before completing a request.
 
 ## Children and Teens
 
-MyBodyScan is not intended for children under 13. Users ages 13 through 17 may use the service only with permission from a parent or legal guardian. We do not knowingly collect personal information from children under 13; contact us if you believe a child has provided it.
+MyBodyScan is intended only for adults age 18 or older. We do not knowingly collect personal information from anyone under 18. Contact us if you believe a minor has created an account or provided information.
 
 ## Security and International Processing
 
-We use administrative, technical, and organizational safeguards designed to protect information. No system is completely secure. Information may be processed in the United States and other countries where our providers operate, which may have different data-protection laws than your location.
+We encrypt information in transit using HTTPS/TLS and use administrative, technical, and organizational safeguards designed to protect information. No system is completely secure. Information may be processed in the United States and other countries where our providers operate, which may have different data-protection laws than your location.
 
 ## Changes and Contact
 
 We may update this policy and will post the revised effective date. If a change materially affects your rights, we will provide additional notice when required.
 
-Questions or privacy requests: support@mybodyscanapp.com.
+Questions or privacy requests: support@adlrlabs.com.

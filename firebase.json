@@ -215,6 +215,11 @@
         "source": "/legal/refund",
         "destination": "/legal/refund.html",
         "type": 301
+      },
+      {
+        "source": "/account-deletion",
+        "destination": "/account-deletion.html",
+        "type": 301
       }
     ]
   },

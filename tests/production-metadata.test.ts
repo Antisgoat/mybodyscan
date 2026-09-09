@@ -23,11 +23,31 @@ describe("production document metadata", () => {
     const billing = read("src/components/BillingButtons.tsx");
 
     expect(footer).toContain("new Date().getFullYear()");
-    expect(footer).toContain("support@mybodyscanapp.com");
-    expect(errorBoundary).toContain("support@mybodyscanapp.com");
+    expect(footer).toContain("support@adlrlabs.com");
+    expect(errorBoundary).toContain("support@adlrlabs.com");
     expect(`${footer}\n${errorBoundary}`).not.toContain(
       "support@mybodyscan.com"
     );
     expect(billing).not.toContain("no Stripe key");
+  });
+
+  it("publishes a complete account-deletion destination for both stores", () => {
+    const deletionPage = read("public/account-deletion.html");
+    const firebaseConfig = JSON.parse(read("firebase.json"));
+    const redirects = firebaseConfig.hosting.redirects as Array<{
+      source: string;
+      destination: string;
+      type: number;
+    }>;
+
+    expect(deletionPage).toContain("Delete your account and data");
+    expect(deletionPage).toContain("support@adlrlabs.com");
+    expect(deletionPage).toContain("Settings");
+    expect(deletionPage).toContain("Account &amp; Privacy");
+    expect(redirects).toContainEqual({
+      source: "/account-deletion",
+      destination: "/account-deletion.html",
+      type: 301,
+    });
   });
 });

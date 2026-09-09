@@ -32,8 +32,8 @@ const Refund = () => {
         </p>
         <p>
           For a billing issue, contact{" "}
-          <a href="mailto:support@mybodyscanapp.com">
-            support@mybodyscanapp.com
+          <a href="mailto:support@adlrlabs.com">
+            support@adlrlabs.com
           </a>{" "}
           with the purchase date and transaction identifier. Do not send full
           payment-card details.
