@@ -31,6 +31,16 @@ export type ScanEstimate = {
   physiqueScores?: Partial<
     Record<"chest" | "back" | "shoulders" | "arms" | "core" | "legs", number>
   >;
+  visualProportions?: {
+    shoulderWidthToHeight?: number;
+    chestWidthToHeight?: number;
+    waistWidthToHeight?: number;
+    hipWidthToHeight?: number;
+    torsoDepthToHeight?: number;
+    armWidthToHeight?: number;
+    thighWidthToHeight?: number;
+    confidence?: number;
+  };
   visualObservations?: {
     muscularDevelopment?: string;
     upperBodyDevelopment?: string;
@@ -277,8 +287,7 @@ function toScanDocument(
   data: FirestoreScan
 ): ScanDocument {
   const fallbackPaths = data.photoPaths as
-    | ScanDocument["photoPaths"]
-    | undefined;
+    ScanDocument["photoPaths"] | undefined;
   const input = data.input as ScanDocument["input"] | undefined;
   const normalizedHeight =
     typeof input?.heightCm === "number" && Number.isFinite(input.heightCm)

@@ -1,4 +1,11 @@
-import { useState, useEffect, useMemo, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useState,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -49,6 +56,11 @@ import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { isNative } from "@/lib/platform";
 import { PhysiqueDevelopmentScores } from "@/components/scan/PhysiqueDevelopmentScores";
+import { buildParametricBodyProfile } from "@/lib/bodyVisualization";
+
+const BodyVisualization = lazy(
+  () => import("@/components/body-visualization/BodyVisualization")
+);
 
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "—";
@@ -234,6 +246,20 @@ const Results = () => {
         : null,
     [activeScan, previousScan]
   );
+  const bodyProfile = useMemo(
+    () =>
+      vm && activeScan
+        ? buildParametricBodyProfile(vm, activeScan as ScanDocument)
+        : null,
+    [activeScan, vm]
+  );
+  const previousBodyProfile = useMemo(() => {
+    if (!previousScan) return null;
+    const previousVm = buildScanResultViewModel({ scan: previousScan });
+    return previousVm.isValidResult
+      ? buildParametricBodyProfile(previousVm, previousScan)
+      : null;
+  }, [previousScan]);
 
   const onRetryProcessing = async () => {
     if (!activeScan?.id || readOnlyDemo) return;
@@ -481,6 +507,47 @@ const Results = () => {
             )}
           </div>
         </section>
+
+        {bodyProfile ? (
+          <Suspense
+            fallback={
+              <section
+                className="min-h-[420px] animate-pulse rounded-3xl border border-cyan-400/20 bg-gradient-to-br from-[#0d2026] to-[#090d10] p-6"
+                aria-label="Loading interactive body visualization"
+              >
+                <div className="h-3 w-40 rounded bg-cyan-300/20" />
+                <div className="mt-4 h-8 w-64 max-w-full rounded bg-white/10" />
+                <div className="mx-auto mt-10 h-64 w-32 rounded-[45%] bg-cyan-300/10" />
+              </section>
+            }
+          >
+            <BodyVisualization
+              profile={bodyProfile}
+              previousProfile={previousBodyProfile}
+              metrics={[
+                ...(vm.primary.bodyFatPercent != null
+                  ? [
+                      {
+                        label: "Estimated body fat",
+                        value: `${vm.primary.bodyFatPercent.toFixed(1)}%`,
+                      },
+                    ]
+                  : []),
+                ...(vm.primary.weightKg != null
+                  ? [
+                      {
+                        label: "Current weight",
+                        value: formatKgForUnits(vm.primary.weightKg, units),
+                      },
+                    ]
+                  : []),
+                ...(vm.primary.bmi != null
+                  ? [{ label: "BMI", value: String(vm.primary.bmi) }]
+                  : []),
+              ]}
+            />
+          </Suspense>
+        ) : null}
 
         <section className="grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 md:col-span-2">
