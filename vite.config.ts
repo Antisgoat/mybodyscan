@@ -203,6 +203,21 @@ export default defineConfig(({ mode }) => {
             return "fb-runtime";
           }
           if (!id.includes("node_modules")) return;
+          // Let Rollup keep the report-only 3D graph behind its dynamic import.
+          // Forcing these modules into the shared vendor chunk would preload the
+          // rendering engine on every screen, including login and nutrition.
+          if (
+            id.includes("/node_modules/@react-three/") ||
+            id.includes("/node_modules/three/") ||
+            id.includes("/node_modules/three-stdlib/") ||
+            id.includes("/node_modules/react-reconciler/") ||
+            id.includes("/node_modules/react-use-measure/") ||
+            id.includes("/node_modules/its-fine/") ||
+            id.includes("/node_modules/suspend-react/") ||
+            id.includes("/node_modules/zustand/")
+          ) {
+            return;
+          }
           // Keep Capacitor (and capacitor-firebase) code out of the eagerly-loaded
           // firebase chunk. Otherwise, Rollup can merge a dynamically imported
           // native-only module into a static chunk and execute it on web at boot.
