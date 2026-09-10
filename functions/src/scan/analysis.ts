@@ -56,6 +56,17 @@ const VISUAL_OBSERVATION_KEYS = [
   "legs",
 ] as const;
 
+const VISUAL_PROPORTION_RANGES = {
+  shoulderWidthToHeight: [0.18, 0.34],
+  chestWidthToHeight: [0.16, 0.32],
+  waistWidthToHeight: [0.13, 0.32],
+  hipWidthToHeight: [0.16, 0.32],
+  torsoDepthToHeight: [0.09, 0.25],
+  armWidthToHeight: [0.025, 0.09],
+  thighWidthToHeight: [0.045, 0.14],
+  confidence: [0, 1],
+} as const;
+
 const UNSUPPORTED_PHOTO_HEALTH_CLAIM =
   /\b(diagnos(?:is|ed)|injur(?:y|ed)|tear|disease|disorder|syndrome|condition|scoliosis|kyphosis|lordosis|inflammation|hernia|surgery|tumou?r|lesion|fracture|arthritis|pain|visceral|subcutaneous|internal\s+(?:fat|tissue|organ))\b/i;
 const UNSUPPORTED_PHOTO_MEASUREMENT =
@@ -87,6 +98,22 @@ function sanitizeVisualObservations(
     const text = sanitizePhotoObservationText(source[key]);
     if (!text) continue;
     cleaned[key] = text;
+  }
+  return cleaned;
+}
+
+function sanitizeVisualProportions(
+  raw: unknown
+): NonNullable<ScanEstimate["visualProportions"]> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const source = raw as Record<string, unknown>;
+  const cleaned: NonNullable<ScanEstimate["visualProportions"]> = {};
+  for (const [key, range] of Object.entries(VISUAL_PROPORTION_RANGES)) {
+    const value = Number(source[key]);
+    if (!Number.isFinite(value) || value < range[0] || value > range[1]) {
+      continue;
+    }
+    (cleaned as Record<string, number>)[key] = Number(value.toFixed(4));
   }
   return cleaned;
 }
@@ -144,6 +171,9 @@ function sanitizeEstimate(
   const physiqueScores = sanitizePhysiqueScores(
     source?.physiqueScores ?? source?.physique_scores
   );
+  const visualProportions = sanitizeVisualProportions(
+    source?.visualProportions ?? source?.visual_proportions
+  );
   return {
     bodyFatPercent: Number(bodyFatPercent.toFixed(1)),
     bmi,
@@ -163,6 +193,7 @@ function sanitizeEstimate(
       ? { visualObservations }
       : {}),
     ...(Object.keys(physiqueScores).length > 0 ? { physiqueScores } : {}),
+    ...(Object.keys(visualProportions).length > 0 ? { visualProportions } : {}),
   };
 }
 
@@ -450,6 +481,16 @@ export async function callOpenAI(
       '      "arms": number,',
       '      "core": number,',
       '      "legs": number',
+      "    },",
+      '    "visualProportions": {',
+      '      "shoulderWidthToHeight": number,',
+      '      "chestWidthToHeight": number,',
+      '      "waistWidthToHeight": number,',
+      '      "hipWidthToHeight": number,',
+      '      "torsoDepthToHeight": number,',
+      '      "armWidthToHeight": number,',
+      '      "thighWidthToHeight": number,',
+      '      "confidence": number',
       "    }",
       "  },",
       '  "recommendations": string[],',
@@ -471,6 +512,8 @@ export async function callOpenAI(
     "For visualObservations, describe only what is visibly apparent with cautious qualitative wording.",
     "Region values may describe visible development, visual balance, or training priority; never give regional fat or muscle amounts.",
     PHYSIQUE_SCORE_MODEL_INSTRUCTION,
+    "For visualProportions, estimate visible outer-body ratios relative to standing height using all four views: shoulder, chest, waist, hip, side torso depth, upper-arm width, and thigh width. Use decimals, not percentages.",
+    "Only provide a proportion when its boundaries are clearly visible. Ratios are illustrative inputs for a wellness avatar, not anatomical or clinical measurements.",
     "Do not infer injuries, health conditions, internal tissue, or exact regional composition from photos.",
     "Provide improvementAreas as 3-5 short bullets on what to work on first.",
     "Goal recommendations should give actionable habit changes (bullets).",

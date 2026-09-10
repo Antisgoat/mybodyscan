@@ -3,9 +3,8 @@ import test from "node:test";
 
 process.env.GCLOUD_PROJECT ||= "demo-test";
 
-const { buildAnalysisFromResult, buildPlanMarkdown } = await import(
-  "../lib/scan/analysis.js"
-);
+const { buildAnalysisFromResult, buildPlanMarkdown } =
+  await import("../lib/scan/analysis.js");
 const { deriveDeterministicNutritionPlan, deriveDeterministicWorkoutPlan } =
   await import("../lib/scan/worker.js");
 
@@ -80,6 +79,28 @@ test("regional measurements and internal-fat claims are dropped", () => {
   );
   assert.equal(analysis.estimate.visualObservations.torsoCore, undefined);
   assert.equal(analysis.estimate.visualObservations.hips, undefined);
+});
+
+test("bounded visual proportions are retained for the illustrative body model", () => {
+  const analysis = buildAnalysisFromResult({
+    estimate: {
+      bodyFatPercent: 22,
+      visualProportions: {
+        shoulderWidthToHeight: 0.27,
+        waistWidthToHeight: 0.22,
+        torsoDepthToHeight: 0.17,
+        armWidthToHeight: 99,
+        confidence: 0.82,
+      },
+    },
+  });
+
+  assert.deepEqual(analysis.estimate.visualProportions, {
+    shoulderWidthToHeight: 0.27,
+    waistWidthToHeight: 0.22,
+    torsoDepthToHeight: 0.17,
+    confidence: 0.82,
+  });
 });
 
 test("unsafe legacy observation fields cannot leak into saved plan text", () => {

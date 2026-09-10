@@ -13,10 +13,17 @@ describe("buildParametricBodyProfile", () => {
     const profile = buildParametricBodyProfile(vm, {
       estimate: {
         physiqueScores: { chest: 8, shoulders: 7, arms: 6, core: 5, legs: 7 },
+        visualProportions: {
+          shoulderWidthToHeight: 0.3,
+          waistWidthToHeight: 0.24,
+          torsoDepthToHeight: 0.19,
+        },
       },
     } as any);
 
     expect(profile.heightScale).toBeGreaterThan(1);
+    expect(profile.shoulderScale).toBeCloseTo(1.2);
+    expect(profile.depthScale).toBeCloseTo(1.1875);
     expect(profile.waistScale).toBeGreaterThan(1);
     expect(profile.waistScale).toBeLessThanOrEqual(1.42);
     expect(profile.regions.find((region) => region.id === "arms")?.value).toBe(
@@ -35,5 +42,22 @@ describe("buildParametricBodyProfile", () => {
     Object.values(profile)
       .filter((value) => typeof value === "number")
       .forEach((value) => expect(Number.isFinite(value)).toBe(true));
+  });
+
+  it("falls back to supported metrics when photo proportions are low confidence", () => {
+    const profile = buildParametricBodyProfile(vm, {
+      estimate: {
+        visualProportions: {
+          shoulderWidthToHeight: 0.3,
+          waistWidthToHeight: 0.24,
+          torsoDepthToHeight: 0.19,
+          confidence: 0.35,
+        },
+      },
+    } as any);
+
+    expect(profile.source).toBe("metric_estimate");
+    expect(profile.proportionConfidence).toBe(0.35);
+    expect(profile.shoulderScale).not.toBeCloseTo(1.2);
   });
 });

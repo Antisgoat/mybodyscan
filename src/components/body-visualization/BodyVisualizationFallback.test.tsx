@@ -6,6 +6,8 @@ import { BodyVisualizationFallback } from "./BodyVisualizationFallback";
 import type { ParametricBodyProfile } from "@/lib/bodyVisualization";
 
 const profile: ParametricBodyProfile = {
+  source: "metric_estimate",
+  proportionConfidence: null,
   heightScale: 1,
   shoulderScale: 1,
   chestScale: 1,

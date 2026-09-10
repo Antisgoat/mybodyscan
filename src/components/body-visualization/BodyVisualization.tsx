@@ -101,11 +101,7 @@ function BodyFigure({
       </mesh>
       <mesh
         position={[0, 1.84, 0]}
-        scale={[
-          profile.shoulderScale * 1.12,
-          0.5,
-          profile.depthScale * 0.76,
-        ]}
+        scale={[profile.shoulderScale * 1.12, 0.5, profile.depthScale * 0.76]}
         onClick={() => select("upper")}
       >
         <sphereGeometry args={[0.67, 24, 18]} />
@@ -221,12 +217,17 @@ export default function BodyVisualization({
               Explore your body profile
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
-              A personalized illustration shaped by supported scan metrics. Drag
-              to rotate, zoom, or choose a body region for its related insight.
+              {profile.source === "photo_proportions"
+                ? "A personalized illustration shaped by proportions inferred from all four scan views."
+                : "A personalized illustration shaped by supported scan metrics."}{" "}
+              Drag to rotate, zoom, or choose a body region for its related
+              insight.
             </p>
           </div>
           <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs text-cyan-200">
-            Parametric visualization
+            {profile.source === "photo_proportions"
+              ? "Photo-proportion profile"
+              : "Metric-based profile"}
           </span>
         </div>
       </div>
@@ -392,7 +393,7 @@ export default function BodyVisualization({
               >
                 <div
                   className="h-full rounded-full bg-cyan-300"
-                  style={{ width: `${activeInsight.score * 10}%` }}
+                  style={{ width: `${activeInsight.score}%` }}
                 />
               </div>
             ) : null}
@@ -401,7 +402,8 @@ export default function BodyVisualization({
           <p className="text-xs leading-5 text-zinc-500">
             Illustrative wellness visualization only. Proportions are derived
             conservatively from supported scan data; this is not a unique body
-            mesh, anatomical measurement, diagnosis, or outcome prediction.
+            mesh, exact anatomical measurement, diagnosis, or outcome
+            prediction.
           </p>
         </div>
       </div>

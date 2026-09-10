@@ -13,6 +13,17 @@ export interface ScanEstimate {
   physiqueScores?: Partial<
     Record<"chest" | "back" | "shoulders" | "arms" | "core" | "legs", number>
   >;
+  /** Photo-inferred normalized proportions for the illustrative 3D viewer. */
+  visualProportions?: {
+    shoulderWidthToHeight?: number;
+    chestWidthToHeight?: number;
+    waistWidthToHeight?: number;
+    hipWidthToHeight?: number;
+    torsoDepthToHeight?: number;
+    armWidthToHeight?: number;
+    thighWidthToHeight?: number;
+    confidence?: number;
+  };
   /** Cautious, photo-based qualitative observations. Never numeric or diagnostic. */
   visualObservations?: {
     muscularDevelopment?: string;
