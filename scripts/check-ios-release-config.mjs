@@ -18,6 +18,7 @@ const requireText = (contents, needle, message) => {
 };
 
 const project = read("ios/App/App.xcodeproj/project.pbxproj");
+const podfile = read("ios/App/Podfile");
 const info = read("ios/App/App/Info.plist");
 const privacy = read("ios/App/App/PrivacyInfo.xcprivacy");
 const archive = read("ios/scripts/ios_archive.sh");
@@ -69,6 +70,23 @@ requireText(
   project,
   "PRODUCT_BUNDLE_IDENTIFIER = com.mybodyscan.app;",
   "Xcode must use bundle ID com.mybodyscan.app."
+);
+const deploymentTargets =
+  project.match(/IPHONEOS_DEPLOYMENT_TARGET = 15\.0;/g) ?? [];
+if (deploymentTargets.length !== 4) {
+  failures.push(
+    "Every iOS build configuration must require iOS 15.0 or later."
+  );
+}
+requireText(
+  podfile,
+  "platform :ios, '15.0'",
+  "Podfile must require iOS 15.0 or later."
+);
+requireText(
+  podfile,
+  "config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'",
+  "CocoaPods targets must require iOS 15.0 or later."
 );
 requireText(
   project,
