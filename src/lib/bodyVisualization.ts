@@ -22,6 +22,16 @@ export type ParametricBodyProfile = {
   armScale: number;
   legScale: number;
   depthScale: number;
+  /** Visual-only values used to make the parametric figure feel organic. */
+  neckScale: number;
+  headScale: number;
+  torsoLengthScale: number;
+  calfScale: number;
+  armLengthScale: number;
+  legLengthScale: number;
+  hipDepthScale: number;
+  abdominalProjection: number;
+  definitionScale: number;
   regions: BodyRegionInsight[];
 };
 
@@ -128,6 +138,12 @@ export function buildParametricBodyProfile(
     0.82,
     1.42
   );
+  const upperDevelopment = Math.max(
+    chestScore ?? 50,
+    shoulderScore ?? 50,
+    armScore ?? 50
+  );
+  const lowerDevelopment = legScore ?? 50;
 
   const observationByLabel = new Map(
     vm.regions.map((region) => [region.label.toLowerCase(), region.value])
@@ -195,6 +211,75 @@ export function buildParametricBodyProfile(
       fallbackDepth,
       0.68,
       1.56
+    ),
+    neckScale: ratioScale(
+      trustedProportions.neckWidthToHeight,
+      0.085,
+      clamp(
+        0.94 + massFactor * 0.18 + development(upperDevelopment),
+        0.86,
+        1.2
+      ),
+      0.78,
+      1.3
+    ),
+    headScale: ratioScale(
+      trustedProportions.headWidthToHeight,
+      0.13,
+      clamp(1 - (heightCm - 175) / 900, 0.94, 1.06),
+      0.82,
+      1.2
+    ),
+    torsoLengthScale: ratioScale(
+      trustedProportions.torsoLengthToHeight,
+      0.32,
+      clamp(1 + (heightCm - 175) / 700, 0.94, 1.08),
+      0.85,
+      1.18
+    ),
+    calfScale: ratioScale(
+      trustedProportions.calfWidthToHeight,
+      0.055,
+      clamp(
+        0.94 + massFactor * 0.12 + development(lowerDevelopment),
+        0.86,
+        1.18
+      ),
+      0.72,
+      1.45
+    ),
+    armLengthScale: ratioScale(
+      trustedProportions.armLengthToHeight,
+      0.33,
+      1,
+      0.84,
+      1.18
+    ),
+    legLengthScale: ratioScale(
+      trustedProportions.legLengthToHeight,
+      0.49,
+      1,
+      0.86,
+      1.16
+    ),
+    hipDepthScale: ratioScale(
+      trustedProportions.hipDepthToHeight,
+      0.17,
+      fallbackDepth,
+      0.68,
+      1.56
+    ),
+    abdominalProjection: clamp(
+      0.02 +
+        Math.max(0, massFactor) * 0.16 +
+        Math.max(0, softnessFactor) * 0.22,
+      0,
+      0.2
+    ),
+    definitionScale: clamp(
+      ((30 - bodyFat) / 18) * (0.82 + development(upperDevelopment)),
+      0,
+      1
     ),
     regions: [
       {

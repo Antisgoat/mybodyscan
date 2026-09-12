@@ -37,8 +37,15 @@ export type ScanEstimate = {
     waistWidthToHeight?: number;
     hipWidthToHeight?: number;
     torsoDepthToHeight?: number;
+    hipDepthToHeight?: number;
     armWidthToHeight?: number;
+    armLengthToHeight?: number;
     thighWidthToHeight?: number;
+    calfWidthToHeight?: number;
+    legLengthToHeight?: number;
+    torsoLengthToHeight?: number;
+    neckWidthToHeight?: number;
+    headWidthToHeight?: number;
     confidence?: number;
   };
   visualObservations?: {
