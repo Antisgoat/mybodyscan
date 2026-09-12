@@ -1,5 +1,6 @@
 import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei/core/OrbitControls";
+import { ContactShadows } from "@react-three/drei/core/ContactShadows";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Group } from "three";
 import { MathUtils } from "three";
@@ -12,6 +13,7 @@ import type {
   BodyView,
   ParametricBodyProfile,
 } from "@/lib/bodyVisualization";
+import { createBodyLoftGeometry } from "@/lib/parametricBodyGeometry";
 import { BodyVisualizationFallback } from "./BodyVisualizationFallback";
 
 type Props = {
@@ -55,12 +57,194 @@ function BodyFigure({
 }: FigureProps) {
   const group = useRef<Group>(null);
   const reveal = useRef(reducedMotion ? 1 : 0);
-  const baseColor = ghost ? "#a5f3fc" : "#155e75";
-  const selectedColor = ghost ? "#a5f3fc" : "#67e8f9";
+  const baseColor = ghost ? "#a5f3fc" : "#2b7f89";
+  const selectedColor = ghost ? "#a5f3fc" : "#8ef4ff";
+  const torsoY = (value: number) =>
+    -0.18 + (value + 0.18) * profile.torsoLengthScale;
+  const shoulderY = torsoY(1.94);
+  const neckY = torsoY(2.19);
+  const headY = neckY + 0.39;
+  const frontDepth = 0.39 * profile.depthScale;
+  const armY = (value: number) =>
+    0.76 + (value - 0.76) * profile.armLengthScale;
+  const legY = (value: number) =>
+    -0.22 + (value + 0.22) * profile.legLengthScale;
+
+  const geometries = useMemo(() => {
+    const bodyY = (value: number) =>
+      -0.18 + (value + 0.18) * profile.torsoLengthScale;
+    const bodyShoulderY = bodyY(1.94);
+    const bodyNeckY = bodyY(2.19);
+    const bodyArmY = (value: number) =>
+      0.76 + (value - 0.76) * profile.armLengthScale;
+    const bodyLegY = (value: number) =>
+      -0.22 + (value + 0.22) * profile.legLengthScale;
+    const torso = createBodyLoftGeometry([
+      {
+        y: bodyY(0.78),
+        radiusX: 0.47 * profile.waistScale,
+        radiusZ: 0.36 * profile.depthScale,
+        centerZ: profile.abdominalProjection * 0.45,
+      },
+      {
+        y: bodyY(1.08),
+        radiusX: 0.54 * (profile.waistScale * 0.45 + profile.chestScale * 0.55),
+        radiusZ: 0.39 * profile.depthScale,
+        centerZ: profile.abdominalProjection * 0.25,
+      },
+      {
+        y: bodyY(1.48),
+        radiusX: 0.62 * profile.chestScale,
+        radiusZ: 0.43 * profile.depthScale,
+      },
+      {
+        y: bodyY(1.78),
+        radiusX: 0.69 * profile.shoulderScale,
+        radiusZ: 0.4 * profile.depthScale,
+      },
+      {
+        y: bodyShoulderY,
+        radiusX: 0.72 * profile.shoulderScale,
+        radiusZ: 0.34 * profile.depthScale,
+      },
+      {
+        y: bodyY(2.1),
+        radiusX: 0.28 * profile.neckScale,
+        radiusZ: 0.24 * profile.neckScale,
+      },
+    ]);
+    const core = createBodyLoftGeometry([
+      {
+        y: bodyY(0.18),
+        radiusX: 0.54 * profile.hipScale,
+        radiusZ:
+          0.42 * (profile.depthScale * 0.45 + profile.hipDepthScale * 0.55),
+        centerZ: profile.abdominalProjection * 0.5,
+      },
+      {
+        y: bodyY(0.48),
+        radiusX: 0.5 * (profile.hipScale * 0.4 + profile.waistScale * 0.6),
+        radiusZ: 0.4 * (profile.depthScale * 0.7 + profile.hipDepthScale * 0.3),
+        centerZ: profile.abdominalProjection,
+      },
+      {
+        y: bodyY(0.82),
+        radiusX: 0.47 * profile.waistScale,
+        radiusZ: 0.36 * profile.depthScale,
+        centerZ: profile.abdominalProjection * 0.45,
+      },
+    ]);
+    const hips = createBodyLoftGeometry([
+      {
+        y: -0.24,
+        radiusX: 0.49 * profile.hipScale,
+        radiusZ: 0.4 * profile.hipDepthScale,
+        centerZ: -0.025,
+      },
+      {
+        y: 0,
+        radiusX: 0.58 * profile.hipScale,
+        radiusZ: 0.45 * profile.hipDepthScale,
+        centerZ: -0.015,
+      },
+      {
+        y: bodyY(0.23),
+        radiusX: 0.54 * profile.hipScale,
+        radiusZ: 0.42 * profile.hipDepthScale,
+        centerZ: profile.abdominalProjection * 0.45,
+      },
+    ]);
+    const arm = createBodyLoftGeometry([
+      {
+        y: bodyArmY(-0.82),
+        radiusX: 0.085 * profile.armScale,
+        radiusZ: 0.075 * profile.armScale,
+      },
+      {
+        y: bodyArmY(-0.58),
+        radiusX: 0.12 * profile.armScale,
+        radiusZ: 0.1 * profile.armScale,
+      },
+      {
+        y: bodyArmY(-0.14),
+        radiusX: 0.13 * profile.armScale,
+        radiusZ: 0.115 * profile.armScale,
+      },
+      {
+        y: bodyArmY(0.06),
+        radiusX: 0.115 * profile.armScale,
+        radiusZ: 0.11 * profile.armScale,
+      },
+      {
+        y: bodyArmY(0.48),
+        radiusX: 0.17 * profile.armScale,
+        radiusZ: 0.16 * profile.armScale,
+      },
+      {
+        y: bodyArmY(0.76),
+        radiusX: 0.18 * profile.armScale,
+        radiusZ: 0.17 * profile.armScale,
+      },
+    ]);
+    const leg = createBodyLoftGeometry([
+      {
+        y: bodyLegY(-2.18),
+        radiusX: 0.12 * profile.calfScale,
+        radiusZ: 0.1 * profile.calfScale,
+      },
+      {
+        y: bodyLegY(-1.72),
+        radiusX: 0.2 * profile.calfScale,
+        radiusZ: 0.17 * profile.calfScale,
+      },
+      {
+        y: bodyLegY(-1.35),
+        radiusX: 0.18 * profile.calfScale,
+        radiusZ: 0.16 * profile.calfScale,
+      },
+      {
+        y: bodyLegY(-1.14),
+        radiusX: 0.17 * profile.legScale,
+        radiusZ: 0.16 * profile.legScale,
+      },
+      {
+        y: bodyLegY(-0.68),
+        radiusX: 0.27 * profile.legScale,
+        radiusZ: 0.24 * profile.legScale,
+      },
+      {
+        y: bodyLegY(-0.22),
+        radiusX: 0.31 * profile.legScale,
+        radiusZ: 0.28 * profile.legScale,
+      },
+    ]);
+    const neck = createBodyLoftGeometry([
+      {
+        y: bodyNeckY - 0.17,
+        radiusX: 0.16 * profile.neckScale,
+        radiusZ: 0.145 * profile.neckScale,
+      },
+      {
+        y: bodyNeckY + 0.17,
+        radiusX: 0.145 * profile.neckScale,
+        radiusZ: 0.14 * profile.neckScale,
+      },
+    ]);
+    return { torso, core, hips, arm, leg, neck };
+  }, [profile]);
+
+  useEffect(
+    () => () =>
+      Object.values(geometries).forEach((geometry) => geometry.dispose()),
+    [geometries]
+  );
+
   const bodyMaterial = (region: BodyRegionId) => ({
     color: selectedRegion === region ? selectedColor : baseColor,
-    roughness: 0.52,
-    metalness: ghost ? 0 : 0.2,
+    emissive: selectedRegion === region && !ghost ? "#063d46" : "#031518",
+    emissiveIntensity: selectedRegion === region && !ghost ? 0.42 : 0.08,
+    roughness: ghost ? 0.4 : 0.64 - profile.definitionScale * 0.12,
+    metalness: ghost ? 0 : 0.08,
     transparent: ghost,
     opacity: ghost ? 0.16 : 1,
     depthWrite: !ghost,
@@ -91,76 +275,87 @@ function BodyFigure({
       scale={profile.heightScale * (ghost ? 1.012 : reducedMotion ? 1 : 0.01)}
       position={ghost ? [0, 0, -0.035] : [0, 0, 0]}
     >
-      <mesh position={[0, 2.65, 0]} onClick={() => select("upper")}>
-        <sphereGeometry args={[0.32, 24, 20]} />
+      <mesh geometry={geometries.torso} onClick={() => select("upper")}>
         <meshStandardMaterial {...bodyMaterial("upper")} />
       </mesh>
-      <mesh position={[0, 2.25, 0]} onClick={() => select("upper")}>
-        <capsuleGeometry args={[0.13, 0.22, 6, 16]} />
-        <meshStandardMaterial {...bodyMaterial("upper")} />
-      </mesh>
-      <mesh
-        position={[0, 1.84, 0]}
-        scale={[profile.shoulderScale * 1.12, 0.5, profile.depthScale * 0.76]}
-        onClick={() => select("upper")}
-      >
-        <sphereGeometry args={[0.67, 24, 18]} />
-        <meshStandardMaterial {...bodyMaterial("upper")} />
-      </mesh>
-      <mesh
-        position={[0, 1.55, 0]}
-        scale={[profile.chestScale, 1, profile.depthScale * 0.78]}
-        onClick={() => select("upper")}
-      >
-        <capsuleGeometry args={[0.61, 0.72, 8, 20]} />
-        <meshStandardMaterial {...bodyMaterial("upper")} />
-      </mesh>
-      <mesh
-        position={[0, 0.66, 0]}
-        scale={[profile.waistScale, 1, profile.depthScale]}
-        onClick={() => select("core")}
-      >
-        <capsuleGeometry args={[0.49, 0.65, 8, 20]} />
+      <mesh geometry={geometries.core} onClick={() => select("core")}>
         <meshStandardMaterial {...bodyMaterial("core")} />
       </mesh>
-      <mesh
-        position={[0, -0.05, 0]}
-        scale={[profile.hipScale, 0.72, profile.depthScale * 0.92]}
-        onClick={() => select("hips")}
-      >
-        <sphereGeometry args={[0.58, 24, 18]} />
+      <mesh geometry={geometries.hips} onClick={() => select("hips")}>
         <meshStandardMaterial {...bodyMaterial("hips")} />
+      </mesh>
+      <mesh geometry={geometries.neck} onClick={() => select("upper")}>
+        <meshStandardMaterial {...bodyMaterial("upper")} />
+      </mesh>
+      <mesh
+        position={[0, headY, 0]}
+        scale={[
+          0.29 * profile.headScale,
+          0.37 * profile.headScale,
+          0.31 * profile.headScale,
+        ]}
+        onClick={() => select("upper")}
+      >
+        <sphereGeometry args={[1, 32, 28]} />
+        <meshStandardMaterial {...bodyMaterial("upper")} />
       </mesh>
       {[-1, 1].map((side) => (
         <group
           key={`arm-${side}`}
-          position={[side * 0.83 * profile.shoulderScale, 1.12, 0]}
+          position={[side * 0.67 * profile.shoulderScale, shoulderY - 0.88, 0]}
+          rotation={[0, 0, side * -0.055]}
         >
+          <mesh geometry={geometries.arm} onClick={() => select("arms")}>
+            <meshStandardMaterial {...bodyMaterial("arms")} />
+          </mesh>
           <mesh
-            rotation={[0, 0, side * -0.06]}
-            scale={[profile.armScale, 1, profile.armScale]}
+            position={[0, armY(-0.95), 0]}
+            scale={[0.105 * profile.armScale, 0.21, 0.075 * profile.armScale]}
             onClick={() => select("arms")}
           >
-            <capsuleGeometry args={[0.16, 1.55, 7, 16]} />
+            <capsuleGeometry args={[1, 0.5, 6, 14]} />
             <meshStandardMaterial {...bodyMaterial("arms")} />
           </mesh>
         </group>
       ))}
       {[-1, 1].map((side) => (
-        <mesh
+        <group
           key={`leg-${side}`}
-          position={[side * 0.3 * profile.hipScale, -1.48, 0]}
-          scale={[
-            profile.legScale,
-            1,
-            profile.legScale * profile.depthScale * 0.9,
-          ]}
-          onClick={() => select("legs")}
+          position={[side * 0.27 * profile.hipScale, 0, 0]}
         >
-          <capsuleGeometry args={[0.25, 2.15, 8, 18]} />
-          <meshStandardMaterial {...bodyMaterial("legs")} />
-        </mesh>
+          <mesh geometry={geometries.leg} onClick={() => select("legs")}>
+            <meshStandardMaterial {...bodyMaterial("legs")} />
+          </mesh>
+          <mesh
+            position={[0, legY(-2.24), 0.09]}
+            scale={[0.14 * profile.calfScale, 0.1, 0.29]}
+            rotation={[Math.PI / 2, 0, 0]}
+            onClick={() => select("legs")}
+          >
+            <capsuleGeometry args={[1, 0.65, 6, 14]} />
+            <meshStandardMaterial {...bodyMaterial("legs")} />
+          </mesh>
+        </group>
       ))}
+      {!ghost && profile.definitionScale > 0.12 ? (
+        <group position={[0, 0, frontDepth + 0.018]}>
+          {[-1, 1].map((side) => (
+            <mesh
+              key={`pectoral-${side}`}
+              position={[side * 0.25 * profile.chestScale, torsoY(1.52), 0]}
+              scale={[0.27 * profile.chestScale, 0.16, 0.028]}
+            >
+              <sphereGeometry args={[1, 24, 12]} />
+              <meshStandardMaterial
+                color="#4a9ba3"
+                transparent
+                opacity={0.16 + profile.definitionScale * 0.18}
+                roughness={0.76}
+              />
+            </mesh>
+          ))}
+        </group>
+      ) : null}
     </group>
   );
 }
@@ -274,6 +469,13 @@ export default function BodyVisualization({
                 intensity={1.1}
                 color="#2563eb"
               />
+              <spotLight
+                position={[0, 5, -4]}
+                intensity={1.8}
+                angle={0.55}
+                penumbra={0.9}
+                color="#67e8f9"
+              />
               {showPrevious && previousProfile ? (
                 <BodyFigure
                   profile={previousProfile}
@@ -296,6 +498,16 @@ export default function BodyVisualization({
                 maxDistance={12}
                 minPolarAngle={Math.PI / 2}
                 maxPolarAngle={Math.PI / 2}
+                rotateSpeed={0.72}
+                zoomSpeed={0.8}
+              />
+              <ContactShadows
+                position={[0, -2.54, 0]}
+                opacity={0.42}
+                scale={5.4}
+                blur={2.6}
+                far={4}
+                color="#020617"
               />
             </Canvas>
           ) : (

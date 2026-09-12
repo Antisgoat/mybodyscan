@@ -6,9 +6,9 @@ export default function ScanTipsMBS() {
       <div className="font-medium mb-1">Great scans = better results</div>
       <ul className="list-disc ml-5 text-slate-700 space-y-1">
         <li>Tight clothing, neutral background, good lighting</li>
-        <li>Arms slightly out, camera at chest height</li>
+        <li>Stand naturally with arms relaxed slightly away from your torso</li>
         <li>Photos: front, left, back, right</li>
-        <li>Video: slow 360° in 10s</li>
+        <li>Keep the same posture, distance, and framing in every photo</li>
       </ul>
     </div>
   );

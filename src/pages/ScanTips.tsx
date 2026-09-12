@@ -17,7 +17,7 @@ const tips = [
 ];
 
 const silhouettes = [
-  { label: "Front", description: "Feet together, arms out" },
+  { label: "Front", description: "Stand naturally, arms slightly away" },
   { label: "Left side", description: "Turn 90°, head forward" },
   { label: "Back", description: "Relaxed shoulders" },
   { label: "Right side", description: "Turn 90°, head forward" },

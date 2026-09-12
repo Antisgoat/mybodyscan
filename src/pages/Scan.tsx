@@ -1314,7 +1314,9 @@ export default function ScanPage() {
         For each angle, keep your full body visible from head to feet. Stand
         several feet from the camera in a neutral pose with good lighting, a
         plain background, no mirror obstruction, and fitted clothing where
-        comfortable.
+        comfortable. Keep your arms relaxed slightly away from your torso and
+        use the same posture, distance, and framing for all four photos. These
+        details improve the shape of your personalized 3D profile.
       </p>
 
       {persistedScan &&
