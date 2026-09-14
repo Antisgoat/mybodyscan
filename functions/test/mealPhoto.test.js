@@ -77,7 +77,7 @@ test("auth, membership, off switch and quota all run before a paid request", asy
       ),
       /quota/
     );
-    delete process.env.MEAL_PHOTO_ENABLED;
+    process.env.MEAL_PHOTO_ENABLED = "false";
     await assert.rejects(
       processMealPhoto({ auth: { uid: "member" }, data }, deps),
       /not available yet/

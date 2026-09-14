@@ -266,12 +266,6 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                     Sign up to save progress
                   </Link>
                 ) : null}
-                <Link
-                  to="/system-check"
-                  className="underline-offset-4 hover:underline"
-                >
-                  Diagnostics
-                </Link>
               </div>
             </div>
           </div>

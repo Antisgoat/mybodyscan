@@ -319,10 +319,7 @@ export function fromUsdaFood(food: any): FoodItem | null {
       ? food.servingSizeUnit.trim()
       : null;
   const servingGrams = massToGrams(servingSize, servingSizeUnit);
-  const servingMilliliters = volumeToMilliliters(
-    servingSize,
-    servingSizeUnit
-  );
+  const servingMilliliters = volumeToMilliliters(servingSize, servingSizeUnit);
   if (servingGrams) {
     const household =
       typeof food?.householdServingFullText === "string"
@@ -358,9 +355,7 @@ export function fromUsdaFood(food: any): FoodItem | null {
   );
 
   const labelToPer100 = (value: number | null) =>
-    value != null && servingGrams
-      ? (value * 100) / servingGrams
-      : undefined;
+    value != null && servingGrams ? (value * 100) / servingGrams : undefined;
   const base = ensureMacroBreakdown({
     // USDA search nutrient amounts are reported on a 100 g basis. Label
     // nutrients are per serving and must never be presented as per 100 g
@@ -381,17 +376,16 @@ export function fromUsdaFood(food: any): FoodItem | null {
     carbs_g: labelCarbs ?? derivedPerServing.carbs_g,
     fat_g: labelFat ?? derivedPerServing.fat_g,
   };
-  const labeledVolume =
-    servingMilliliters
-      ? {
-          qty: servingMilliliters,
-          unit: "ml",
-          text:
-            (typeof food?.householdServingFullText === "string" &&
-              food.householdServingFullText.trim()) ||
-            `${round(servingMilliliters, 2)} ml`,
-        }
-      : null;
+  const labeledVolume = servingMilliliters
+    ? {
+        qty: servingMilliliters,
+        unit: "ml",
+        text:
+          (typeof food?.householdServingFullText === "string" &&
+            food.householdServingFullText.trim()) ||
+          `${round(servingMilliliters, 2)} ml`,
+      }
+    : null;
 
   return {
     id: String(
@@ -623,18 +617,16 @@ export function fromOpenFoodFacts(product: any): FoodItem | null {
     protein_g:
       toNumber(nutriments?.proteins_serving) ?? derivedPerServing.protein_g,
     carbs_g:
-      toNumber(nutriments?.carbohydrates_serving) ??
-      derivedPerServing.carbs_g,
+      toNumber(nutriments?.carbohydrates_serving) ?? derivedPerServing.carbs_g,
     fat_g: toNumber(nutriments?.fat_serving) ?? derivedPerServing.fat_g,
   };
-  const labeledVolume =
-    milliliters
-      ? {
-          qty: milliliters,
-          unit: "ml",
-          text: servingText || `${round(milliliters, 2)} ml`,
-        }
-      : null;
+  const labeledVolume = milliliters
+    ? {
+        qty: milliliters,
+        unit: "ml",
+        text: servingText || `${round(milliliters, 2)} ml`,
+      }
+    : null;
 
   return {
     id: String(
@@ -794,6 +786,84 @@ export function rankNutritionResults(
     }))
     .sort((a, b) => b.score - a.score || a.index - b.index)
     .map(({ item }) => item);
+}
+
+function canonicalEggs(): FoodItem[] {
+  const egg = (
+    id: string,
+    name: string,
+    grams: number,
+    macros: MacroBreakdown
+  ): FoodItem => ({
+    id,
+    name,
+    brand: null,
+    source: "USDA",
+    basePer100g: ensureMacroBreakdown({
+      kcal: (macros.kcal * 100) / grams,
+      protein: (macros.protein * 100) / grams,
+      carbs: (macros.carbs * 100) / grams,
+      fat: (macros.fat * 100) / grams,
+    }),
+    servings: [
+      {
+        id: `${id}-large`,
+        label: "1 large",
+        grams,
+        isDefault: true,
+      },
+    ],
+    serving: { qty: 1, unit: "large", text: "1 large" },
+    per_serving: {
+      kcal: macros.kcal,
+      protein_g: macros.protein,
+      carbs_g: macros.carbs,
+      fat_g: macros.fat,
+    },
+    per_100g: {
+      kcal: round((macros.kcal * 100) / grams),
+      protein_g: round((macros.protein * 100) / grams, 1),
+      carbs_g: round((macros.carbs * 100) / grams, 1),
+      fat_g: round((macros.fat * 100) / grams, 1),
+    },
+  });
+
+  return [
+    egg("canonical:egg:whole-large", "Whole egg, large", 50, {
+      kcal: 70,
+      protein: 6,
+      carbs: 0.4,
+      fat: 5,
+    }),
+    egg("canonical:egg:white-large", "Egg white, large", 33, {
+      kcal: 17,
+      protein: 3.6,
+      carbs: 0.2,
+      fat: 0.1,
+    }),
+    egg("canonical:egg:yolk-large", "Egg yolk, large", 17, {
+      kcal: 55,
+      protein: 2.7,
+      carbs: 0.6,
+      fat: 4.5,
+    }),
+  ];
+}
+
+/**
+ * Common staple searches should produce a small human choice set, not a
+ * manufacturer catalog. Exact egg queries use standardized household servings;
+ * branded products remain available when a member searches for a brand.
+ */
+export function curateNutritionResults(
+  items: FoodItem[],
+  query: string
+): FoodItem[] {
+  const normalizedQuery = normalizeSearchText(query);
+  if (normalizedQuery === "egg" || normalizedQuery === "eggs") {
+    return canonicalEggs();
+  }
+  return rankNutritionResults(items, query);
 }
 
 function extractBearerToken(req: Request): string | null {
@@ -960,19 +1030,19 @@ async function runNutritionSearchCore(
 
   const apiKey = getUsdaApiKey();
   if (!apiKey && input.sourcePreference === "usda-first") {
-    throw new HttpError(501, "nutrition_missing_usda_key", "Missing USDA_API_KEY");
+    throw new HttpError(
+      501,
+      "nutrition_missing_usda_key",
+      "Missing USDA_API_KEY"
+    );
   }
   const errors: HttpError[] = [];
 
   const usdaResult = apiKey
-    ? await runSafe(
-        "USDA",
-        () => searchUsda(input.query, apiKey),
-        {
-          requestId: context.requestId,
-          uid: context.uid,
-        }
-      )
+    ? await runSafe("USDA", () => searchUsda(input.query, apiKey), {
+        requestId: context.requestId,
+        uid: context.uid,
+      })
     : { items: [] as FoodItem[], error: null as HttpError | null };
 
   if (usdaResult.error) errors.push(usdaResult.error);
@@ -1017,7 +1087,7 @@ async function runNutritionSearchCore(
   }
 
   const seen = new Set<string>();
-  const normalized = rankNutritionResults(items, input.query)
+  const normalized = curateNutritionResults(items, input.query)
     .filter((item) => {
       const key = `${item.source}:${item.id}`.toLowerCase();
       if (seen.has(key)) return false;

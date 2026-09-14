@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Utensils,
   Plus,
@@ -788,8 +789,16 @@ export default function Meals() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <Button size="sm" variant="outline" className="col-span-2 h-12 justify-start px-3 text-[13px]" asChild>
-              <a href="/meals/photo"><Camera className="mr-2 h-4 w-4" aria-hidden="true" />Estimate a meal from a photo · Members</a>
+            <Button
+              size="sm"
+              variant="outline"
+              className="col-span-2 h-12 justify-start px-3 text-[13px]"
+              asChild
+            >
+              <Link to="/meals/photo">
+                <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
+                Estimate a meal from a photo · Members
+              </Link>
             </Button>
             <Button
               size="sm"
@@ -797,20 +806,20 @@ export default function Meals() {
               className="col-span-2 h-12 justify-start border-primary/30 bg-primary/5 px-3 text-[13px]"
               asChild
             >
-              <a href="/meals/fridge">
+              <Link to="/meals/fridge">
                 <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
                 Scan your kitchen for meal ideas
-              </a>
+              </Link>
             </Button>
             <Button
               size="sm"
               className="h-11 justify-start px-3 text-[13px]"
               asChild
             >
-              <a href="/meals/search">
+              <Link to="/meals/search">
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                 Search foods
-              </a>
+              </Link>
             </Button>
             <Button
               size="sm"
@@ -818,10 +827,10 @@ export default function Meals() {
               className="h-11 justify-start px-3 text-[13px]"
               asChild
             >
-              <a href="/barcode">
+              <Link to="/barcode">
                 <Barcode className="mr-2 h-4 w-4" aria-hidden="true" />
                 Scan barcode
-              </a>
+              </Link>
             </Button>
             <Button
               variant="outline"
@@ -829,10 +838,10 @@ export default function Meals() {
               className="h-11 justify-start px-3 text-[13px]"
               asChild
             >
-              <a href="/meals/plan">
+              <Link to="/meals/plan">
                 <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
                 Meal plan
-              </a>
+              </Link>
             </Button>
             <Button
               variant="outline"
@@ -840,10 +849,10 @@ export default function Meals() {
               className="h-11 justify-start px-3 text-[13px]"
               asChild
             >
-              <a href="/meals/my-foods">
+              <Link to="/meals/my-foods">
                 <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
                 My foods
-              </a>
+              </Link>
             </Button>
           </div>
         </section>
@@ -898,9 +907,9 @@ export default function Meals() {
                 className="h-10 px-2 text-xs"
                 asChild
               >
-                <a href="/meals/history">
+                <Link to="/meals/history">
                   <History className="mr-1 h-4 w-4" /> History
-                </a>
+                </Link>
               </Button>
             </div>
           </CardHeader>
@@ -955,9 +964,9 @@ export default function Meals() {
                 <div className="mt-3 rounded-lg bg-background px-3 py-2 text-xs leading-5 text-primary">
                   Weekly review: {weeklyCalorieDelta > 0 ? "+" : ""}
                   {weeklyCalorieDelta} kcal/day.{" "}
-                  <a className="underline" href="/weekly-review">
+                  <Link className="underline" to="/weekly-review">
                     Review or undo
-                  </a>
+                  </Link>
                 </div>
               ) : null}
             </div>
@@ -1270,7 +1279,7 @@ export default function Meals() {
                 <BookOpen className="h-4 w-4" /> My foods & recipes
               </CardTitle>
               <Button size="sm" variant="outline" asChild>
-                <a href="/meals/my-foods">Manage</a>
+                <Link to="/meals/my-foods">Manage</Link>
               </Button>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">

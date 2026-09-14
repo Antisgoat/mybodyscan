@@ -84,7 +84,10 @@ export async function processMealPhoto(
     throw new HttpsError("unauthenticated", "Sign in to estimate a meal.");
   const image = validateMealPhotoInput(request.data);
   await deps.authorize(uid);
-  if (process.env.MEAL_PHOTO_ENABLED !== "true")
+  // Paid access and the hard daily quota remain the primary cost controls.
+  // Allow production by default so a missing optional deployment flag cannot
+  // turn a shipped member feature into a guaranteed failure.
+  if (process.env.MEAL_PHOTO_ENABLED === "false")
     throw new HttpsError(
       "unavailable",
       "Meal photo estimates are not available yet. Use food search instead."

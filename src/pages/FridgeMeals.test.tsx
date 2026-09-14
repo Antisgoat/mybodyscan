@@ -65,7 +65,9 @@ function app() {
   );
 }
 function addIngredient(name = "Spinach") {
-  const consent = screen.getByRole("checkbox", { name: /I agree to send/ });
+  const consent = screen.getByRole("checkbox", {
+    name: /I agree to securely process/,
+  });
   if (consent.getAttribute("data-state") !== "checked")
     fireEvent.click(consent);
   fireEvent.change(screen.getByLabelText("Add a missed ingredient"), {
@@ -94,7 +96,9 @@ afterEach(cleanup);
 describe("Fridge Scan member workflow", () => {
   it("copies selected files before resetting the live file input and requires explicit confirmation", async () => {
     render(app());
-    fireEvent.click(screen.getByRole("checkbox", { name: /I agree to send/ }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /I agree to securely process/ })
+    );
     const input = screen.getByLabelText(
       "Choose refrigerator and pantry photos"
     ) as HTMLInputElement;

@@ -1085,7 +1085,8 @@ async function requestAiAdjustment(input: {
 const PLAN_SYSTEM_PROMPT = [
   "You design pragmatic progressive overload workout plans.",
   'Respond with JSON matching {"days":[{"day":"Mon","exercises":[{"name":"Goblet Squat","sets":3,"reps":"10"}]}]}.',
-  'Provide 3-6 days max, each with 3-5 exercises. Keep reps as short strings (e.g. "8-12" or "10").',
+  'Provide 3-6 days max, each with 4-6 exercises and normally 16-22 working sets. Keep reps as short strings (e.g. "8-12 @ RPE 8" or "10").',
+  "Use progressive overload and mostly 1-3 reps in reserve. Never prescribe failure on heavy compound lifts; reduce volume when injury notes or recovery limits require it.",
   "Return JSON only with no markdown fences or prose.",
 ].join("\n");
 
