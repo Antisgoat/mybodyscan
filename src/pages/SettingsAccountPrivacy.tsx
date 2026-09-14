@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { signOutToAuth, useAuthUser } from "@/auth/mbs-auth";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { requestAccountDeletion } from "@/lib/account";
 
 export default function SettingsAccountPrivacyPage() {
@@ -41,9 +41,9 @@ export default function SettingsAccountPrivacyPage() {
   return (
     <div className="mx-auto max-w-2xl p-4 space-y-4">
       <header className="sticky top-0 z-40 -mx-4 mb-1 bg-white/80 backdrop-blur border-b px-4 py-2 flex items-center gap-3">
-        <a href="/settings" className="rounded border px-2 py-1 text-xs">
+        <Link to="/settings" className="rounded border px-2 py-1 text-xs">
           Back
-        </a>
+        </Link>
         <h1 className="text-sm font-medium">Account &amp; Privacy</h1>
         <div className="flex-1" />
       </header>
@@ -51,15 +51,15 @@ export default function SettingsAccountPrivacyPage() {
       <section className="space-y-2">
         <h2 className="text-sm font-medium">Legal</h2>
         <div className="flex flex-col gap-2 text-sm">
-          <a className="underline" href="/legal/privacy">
+          <Link className="underline" to="/legal/privacy">
             Privacy Policy
-          </a>
-          <a className="underline" href="/legal/terms">
+          </Link>
+          <Link className="underline" to="/legal/terms">
             Terms of Service
-          </a>
-          <a className="underline" href="/legal/refund">
+          </Link>
+          <Link className="underline" to="/legal/refund">
             Refund Policy
-          </a>
+          </Link>
         </div>
       </section>
 
@@ -68,8 +68,8 @@ export default function SettingsAccountPrivacyPage() {
         <p className="text-xs text-muted-foreground">
           Deleting your account will permanently remove your scans, notes, and
           settings. This cannot be undone. For security, sign in again first if
-          your last authentication was more than five minutes ago. Deleting
-          your MyBodyScan account cancels its linked Stripe customer and
+          your last authentication was more than five minutes ago. Deleting your
+          MyBodyScan account cancels its linked Stripe customer and
           subscription, but it cannot cancel an Apple App Store or Google Play
           subscription. Cancel store subscriptions in the applicable store
           settings first if you do not want them to renew.

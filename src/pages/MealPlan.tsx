@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowLeft, Search, Utensils } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -20,25 +21,25 @@ export default function MealPlan() {
 
   const goals = useMemo(() => {
     const baseGoals = deriveNutritionGoals({
-        weightKg: profile?.weight_kg ?? profile?.weightKg ?? null,
-        heightCm: profile?.height_cm ?? profile?.heightCm ?? null,
-        age: profile?.age ?? null,
-        sex: profile?.sex ?? null,
-        goal:
-          profile?.goal === "lose_fat"
-            ? "lose_fat"
-            : profile?.goal === "gain_muscle"
-              ? "gain_muscle"
-              : null,
-        activityLevel: profile?.activity_level ?? null,
-        overrides: {
-          calories:
-            typeof plan?.calorieTarget === "number"
-              ? plan.calorieTarget
-              : undefined,
-          proteinGrams: plan?.proteinFloor,
-        },
-      });
+      weightKg: profile?.weight_kg ?? profile?.weightKg ?? null,
+      heightCm: profile?.height_cm ?? profile?.heightCm ?? null,
+      age: profile?.age ?? null,
+      sex: profile?.sex ?? null,
+      goal:
+        profile?.goal === "lose_fat"
+          ? "lose_fat"
+          : profile?.goal === "gain_muscle"
+            ? "gain_muscle"
+            : null,
+      activityLevel: profile?.activity_level ?? null,
+      overrides: {
+        calories:
+          typeof plan?.calorieTarget === "number"
+            ? plan.calorieTarget
+            : undefined,
+        proteinGrams: plan?.proteinFloor,
+      },
+    });
     return {
       ...baseGoals,
       calories: Math.max(1200, baseGoals.calories + calorieDelta),
@@ -82,10 +83,10 @@ export default function MealPlan() {
             </p>
           </div>
           <Button variant="outline" asChild>
-            <a href="/meals">
+            <Link to="/meals">
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
               Meal diary
-            </a>
+            </Link>
           </Button>
         </div>
 
@@ -132,9 +133,9 @@ export default function MealPlan() {
               Your accepted adjustment changes this outline by{" "}
               {calorieDelta > 0 ? "+" : ""}
               {calorieDelta} kcal per day. You can review or undo it from the{" "}
-              <a className="underline" href="/weekly-review">
+              <Link className="underline" to="/weekly-review">
                 weekly review
-              </a>
+              </Link>
               .
             </AlertDescription>
           </Alert>
@@ -183,10 +184,10 @@ export default function MealPlan() {
                   {meal.fatGrams} g fat.
                 </p>
                 <Button variant="outline" size="sm" asChild>
-                  <a href="/meals/search">
+                  <Link to="/meals/search">
                     <Search className="mr-2 h-4 w-4" aria-hidden="true" />
                     Find and log foods
-                  </a>
+                  </Link>
                 </Button>
               </CardContent>
             </Card>

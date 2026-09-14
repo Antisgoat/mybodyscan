@@ -278,8 +278,8 @@ function setsRepsForSlot(params: {
       : exp === "intermediate"
         ? 4
         : params.isPrimaryCompound
-          ? 4
-          : 3;
+          ? 5
+          : 4;
 
   if (isCoreOrCarry) {
     if (goal === "performance")

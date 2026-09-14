@@ -40,9 +40,9 @@ describe("user-facing product language", () => {
     }
   });
 
-  it("clearly identifies the kitchen processor before optional data sharing", () => {
+  it("clearly discloses third-party processing before optional data sharing", () => {
     expect(read("src/content/legal/privacy.md")).toContain(
-      "to OpenAI for processing"
+      "specialized third-party processing provider"
     );
     expect(read("src/pages/FridgeMeals.tsx")).toContain(
       "kitchen-processing-consent"

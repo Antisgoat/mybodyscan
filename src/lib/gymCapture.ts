@@ -1,5 +1,6 @@
 const MAX_IMAGE_EDGE = 1024;
 const JPEG_QUALITY = 0.72;
+const MAX_CALLABLE_IMAGE_LENGTH = 680_000;
 const MAX_VIDEO_SECONDS = 45;
 
 function canvasDataUrl(
@@ -14,7 +15,11 @@ function canvasDataUrl(
   const context = canvas.getContext("2d");
   if (!context) throw new Error("image_processing_unavailable");
   context.drawImage(source, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+  for (const quality of [JPEG_QUALITY, 0.62, 0.52, 0.42]) {
+    const encoded = canvas.toDataURL("image/jpeg", quality);
+    if (encoded.length <= MAX_CALLABLE_IMAGE_LENGTH) return encoded;
+  }
+  throw new Error("image_too_complex");
 }
 
 export async function prepareGymPhoto(file: File): Promise<string> {

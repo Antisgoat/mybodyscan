@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rankNutritionResults } from "../lib/nutritionSearch.js";
+import {
+  curateNutritionResults,
+  rankNutritionResults,
+} from "../lib/nutritionSearch.js";
 
 function food({ id, name, brand = null, dataType = "Branded" }) {
   return {
@@ -61,4 +64,18 @@ test("ties preserve the upstream order", () => {
     rankNutritionResults([first, second], "oatmeal").map((item) => item.id),
     ["first", "second"]
   );
+});
+
+test("generic egg searches return three consistent household choices", () => {
+  const results = curateNutritionResults(
+    [food({ id: "brand", name: "EGGS", brand: "Example Farms" })],
+    "eggs"
+  );
+  assert.deepEqual(
+    results.map((item) => item.name),
+    ["Whole egg, large", "Egg white, large", "Egg yolk, large"]
+  );
+  assert.equal(results[0].per_serving.kcal, 70);
+  assert.equal(results[0].servings[0].label, "1 large");
+  assert.equal(results[0].brand, null);
 });

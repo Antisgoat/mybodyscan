@@ -230,7 +230,7 @@ export default function FridgeMeals() {
             </div>
             <div>
               <Badge variant="secondary" className="mb-2">
-                Pro meal helper
+                Kitchen meal ideas
               </Badge>
               <h1 className="text-2xl font-semibold leading-none tracking-tight sm:text-3xl">
                 What can you make right now?
@@ -258,10 +258,11 @@ export default function FridgeMeals() {
                 htmlFor="kitchen-processing-consent"
                 className="text-sm font-normal leading-6"
               >
-                I agree to send my selected photos, confirmed ingredients, and
-                dietary preferences (including saved allergies) to OpenAI to
-                provide this feature. Photos are not saved to my MyBodyScan
-                account.{" "}
+                I agree to securely process my selected photos, confirmed
+                ingredients, and dietary preferences (including saved allergies)
+                to provide this feature. Photos are not saved to my MyBodyScan
+                account. A specialized processing provider may temporarily
+                handle them.{" "}
                 <Link to="/privacy" className="underline">
                   Privacy details
                 </Link>

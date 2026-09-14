@@ -30,6 +30,7 @@ import { AppCheckProvider } from "./components/AppCheckProvider";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { DataBoundary } from "./components/DataBoundary";
 import PublicLanding from "./pages/PublicLanding";
+import RootRedirect from "./pages/RootRedirect";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import Support from "./pages/Support";
@@ -129,6 +130,20 @@ const allowInternalTools =
     !__MBS_NATIVE_RELEASE__);
 const nativeBuild = isNative();
 
+const RootEntry = () => {
+  const { user, authReady } = useAuthUser();
+
+  // Never drop an authenticated member into the marketing site. Native shells
+  // are app-only: signed-out members go directly to authentication.
+  if (!authReady) return <PageSkeleton />;
+  if (user || nativeBuild) return <RootRedirect />;
+  return MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE ? (
+    withPublicLayout(<PublicLanding />)
+  ) : (
+    <Index />
+  );
+};
+
 const PageSuspense = ({
   children,
   fallback,
@@ -226,17 +241,7 @@ const App = () => (
   <AppProviders>
     <Suspense fallback={<PageSkeleton />}>
       <Routes>
-        {/* Root route - flag-controlled */}
-        <Route
-          path="/"
-          element={
-            MBS_FLAGS.ENABLE_PUBLIC_MARKETING_PAGE ? (
-              withPublicLayout(<PublicLanding />)
-            ) : (
-              <Index />
-            )
-          }
-        />
+        <Route path="/" element={<RootEntry />} />
         <Route path="/__previewframe/*" element={<PreviewFrame />} />
         <Route path="/demo" element={<DemoGate />} />
         {/* Marketing page */}
@@ -264,22 +269,26 @@ const App = () => (
           path="/legal/refund"
           element={withPublicLayout(<LegalRefund />)}
         />
-        <Route
-          path="/system-check"
-          element={
-            <PageSuspense>
-              <SystemCheckPage />
-            </PageSuspense>
-          }
-        />
-        <Route
-          path="/system-check-pro"
-          element={
-            <PageSuspense>
-              <SystemCheckPro />
-            </PageSuspense>
-          }
-        />
+        {allowInternalTools && (
+          <Route
+            path="/system-check"
+            element={
+              <PageSuspense>
+                <SystemCheckPage />
+              </PageSuspense>
+            }
+          />
+        )}
+        {allowInternalTools && (
+          <Route
+            path="/system-check-pro"
+            element={
+              <PageSuspense>
+                <SystemCheckPro />
+              </PageSuspense>
+            }
+          />
+        )}
         {/* Checkout result pages (public) */}
         <Route
           path="/checkout/success"
@@ -711,7 +720,22 @@ const App = () => (
         />
         <Route
           path="/meals/photo"
-          element={<FeatureGate name="nutrition" fallback={<Navigate to="/home" replace />}><ProtectedRoute><PersonalizationGate><AuthedLayout><RouteBoundary><MealPhoto /></RouteBoundary></AuthedLayout></PersonalizationGate></ProtectedRoute></FeatureGate>}
+          element={
+            <FeatureGate
+              name="nutrition"
+              fallback={<Navigate to="/home" replace />}
+            >
+              <ProtectedRoute>
+                <PersonalizationGate>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <MealPhoto />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </PersonalizationGate>
+              </ProtectedRoute>
+            </FeatureGate>
+          }
         />
         <Route
           path="/meals/fridge"
@@ -1008,40 +1032,44 @@ const App = () => (
             </FeatureGate>
           }
         />
-        <Route
-          path="/settings/system-check"
-          element={
-            <FeatureGate
-              name="account"
-              fallback={<Navigate to="/home" replace />}
-            >
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <RouteBoundary>
-                    <SystemCheckPage />
-                  </RouteBoundary>
-                </AuthedLayout>
-              </ProtectedRoute>
-            </FeatureGate>
-          }
-        />
-        <Route
-          path="/settings/system-check-pro"
-          element={
-            <FeatureGate
-              name="account"
-              fallback={<Navigate to="/home" replace />}
-            >
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <RouteBoundary>
-                    <SystemCheckPro />
-                  </RouteBoundary>
-                </AuthedLayout>
-              </ProtectedRoute>
-            </FeatureGate>
-          }
-        />
+        {allowInternalTools && (
+          <Route
+            path="/settings/system-check"
+            element={
+              <FeatureGate
+                name="account"
+                fallback={<Navigate to="/home" replace />}
+              >
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <SystemCheckPage />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              </FeatureGate>
+            }
+          />
+        )}
+        {allowInternalTools && (
+          <Route
+            path="/settings/system-check-pro"
+            element={
+              <FeatureGate
+                name="account"
+                fallback={<Navigate to="/home" replace />}
+              >
+                <ProtectedRoute>
+                  <AuthedLayout>
+                    <RouteBoundary>
+                      <SystemCheckPro />
+                    </RouteBoundary>
+                  </AuthedLayout>
+                </ProtectedRoute>
+              </FeatureGate>
+            }
+          />
+        )}
         <Route
           path="/health"
           element={
@@ -1345,28 +1373,32 @@ const App = () => (
             }
           />
         )}
-        <Route
-          path="/__admin"
-          element={
-            <ProtectedRoute>
-              <PageSuspense>
-                <AdminConsole />
-              </PageSuspense>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/__admin/quick"
-          element={
-            <ProtectedRoute>
-              <AuthedLayout>
+        {allowInternalTools && (
+          <Route
+            path="/__admin"
+            element={
+              <ProtectedRoute>
                 <PageSuspense>
-                  <AdminQuick />
+                  <AdminConsole />
                 </PageSuspense>
-              </AuthedLayout>
-            </ProtectedRoute>
-          }
-        />
+              </ProtectedRoute>
+            }
+          />
+        )}
+        {allowInternalTools && (
+          <Route
+            path="/__admin/quick"
+            element={
+              <ProtectedRoute>
+                <AuthedLayout>
+                  <PageSuspense>
+                    <AdminQuick />
+                  </PageSuspense>
+                </AuthedLayout>
+              </ProtectedRoute>
+            }
+          />
+        )}
         {allowInternalTools && (
           <Route
             path="/__smoke"

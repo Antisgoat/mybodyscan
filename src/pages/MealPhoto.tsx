@@ -147,9 +147,9 @@ export default function MealPhoto() {
             className="mt-1 h-4 w-4 shrink-0"
           />
           <span>
-            I agree to send this meal photo to OpenAI for processing. MyBodyScan
-            does not save the photo in my diary; provider retention policies
-            apply.{" "}
+            I agree to securely process this meal photo. MyBodyScan does not
+            save the photo in my diary; a specialized processing provider may
+            temporarily handle it and its retention policies apply.{" "}
             <Link to="/legal/privacy" className="underline">
               Privacy details
             </Link>

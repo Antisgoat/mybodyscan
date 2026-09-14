@@ -51,8 +51,7 @@ import { SectionCard } from "@/components/Settings/SectionCard";
 import { ToggleRow } from "@/components/Settings/ToggleRow";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import type { CoachSex } from "@/hooks/useUserProfile";
-import { db, getFirebaseConfig } from "@/lib/firebase";
-import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
+import { db } from "@/lib/firebase";
 import { setDoc } from "@/lib/dbWrite";
 import { doc, getDoc } from "firebase/firestore";
 import { kgToLb, lbToKg, formatHeightFromCm } from "@/lib/units";
@@ -67,12 +66,9 @@ import { useClaims } from "@/lib/claims";
 import { buildErrorToast } from "@/lib/errorToasts";
 import { call } from "@/lib/callable";
 import { useAuthUser } from "@/auth/mbs-auth";
-import { useDemoMode } from "@/components/DemoModeProvider";
 import { useUnits } from "@/hooks/useUnits";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
-import { isIOSSafari } from "@/lib/isIOSWeb";
-import { getInitAuthState } from "@/lib/auth/initAuth";
 import { isNativeCapacitor, openExternalUrl } from "@/lib/platform";
 import {
   disablePlateauPush,
@@ -85,13 +81,6 @@ import { useNutritionSafety } from "@/hooks/useNutritionSafety";
 import { MAJOR_ALLERGENS, type MajorAllergen } from "@/lib/nutrition/allergens";
 
 const Settings = () => {
-  const DEVELOPER_EMAIL = "developer@adlrlabs.com";
-  const TESTER_UIDS = [
-    "DbGEQQuSE2agIIqTUBkaAYCYCP92",
-    "iYnHMbPSV1aJCyc3cIsdz1dLm092",
-    "ww481RPvMYZzwn5vLX8FXyRlGVV2",
-    "GBdtbwUcYGYMuA1QW0Ik6K9tP0w1",
-  ] as const;
   const [plateauPush, setPlateauPush] = useState(false);
   const [notificationSaving, setNotificationSaving] = useState(false);
   const [notificationLoading, setNotificationLoading] = useState(true);
@@ -120,15 +109,6 @@ const Settings = () => {
   const { credits, unlimited, loading: creditsLoading } = useCredits();
   const { refresh: refreshClaimsHook } = useClaims();
   const { user } = useAuthUser();
-  const demoMode = useDemoMode();
-  const [grantingTesterPro, setGrantingTesterPro] = useState(false);
-  const [testerProResult, setTesterProResult] = useState<{
-    updated: string[];
-    failed: Array<{ uid: string; error: string }>;
-  } | null>(null);
-  const [appCheckStatus, setAppCheckStatus] = useState<
-    "checking" | "present" | "absent"
-  >("checking");
   const { units } = useUnits();
   const { health: systemHealth } = useSystemHealth();
   const {
@@ -169,24 +149,7 @@ const Settings = () => {
           : "bg-destructive/10 text-destructive";
 
   const creditsLabel = creditsLoading ? "…" : unlimited ? "∞" : credits;
-  const firebaseCfg = getFirebaseConfig();
-  const runtimeHost =
-    typeof window !== "undefined" ? window.location.hostname : "";
-  const runtimeOrigin =
-    typeof window !== "undefined" ? window.location.origin : "";
-  const authDomain = String(firebaseCfg?.authDomain || "").trim();
-  const authDomainMismatch =
-    import.meta.env.PROD &&
-    Boolean(runtimeHost) &&
-    Boolean(authDomain) &&
-    runtimeHost.toLowerCase() !== authDomain.toLowerCase();
-  const persistenceMode = isNativeCapacitor() ? "native" : "unknown";
-  const iosSafari = isIOSSafari();
   const nativeCapacitor = isNativeCapacitor();
-  const initAuthState = getInitAuthState();
-  const canSeeAdminTools =
-    typeof user?.email === "string" &&
-    user.email.trim().toLowerCase() === DEVELOPER_EMAIL;
 
   useEffect(() => {
     if (nutritionSafetyLoading) return;
@@ -306,34 +269,6 @@ const Settings = () => {
       setAgeInput("");
     }
   }, [profile?.age, profile?.sex]);
-
-  useEffect(() => {
-    let active = true;
-    if (!user) {
-      setAppCheckStatus("checking");
-      return () => {
-        active = false;
-      };
-    }
-    (async () => {
-      try {
-        await ensureAppCheck();
-        const headers = await getAppCheckTokenHeader();
-        if (active) {
-          setAppCheckStatus(
-            Object.keys(headers).length > 0 ? "present" : "absent"
-          );
-        }
-      } catch {
-        if (active) {
-          setAppCheckStatus("absent");
-        }
-      }
-    })();
-    return () => {
-      active = false;
-    };
-  }, [user]);
 
   const handleSaveMetrics = async () => {
     if (!user) {
@@ -661,55 +596,6 @@ const Settings = () => {
     }
   };
 
-  const handleGrantProToTesters = async () => {
-    if (!user?.uid) {
-      toast({
-        title: "Sign in required",
-        description: "Sign in to run admin actions.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setGrantingTesterPro(true);
-    setTesterProResult(null);
-    try {
-      const res = await call<
-        { uids: string[]; pro?: boolean },
-        { updated: string[]; failed: Array<{ uid: string; error: string }> }
-      >("adminGrantProEntitlements", { uids: [...TESTER_UIDS], pro: true });
-      const updated = Array.isArray(res?.data?.updated) ? res.data.updated : [];
-      const failed = Array.isArray(res?.data?.failed) ? res.data.failed : [];
-      setTesterProResult({ updated, failed });
-
-      if (failed.length) {
-        toast({
-          title: "Partial success",
-          description: `Updated ${updated.length}; failed ${failed.length}. See details below.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Pro granted",
-          description:
-            "Tester entitlements updated. Testers may need to refresh or relaunch to see Pro access.",
-        });
-      }
-    } catch (error) {
-      toast(
-        buildErrorToast(error, {
-          fallback: {
-            title: "Grant failed",
-            description:
-              "You are not authorized, or a server error occurred. Check logs and try again.",
-            variant: "destructive",
-          },
-        })
-      );
-    } finally {
-      setGrantingTesterPro(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <main className="max-w-md mx-auto p-6 space-y-6">
@@ -874,178 +760,6 @@ const Settings = () => {
           </CardContent>
         </Card>
 
-        {user ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Diagnostics</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {authDomainMismatch ? (
-                <div className="rounded border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                  <div className="font-semibold">
-                    Auth misconfiguration: authDomain must match this site
-                  </div>
-                  <div>
-                    Running on <span className="font-mono">{runtimeHost}</span>{" "}
-                    but Firebase authDomain is{" "}
-                    <span className="font-mono">{authDomain}</span>.
-                  </div>
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>App Check</span>
-                <Badge
-                  variant={
-                    appCheckStatus === "present" ? "default" : "secondary"
-                  }
-                  className="uppercase tracking-wide"
-                >
-                  {appCheckStatus === "checking"
-                    ? "Checking"
-                    : appCheckStatus === "present"
-                      ? "Token present"
-                      : "Token missing"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Demo mode</span>
-                <Badge
-                  variant={demoMode ? "secondary" : "outline"}
-                  className="uppercase tracking-wide"
-                >
-                  {demoMode ? "ON" : "OFF"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Auth email</span>
-                <span className="font-medium text-foreground">
-                  {user.email || "(none)"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Origin</span>
-                <span className="font-mono text-[11px] text-foreground">
-                  {runtimeOrigin || "(unknown)"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Firebase authDomain</span>
-                <span className="font-mono text-[11px] text-foreground">
-                  {authDomain || "(unknown)"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>iOS Safari</span>
-                <Badge
-                  variant={iosSafari ? "secondary" : "outline"}
-                  className="uppercase tracking-wide"
-                >
-                  {iosSafari ? "YES" : "NO"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Capacitor native</span>
-                <Badge
-                  variant={nativeCapacitor ? "secondary" : "outline"}
-                  className="uppercase tracking-wide"
-                >
-                  {nativeCapacitor ? "YES" : "NO"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Auth persistence</span>
-                <Badge className="uppercase tracking-wide" variant="outline">
-                  {persistenceMode}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Auth boot</span>
-                <span className="text-xs text-muted-foreground">
-                  {initAuthState.completed
-                    ? "ready"
-                    : initAuthState.started
-                      ? "starting"
-                      : "not-started"}
-                  {initAuthState.redirectError ? ` • redirectError` : ""}
-                </span>
-              </div>
-              <div className="flex items-center justify-between rounded border px-3 py-2">
-                <span>Stripe publishable key</span>
-                <Badge
-                  variant={stripeConfigured ? "default" : "destructive"}
-                  className="uppercase tracking-wide"
-                >
-                  {stripeConfigured ? "Present" : "Missing"}
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {canSeeAdminTools ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Admin tools</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <p className="text-xs text-muted-foreground">
-                Restricted to{" "}
-                <span className="font-mono">{DEVELOPER_EMAIL}</span>.
-              </p>
-              <div className="rounded border px-3 py-2">
-                <p className="text-xs font-medium text-foreground">
-                  Tester UIDs (fixed)
-                </p>
-                <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                  {TESTER_UIDS.map((uid) => (
-                    <li key={uid} className="font-mono">
-                      {uid}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleGrantProToTesters}
-                disabled={grantingTesterPro}
-              >
-                {grantingTesterPro ? "Granting…" : "Grant Pro to Testers"}
-              </Button>
-              {testerProResult ? (
-                <div className="space-y-2 rounded border px-3 py-2 text-xs">
-                  <div>
-                    <div className="font-medium text-foreground">Updated</div>
-                    <div className="text-muted-foreground">
-                      {testerProResult.updated.length
-                        ? testerProResult.updated.join(", ")
-                        : "None"}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-medium text-foreground">Failed</div>
-                    {testerProResult.failed.length ? (
-                      <ul className="mt-1 space-y-1 text-muted-foreground">
-                        {testerProResult.failed.map((row) => (
-                          <li key={`${row.uid}-${row.error}`}>
-                            <span className="font-mono">{row.uid}</span> —{" "}
-                            {row.error}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="text-muted-foreground">None</div>
-                    )}
-                  </div>
-                  <p className="text-muted-foreground">
-                    Note: testers may need to refresh/relaunch to pick up Pro.
-                  </p>
-                </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : null}
-
         {/* Notifications */}
         <SectionCard title={t("settings.notifications")}>
           <div className="space-y-3">
@@ -1193,12 +907,12 @@ const Settings = () => {
               tools affect only your MyBodyScan data.
             </p>
             <div className="grid gap-2">
-              <a
-                href="/settings/account"
+              <Link
+                to="/settings/account"
                 className="inline-flex items-center justify-center rounded border px-3 py-2 text-sm"
               >
                 Account &amp; Privacy
-              </a>
+              </Link>
               <Button variant="outline" asChild className="w-full">
                 <Link to="/settings/gym">Gym equipment setup</Link>
               </Button>
@@ -1369,32 +1083,6 @@ const Settings = () => {
               >
                 <a href="/legal/refund" className="flex items-center gap-2">
                   Refund Policy
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </Button>
-              <Button
-                variant="ghost"
-                asChild
-                className="justify-start gap-2 text-left text-sm"
-              >
-                <Link
-                  to="/settings/system-check"
-                  className="flex items-center gap-2"
-                >
-                  System Check
-                  <ExternalLink className="h-3 w-3" />
-                </Link>
-              </Button>
-              <Button
-                variant="ghost"
-                asChild
-                className="justify-start gap-2 text-left text-sm"
-              >
-                <a
-                  href="/settings/system-check-pro"
-                  className="flex items-center gap-2"
-                >
-                  System Check Pro
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
