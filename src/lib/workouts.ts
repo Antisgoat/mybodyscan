@@ -247,7 +247,7 @@ async function fetchPlanFromFirestore(): Promise<ActiveWorkoutPlan | null> {
     };
   } catch (error) {
     console.warn("workouts.plan_fallback_failed", error);
-    return CORE_WORKOUT_FALLBACK;
+    return null;
   }
 }
 
@@ -337,9 +337,9 @@ export async function getPlan(): Promise<ActiveWorkoutPlan> {
     };
   } catch (error) {
     console.warn("workouts.getPlan", error);
+    const savedPlan = await fetchPlanFromFirestore();
+    if (savedPlan) return savedPlan;
     if (error instanceof Error && error.message.startsWith("fn_not_found")) {
-      const fallback = await fetchPlanFromFirestore();
-      if (fallback) return fallback;
       throw new Error("workouts_disabled_missing_fn");
     }
     const fallback = toWorkoutSummaryFallback();

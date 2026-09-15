@@ -57,8 +57,10 @@ function BodyFigure({
 }: FigureProps) {
   const group = useRef<Group>(null);
   const reveal = useRef(reducedMotion ? 1 : 0);
-  const baseColor = ghost ? "#a5f3fc" : "#2b7f89";
-  const selectedColor = ghost ? "#a5f3fc" : "#8ef4ff";
+  // Warm studio clay reads as a human form without implying that this
+  // parametric model reproduces skin tone or photographic identity.
+  const baseColor = ghost ? "#bae6fd" : "#b98973";
+  const selectedColor = ghost ? "#bae6fd" : "#e0b08e";
   const torsoY = (value: number) =>
     -0.18 + (value + 0.18) * profile.torsoLengthScale;
   const shoulderY = torsoY(1.94);
@@ -241,10 +243,10 @@ function BodyFigure({
 
   const bodyMaterial = (region: BodyRegionId) => ({
     color: selectedRegion === region ? selectedColor : baseColor,
-    emissive: selectedRegion === region && !ghost ? "#063d46" : "#031518",
-    emissiveIntensity: selectedRegion === region && !ghost ? 0.42 : 0.08,
-    roughness: ghost ? 0.4 : 0.64 - profile.definitionScale * 0.12,
-    metalness: ghost ? 0 : 0.08,
+    emissive: selectedRegion === region && !ghost ? "#4a2417" : "#120a08",
+    emissiveIntensity: selectedRegion === region && !ghost ? 0.16 : 0.025,
+    roughness: ghost ? 0.42 : 0.72 - profile.definitionScale * 0.1,
+    metalness: 0,
     transparent: ghost,
     opacity: ghost ? 0.16 : 1,
     depthWrite: !ghost,
@@ -299,6 +301,38 @@ function BodyFigure({
         <sphereGeometry args={[1, 32, 28]} />
         <meshStandardMaterial {...bodyMaterial("upper")} />
       </mesh>
+      {!ghost ? (
+        <>
+          {[-1, 1].map((side) => (
+            <mesh
+              key={`ear-${side}`}
+              position={[side * 0.285 * profile.headScale, headY + 0.015, 0]}
+              scale={[0.035, 0.085, 0.045]}
+              onClick={() => select("upper")}
+            >
+              <sphereGeometry args={[1, 18, 14]} />
+              <meshStandardMaterial {...bodyMaterial("upper")} />
+            </mesh>
+          ))}
+          <mesh
+            position={[0, headY - 0.015, 0.305 * profile.headScale]}
+            scale={[0.05, 0.09, 0.075]}
+            rotation={[0.18, 0, 0]}
+            onClick={() => select("upper")}
+          >
+            <sphereGeometry args={[1, 18, 14]} />
+            <meshStandardMaterial {...bodyMaterial("upper")} />
+          </mesh>
+          <mesh
+            position={[0, headY - 0.245 * profile.headScale, 0.12]}
+            scale={[0.17, 0.08, 0.16]}
+            onClick={() => select("upper")}
+          >
+            <sphereGeometry args={[1, 20, 14]} />
+            <meshStandardMaterial {...bodyMaterial("upper")} />
+          </mesh>
+        </>
+      ) : null}
       {[-1, 1].map((side) => (
         <group
           key={`arm-${side}`}
@@ -306,6 +340,14 @@ function BodyFigure({
           rotation={[0, 0, side * -0.055]}
         >
           <mesh geometry={geometries.arm} onClick={() => select("arms")}>
+            <meshStandardMaterial {...bodyMaterial("arms")} />
+          </mesh>
+          <mesh
+            position={[0, armY(-0.04), 0]}
+            scale={[0.13 * profile.armScale, 0.13, 0.12 * profile.armScale]}
+            onClick={() => select("arms")}
+          >
+            <sphereGeometry args={[1, 20, 16]} />
             <meshStandardMaterial {...bodyMaterial("arms")} />
           </mesh>
           <mesh
@@ -324,6 +366,14 @@ function BodyFigure({
           position={[side * 0.27 * profile.hipScale, 0, 0]}
         >
           <mesh geometry={geometries.leg} onClick={() => select("legs")}>
+            <meshStandardMaterial {...bodyMaterial("legs")} />
+          </mesh>
+          <mesh
+            position={[0, legY(-1.17), 0.035]}
+            scale={[0.18 * profile.legScale, 0.16, 0.17 * profile.legScale]}
+            onClick={() => select("legs")}
+          >
+            <sphereGeometry args={[1, 20, 16]} />
             <meshStandardMaterial {...bodyMaterial("legs")} />
           </mesh>
           <mesh
@@ -347,7 +397,7 @@ function BodyFigure({
             >
               <sphereGeometry args={[1, 24, 12]} />
               <meshStandardMaterial
-                color="#4a9ba3"
+                color="#8f5f4d"
                 transparent
                 opacity={0.16 + profile.definitionScale * 0.18}
                 roughness={0.76}
@@ -458,23 +508,23 @@ export default function BodyVisualization({
               }}
               aria-hidden="true"
             >
-              <ambientLight intensity={1.5} />
+              <ambientLight intensity={1.35} />
               <directionalLight
                 position={[3, 5, 5]}
                 intensity={2.1}
-                color="#cffafe"
+                color="#fff1e6"
               />
               <directionalLight
                 position={[-4, 1, -3]}
                 intensity={1.1}
-                color="#2563eb"
+                color="#5b7fb5"
               />
               <spotLight
                 position={[0, 5, -4]}
                 intensity={1.8}
                 angle={0.55}
                 penumbra={0.9}
-                color="#67e8f9"
+                color="#f0b48b"
               />
               {showPrevious && previousProfile ? (
                 <BodyFigure

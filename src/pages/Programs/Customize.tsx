@@ -88,7 +88,7 @@ function ensureUniqueDays(days: DayName[], fallbackCount: number): DayName[] {
 }
 
 function normalizeDaysPerWeek(value: number) {
-  return clamp(Math.round(value), 2, 6);
+  return clamp(Math.round(value), 2, 7);
 }
 
 export default function CustomizeProgram() {
@@ -604,12 +604,12 @@ export default function CustomizeProgram() {
               <div className="grid gap-3 rounded-md border bg-muted/40 p-4 md:grid-cols-3">
                 <label className="space-y-1 text-sm">
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Days / week (2–6)
+                    Days / week (2–7)
                   </span>
                   <Input
                     type="number"
                     min={2}
-                    max={6}
+                    max={7}
                     step={1}
                     value={daysPerWeek}
                     onChange={(e) => {
@@ -658,7 +658,9 @@ export default function CustomizeProgram() {
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    We’ll pick {daysPerWeek} unique days.
+                    {daysPerWeek === 7
+                      ? "Six training sessions plus one low-intensity active-recovery day."
+                      : `We’ll pick ${daysPerWeek} unique days.`}
                   </p>
                 </div>
               </div>

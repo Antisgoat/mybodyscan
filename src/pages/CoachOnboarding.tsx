@@ -309,12 +309,18 @@ const CoachOnboarding = () => {
                   update("training_days_per_week", Number(e.target.value))
                 }
               >
-                {[2, 3, 4, 5, 6].map((days) => (
+                {[2, 3, 4, 5, 6, 7].map((days) => (
                   <option key={days} value={days}>
-                    {days} days/week
+                    {days === 7
+                      ? "7 days/week (6 training + active recovery)"
+                      : `${days} days/week`}
                   </option>
                 ))}
               </select>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Seven-day schedules include one low-intensity recovery day—not
+                seven hard lifting sessions.
+              </span>
             </label>
 
             <label className="block">

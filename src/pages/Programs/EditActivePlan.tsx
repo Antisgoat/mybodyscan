@@ -14,6 +14,7 @@ import {
   updateWorkoutPlanRemote,
   type UpdateWorkoutPlanOp,
 } from "@/lib/workouts";
+import { isFallbackWorkoutPlanId } from "@/lib/workoutsFallback";
 
 type DayName = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 const DAYS: DayName[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -169,6 +170,7 @@ export default function EditActivePlan() {
   };
 
   const plan = localPlan;
+  const planIsFallback = isFallbackWorkoutPlanId(plan?.id);
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -211,10 +213,13 @@ export default function EditActivePlan() {
               <Loader2 className="h-4 w-4 animate-spin" /> Loading plan…
             </CardContent>
           </Card>
-        ) : !plan ? (
+        ) : !plan || planIsFallback ? (
           <Card>
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              No active plan found. Choose a plan to start.
+            <CardContent className="space-y-4 py-10 text-center text-sm text-muted-foreground">
+              <p>No saved plan is ready to edit yet.</p>
+              <Button onClick={() => nav("/programs/customize")}>
+                Create a personalized plan
+              </Button>
             </CardContent>
           </Card>
         ) : (

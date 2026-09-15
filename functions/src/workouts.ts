@@ -146,7 +146,7 @@ function sanitizePlanPrefs(raw: any): PlanPrefs {
   }
   const daysPerWeek = Number(raw?.daysPerWeek);
   if (Number.isFinite(daysPerWeek)) {
-    prefs.daysPerWeek = Math.min(6, Math.max(2, Math.round(daysPerWeek)));
+    prefs.daysPerWeek = Math.min(7, Math.max(2, Math.round(daysPerWeek)));
   }
   const injuries = uniqStrings(raw?.injuries, 8, 48);
   if (injuries.length) {
@@ -166,7 +166,7 @@ function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
   ) {
     prefs.goal = goal;
   }
-  prefs.daysPerWeek = clampInt(raw?.daysPerWeek, 2, 6, 4);
+  prefs.daysPerWeek = clampInt(raw?.daysPerWeek, 2, 7, 4);
   prefs.preferredDays = uniqStrings(raw?.preferredDays, 7, 3).filter((d) =>
     VALID_CATALOG_DAY_SET.has(d)
   );
@@ -576,16 +576,17 @@ function toWorkoutDaysFromTemplates(
   prefs: CustomPlanPrefs,
   templates: PlanDayTemplate[]
 ): WorkoutDay[] {
-  const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
+  const requestedDaysPerWeek = clampInt(prefs.daysPerWeek, 2, 7, 4);
+  const daysPerWeek = Math.min(requestedDaysPerWeek, 6);
   const preferredDays =
     prefs.preferredDays && prefs.preferredDays.length
       ? prefs.preferredDays
-      : defaultPreferredDays(daysPerWeek);
+      : defaultPreferredDays(requestedDaysPerWeek);
   const days = preferredDays.slice(0, daysPerWeek);
   const pickedTemplates = templates.length
     ? templates
     : (CUSTOM_TEMPLATES.full_body.days[3] ?? []);
-  return days.map((dayName, index) => {
+  const generated = days.map((dayName, index) => {
     const template = pickedTemplates[index % pickedTemplates.length];
     const exercises = (
       template?.exercises?.length
@@ -606,11 +607,12 @@ function toWorkoutDaysFromTemplates(
       })),
     };
   });
+  return withActiveRecoveryDay(generated, requestedDaysPerWeek, preferredDays);
 }
 
 function generateCustomPlanDays(prefs: CustomPlanPrefs): WorkoutDay[] {
   const focus = prefs.focus ?? "full_body";
-  const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
+  const daysPerWeek = Math.min(clampInt(prefs.daysPerWeek, 2, 7, 4), 6);
   const templatesForFocus = CUSTOM_TEMPLATES[focus]?.days?.[daysPerWeek] ?? [];
   if (templatesForFocus.length) {
     return toWorkoutDaysFromTemplates(prefs, templatesForFocus);
@@ -621,6 +623,47 @@ function generateCustomPlanDays(prefs: CustomPlanPrefs): WorkoutDay[] {
     CUSTOM_TEMPLATES.full_body.days[3] ??
     [];
   return toWorkoutDaysFromTemplates(prefs, fallbackTemplates);
+}
+
+function withActiveRecoveryDay(
+  days: WorkoutDay[],
+  requestedDaysPerWeek: number,
+  preferredDays?: string[]
+): WorkoutDay[] {
+  if (requestedDaysPerWeek !== 7 || days.length >= 7) return days;
+  const used = new Set(days.map((day) => day.day));
+  const recoveryDay =
+    preferredDays?.find((day) => !used.has(day)) ??
+    ["Sun", "Sat", "Fri", "Thu", "Wed", "Tue", "Mon"].find(
+      (day) => !used.has(day)
+    ) ??
+    "Sun";
+  return [
+    ...days,
+    {
+      day: recoveryDay,
+      exercises: [
+        {
+          id: randomUUID(),
+          name: "Easy Zone 2 walk, bike, or swim",
+          sets: 1,
+          reps: "20-40 min · conversational pace",
+        },
+        {
+          id: randomUUID(),
+          name: "Full-body mobility flow",
+          sets: 1,
+          reps: "10-15 min · pain-free range",
+        },
+        {
+          id: randomUUID(),
+          name: "Recovery check-in and breathing",
+          sets: 1,
+          reps: "5 min · relaxed",
+        },
+      ],
+    },
+  ];
 }
 
 async function requireProgramsEntitlement(uid: string) {
@@ -1181,11 +1224,18 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
 async function resolvePlanDays(
   prefs: PlanPrefs
 ): Promise<{ days: WorkoutDay[]; source: string }> {
+  const requestedDaysPerWeek = Math.max(2, Math.min(prefs.daysPerWeek || 4, 7));
   const aiPlan = await generateAiPlan(prefs);
   if (aiPlan && aiPlan.length) {
-    return { days: aiPlan, source: "openai" };
+    return {
+      days: withActiveRecoveryDay(aiPlan, requestedDaysPerWeek),
+      source: "openai",
+    };
   }
-  return { days: deterministicPlan(prefs), source: "deterministic" };
+  return {
+    days: withActiveRecoveryDay(deterministicPlan(prefs), requestedDaysPerWeek),
+    source: "deterministic",
+  };
 }
 
 async function persistPlan(uid: string, prefs: PlanPrefs) {

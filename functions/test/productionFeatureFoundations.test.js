@@ -41,7 +41,7 @@ test("transformation prompt is restrained and prohibits predictive or revealing 
   assert.doesNotMatch(prompt, /exact body fat|exact weight/i);
 });
 
-test("ready transformation previews regenerate when the prompt version changes", () => {
+test("transformation previews regenerate for changed inputs and use immutable images", () => {
   const source = readFileSync(
     new URL("../src/transformationPreview.ts", import.meta.url),
     "utf8"
@@ -49,6 +49,12 @@ test("ready transformation previews regenerate when the prompt version changes",
   assert.match(
     source,
     /existingData\.promptVersion === TRANSFORMATION_PROMPT_VERSION/
+  );
+  assert.match(source, /existingData\.goal === goal/);
+  assert.match(source, /Number\(existingData\.timelineWeeks\) === timelineWeeks/);
+  assert.match(
+    source,
+    /transformation-previews\/\$\{uid\}\/\$\{scanId\}\/\$\{requestId\}\.jpg/
   );
   assert.match(source, /promptVersion: TRANSFORMATION_PROMPT_VERSION/);
 });

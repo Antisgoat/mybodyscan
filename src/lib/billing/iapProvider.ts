@@ -59,9 +59,33 @@ async function getPurchases() {
 // RevenueCat must be configured once, then re-identified with logIn when the
 // Firebase user changes. Serializing here prevents a double-configure race.
 let initializationQueue: Promise<void> = Promise.resolve();
+const PROVIDER_TIMEOUT_MS = 10_000;
+
+function withProviderTimeout<T>(
+  operation: Promise<T>,
+  label: string
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = globalThis.setTimeout(
+      () => reject(new Error(`${label} timed out`)),
+      PROVIDER_TIMEOUT_MS
+    );
+    operation.then(
+      (value) => {
+        globalThis.clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        globalThis.clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
+}
 
 function serializeInitialization<T>(work: () => Promise<T>): Promise<T> {
-  const result = initializationQueue.then(work, work);
+  const run = () => withProviderTimeout(work(), "Purchase setup");
+  const result = initializationQueue.then(run, run);
   initializationQueue = result.then(
     () => undefined,
     () => undefined
@@ -143,13 +167,17 @@ export async function getOfferings(): Promise<IapProviderResult<Offerings>> {
   }
   try {
     const Purchases = await getPurchases();
-    const offerings = await Purchases.getOfferings();
+    const offerings = await withProviderTimeout(
+      Purchases.getOfferings(),
+      "Offer loading"
+    );
     return { ok: true, value: offerings };
   } catch (cause) {
     return {
       ok: false,
       code: "offerings_failed",
-      message: "Unable to load offerings.",
+      message:
+        "Offers are taking too long to load. Check your connection and try again.",
       cause,
     };
   }

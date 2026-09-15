@@ -57,6 +57,7 @@ import { db } from "@/lib/firebase";
 import { doc, serverTimestamp } from "firebase/firestore";
 import { setDoc } from "@/lib/dbWrite";
 import { isNative } from "@/lib/platform";
+import { isFallbackWorkoutPlanId } from "@/lib/workoutsFallback";
 
 const PREFERENCES_KEY = "mbs.programPrefs";
 
@@ -225,6 +226,7 @@ export default function ProgramsCatalog() {
   });
 
   const activePlan = planQuery.data;
+  const activePlanIsFallback = isFallbackWorkoutPlanId(activePlan?.id);
   const activeDaysPerWeek = planDaysPerWeek(activePlan);
   const todayName = dayNames[new Date().getDay()];
   const todayIso = toIso(new Date());
@@ -324,7 +326,7 @@ export default function ProgramsCatalog() {
   };
 
   const endOrPause = async (status: "paused" | "ended") => {
-    if (!activePlan?.id) return;
+    if (!activePlan?.id || activePlanIsFallback) return;
     setEndingPlan(status);
     try {
       await setWorkoutPlanStatusRemote({ planId: activePlan.id, status });
@@ -523,13 +525,15 @@ export default function ProgramsCatalog() {
                   <Button onClick={() => nav("/workouts")} className="gap-2">
                     <Play className="h-4 w-4" /> Open today’s workout
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => nav("/programs/active/edit")}
-                    className="gap-2"
-                  >
-                    <Settings2 className="h-4 w-4" /> Edit plan
-                  </Button>
+                  {!activePlanIsFallback ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => nav("/programs/active/edit")}
+                      className="gap-2"
+                    >
+                      <Settings2 className="h-4 w-4" /> Edit plan
+                    </Button>
+                  ) : null}
                   <Button
                     variant="outline"
                     onClick={() => nav("/programs/customize?fromActive=1")}
@@ -538,24 +542,36 @@ export default function ProgramsCatalog() {
                     <RefreshCcw className="h-4 w-4" /> Regenerate plan
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => void endOrPause("paused")}
-                    disabled={endingPlan === "paused" || endingPlan === "ended"}
-                    className="gap-2"
-                  >
-                    <PauseCircle className="h-4 w-4" />
-                    {endingPlan === "paused" ? "Pausing…" : "Pause"}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => void endOrPause("ended")}
-                    disabled={endingPlan === "paused" || endingPlan === "ended"}
-                  >
-                    {endingPlan === "ended" ? "Ending…" : "End plan"}
-                  </Button>
-                </div>
+                {!activePlanIsFallback ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => void endOrPause("paused")}
+                      disabled={
+                        endingPlan === "paused" || endingPlan === "ended"
+                      }
+                      className="gap-2"
+                    >
+                      <PauseCircle className="h-4 w-4" />
+                      {endingPlan === "paused" ? "Pausing…" : "Pause"}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => void endOrPause("ended")}
+                      disabled={
+                        endingPlan === "paused" || endingPlan === "ended"
+                      }
+                    >
+                      {endingPlan === "ended" ? "Ending…" : "End plan"}
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="max-w-sm text-sm text-muted-foreground">
+                    This starter schedule is available while your saved plan
+                    loads. Create a personalized plan before editing or pausing
+                    it.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -646,9 +662,11 @@ export default function ProgramsCatalog() {
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        {[2, 3, 4, 5, 6].map((v) => (
+                        {[2, 3, 4, 5, 6, 7].map((v) => (
                           <SelectItem key={v} value={String(v)}>
-                            {v} days
+                            {v === 7
+                              ? "7 days (1 active recovery)"
+                              : `${v} days`}
                           </SelectItem>
                         ))}
                       </SelectContent>

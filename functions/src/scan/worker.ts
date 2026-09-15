@@ -85,7 +85,7 @@ export function deriveDeterministicWorkoutPlan(
       profile?.training_days
   );
   const daysPerWeek =
-    Number.isInteger(requested) && requested >= 2 && requested <= 6
+    Number.isInteger(requested) && requested >= 2 && requested <= 7
       ? requested
       : 3;
   const normalizeTextList = (value: unknown): string[] =>
@@ -160,7 +160,7 @@ export function deriveDeterministicWorkoutPlan(
     adequateResistance &&
     !hasInjuryConflict;
   const beginnerFiveDay = daysPerWeek === 5 && experience === "beginner";
-  const templates =
+  const trainingTemplates =
     daysPerWeek === 2
       ? ["Full Body A", "Full Body B"]
       : daysPerWeek === 3
@@ -187,6 +187,10 @@ export function deriveDeterministicWorkoutPlan(
                   "Full Body C",
                   "Low-impact conditioning",
                 ];
+  const templates =
+    daysPerWeek === 7
+      ? [...trainingTemplates.slice(0, 6), "Mobility/recovery"]
+      : trainingTemplates;
   const exercisesFor = (focus: string) => {
     if (/conditioning/i.test(focus)) {
       return [

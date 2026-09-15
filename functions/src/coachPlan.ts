@@ -43,7 +43,7 @@ const db = getFirestore();
 function resolveDays(profile: CoachProfile | null): number {
   const requested = Number(profile?.training_days_per_week);
   if (Number.isFinite(requested))
-    return Math.max(2, Math.min(6, Math.round(requested)));
+    return Math.max(2, Math.min(7, Math.round(requested)));
   if (!profile) return 4;
   if (profile.style === "all_in") return 5;
   if (profile.activity_level === "sedentary") return 2;
@@ -150,6 +150,36 @@ function buildSessions(dayCount: number): SessionPlan[] {
             "Hip Thrust – 3×12 @ RPE 7",
             "Reverse Lunge – 3×12/leg @ RPE 7",
             "Plank – 3×60s @ RPE 6",
+          ],
+        },
+      ],
+    },
+    {
+      day: "Day 6",
+      blocks: [
+        {
+          title: "Full-Body Technique",
+          focus: "Moderate-load movement quality and weak points",
+          work: [
+            "Leg Press or Goblet Squat – 3×10 @ RPE 6-7",
+            "Machine or Dumbbell Press – 3×10 @ RPE 6-7",
+            "Cable Row – 3×12 @ RPE 6-7",
+            "Hamstring Curl – 3×12 @ RPE 6-7",
+            "Easy loaded carry – 3×30m @ RPE 6",
+          ],
+        },
+      ],
+    },
+    {
+      day: "Day 7",
+      blocks: [
+        {
+          title: "Active Recovery",
+          focus: "Restore readiness without adding hard training stress",
+          work: [
+            "Easy walk, bike, or swim – 20–40 min at conversational pace",
+            "Full-body mobility – 10–15 min in pain-free ranges",
+            "Relaxed breathing and recovery check-in – 5 min",
           ],
         },
       ],

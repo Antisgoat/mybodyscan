@@ -234,6 +234,18 @@ test("five-day beginners receive a balanced strength and recovery schedule", () 
   assert.match(plan.summary, /mixed strength, conditioning, and recovery/i);
 });
 
+test("seven-day schedules reserve one day for active recovery", () => {
+  const plan = deriveDeterministicWorkoutPlan({
+    training_days_per_week: 7,
+    experience: "advanced",
+    equipment: ["full_gym"],
+  });
+  const days = plan.weeks[0].days;
+  assert.equal(days.length, 7);
+  assert.equal(days[6].focus, "Mobility/recovery");
+  assert.match(days[6].exercises[0].name, /mobility|breathing/i);
+});
+
 test("physique scores add conservative priorities only when the scan is sufficiently complete", () => {
   const complete = deriveDeterministicWorkoutPlan(
     { training_days_per_week: 3 },

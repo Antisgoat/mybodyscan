@@ -6,4 +6,9 @@ describe("ProgramPreferences production support", () => {
     const prefs = normalizeProgramPreferences({ daysPerWeek: 2 });
     expect(prefs.daysPerWeek).toBe(2);
   });
+
+  it("preserves a seven-day schedule with active recovery", () => {
+    const prefs = normalizeProgramPreferences({ daysPerWeek: 7 });
+    expect(prefs.daysPerWeek).toBe(7);
+  });
 });

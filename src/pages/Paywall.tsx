@@ -34,6 +34,7 @@ export default function PaywallPage() {
   const [loading, setLoading] = useState(true);
   const [offeringsError, setOfferingsError] = useState<string | null>(null);
   const [packages, setPackages] = useState<IapPackage[]>([]);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [busy, setBusy] = useState<"buy" | "restore" | null>(null);
   const [purchaseProgress, setPurchaseProgress] = useState<{
     kind: "monthly" | "yearly" | "one";
@@ -109,7 +110,7 @@ export default function PaywallPage() {
     return () => {
       cancelled = true;
     };
-  }, [native, user?.uid]);
+  }, [native, user?.uid, loadAttempt]);
 
   const sortedPackages = useMemo(() => {
     const copy = [...packages];
@@ -303,6 +304,17 @@ export default function PaywallPage() {
         >
           <AlertTitle>Purchases unavailable</AlertTitle>
           <AlertDescription>{offeringsError}</AlertDescription>
+          {native && user?.uid ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              Try again
+            </Button>
+          ) : null}
         </Alert>
       )}
 
