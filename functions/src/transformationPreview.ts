@@ -194,18 +194,18 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
     const claim = await db.runTransaction(async (transaction) => {
       const existing = await transaction.get(previewRef);
       const existingData = existing.data() as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       if (
         existingData?.status === "ready" &&
         existingData.storagePath &&
-        existingData.promptVersion === TRANSFORMATION_PROMPT_VERSION
+        existingData.promptVersion === TRANSFORMATION_PROMPT_VERSION &&
+        existingData.goal === goal &&
+        Number(existingData.timelineWeeks) === timelineWeeks
       ) {
         return { generate: false, status: "ready" } as const;
       }
       const updatedAt = existingData?.updatedAt as
-        | { toMillis?: () => number }
-        | undefined;
+        { toMillis?: () => number } | undefined;
       if (
         (existingData?.status === "queued" ||
           existingData?.status === "processing") &&
@@ -260,7 +260,9 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
         uid,
         requestId,
       });
-      const storagePath = `transformation-previews/${uid}/${scanId}/goal-preview.jpg`;
+      // Use an immutable object name so a regenerated preview cannot be hidden
+      // behind an hour-long browser/CDN cache for the previous image.
+      const storagePath = `transformation-previews/${uid}/${scanId}/${requestId}.jpg`;
       await storage
         .bucket()
         .file(storagePath)

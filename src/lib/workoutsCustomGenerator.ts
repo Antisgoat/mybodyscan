@@ -1140,12 +1140,14 @@ export function generateCustomPlanDaysFromLibrary(
   prefs: CustomPlanPrefs,
   options?: { variant?: number }
 ): CatalogPlanDay[] {
-  const daysPerWeek = clampInt(prefs.daysPerWeek, 2, 6, 4);
+  const requestedDaysPerWeek = clampInt(prefs.daysPerWeek, 2, 7, 4);
+  const daysPerWeek = Math.min(requestedDaysPerWeek, 6);
   const weekdays = (
     Array.isArray(prefs.preferredDays) && prefs.preferredDays.length
       ? prefs.preferredDays
-      : pickWeekdays(daysPerWeek)
-  ).slice(0, daysPerWeek) as CatalogPlanDay["day"][];
+      : pickWeekdays(requestedDaysPerWeek)
+  ).slice(0, requestedDaysPerWeek) as CatalogPlanDay["day"][];
+  const trainingWeekdays = weekdays.slice(0, daysPerWeek);
   const goal = (prefs.goal ?? "build_muscle") as Goal;
   const experience = (prefs.experience ?? "beginner") as Experience;
   const requestedFocus = (prefs.focus ?? "full_body") as Focus;
@@ -1195,7 +1197,7 @@ export function generateCustomPlanDaysFromLibrary(
   const usedPrimaryCompounds = new Set<string>();
   const weekVolume: MuscleVolume = emptyVolume();
 
-  return weekdays.map((day, dayIdx) => {
+  const generated = trainingWeekdays.map((day, dayIdx) => {
     const template = templates[dayIdx % templates.length]!;
     const perDayPatternCounts: Record<MovementPattern, number> = {
       squat: 0,
@@ -1285,6 +1287,30 @@ export function generateCustomPlanDaysFromLibrary(
 
     return { day, exercises: chosen.slice(0, 12) };
   });
+
+  if (requestedDaysPerWeek === 7) {
+    generated.push({
+      day: weekdays[6] ?? "Sun",
+      exercises: [
+        {
+          name: "Easy Zone 2 walk, bike, or swim",
+          sets: 1,
+          reps: "20-40 min · conversational pace",
+        },
+        {
+          name: "Full-body mobility flow",
+          sets: 1,
+          reps: "10-15 min · pain-free range",
+        },
+        {
+          name: "Recovery check-in and breathing",
+          sets: 1,
+          reps: "5 min · relaxed",
+        },
+      ],
+    });
+  }
+  return generated;
 }
 
 export function buildCustomPlanTitleFromPrefs(prefs: CustomPlanPrefs): string {

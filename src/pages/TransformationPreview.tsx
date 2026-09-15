@@ -35,11 +35,11 @@ export default function TransformationPreviewPage() {
   const pro = hasPro(entitlements);
   const internalAccess = Boolean(
     import.meta.env.DEV ||
-      (claims as any)?.admin ||
-      (claims as any)?.dev ||
-      (claims as any)?.staff ||
-      (claims as any)?.unlimited ||
-      (claims as any)?.unlimitedCredits
+    (claims as any)?.admin ||
+    (claims as any)?.dev ||
+    (claims as any)?.staff ||
+    (claims as any)?.unlimited ||
+    (claims as any)?.unlimitedCredits
   );
   const canAccessPreview = pro;
   const [state, setState] = useState<any>(null);
@@ -73,7 +73,9 @@ export default function TransformationPreviewPage() {
     let active = true;
     let objectUrl: string | null = null;
     setPreviewUrl(null);
-    if (state?.status !== "ready" || !state?.storagePath) return;
+    // Keep the last completed image visible while a replacement is processing
+    // or if a refresh attempt fails.
+    if (!state?.storagePath) return;
     void loadTransformationPreviewBlob(state.storagePath)
       .then((blob) => {
         if (!active) return;
@@ -94,7 +96,7 @@ export default function TransformationPreviewPage() {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [state?.status, state?.storagePath]);
+  }, [state?.storagePath]);
 
   useEffect(() => {
     if (!state) return;
@@ -159,10 +161,18 @@ export default function TransformationPreviewPage() {
         copy: "Transformation Preview is available only to adults. Add your age in Settings to continue.",
       };
     }
-    if (canAccessPreview && state?.status === "ready" && state?.storagePath) {
+    if (canAccessPreview && state?.storagePath) {
       return {
-        label: "Ready",
-        copy: "Your Transformation Preview is ready.",
+        label:
+          state?.status === "processing" || state?.status === "queued"
+            ? "Updating"
+            : state?.status === "failed"
+              ? "Previous preview"
+              : "Ready",
+        copy:
+          state?.status === "failed"
+            ? "Your last completed preview is still available. A newer attempt did not finish."
+            : "Your Transformation Preview is ready.",
       };
     }
     if (state?.status === "processing" || state?.status === "queued") {
@@ -194,8 +204,9 @@ export default function TransformationPreviewPage() {
     state?.status !== "processing" &&
     state?.status !== "queued";
   const improvedPreviewAvailable =
-    state?.status === "ready" &&
-    state?.promptVersion !== TRANSFORMATION_PREVIEW_PROMPT_VERSION;
+    Boolean(state?.storagePath) &&
+    (state?.promptVersion !== TRANSFORMATION_PREVIEW_PROMPT_VERSION ||
+      state?.status === "failed");
 
   const handleRequest = async () => {
     if (!canRequest) return;
@@ -248,7 +259,6 @@ export default function TransformationPreviewPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {canAccessPreview &&
-          state?.status === "ready" &&
           state?.storagePath &&
           TRANSFORMATION_PREVIEW_ENTRY_ENABLED ? (
             previewUrl ? (
@@ -262,6 +272,18 @@ export default function TransformationPreviewPage() {
                   This computer-generated image is illustrative—not a forecast
                   or guarantee. Real outcomes and appearance vary.
                 </p>
+                {state?.status === "processing" ||
+                state?.status === "queued" ? (
+                  <p className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 p-3 text-xs text-cyan-100">
+                    Creating your update. Your previous image remains available
+                    while it finishes.
+                  </p>
+                ) : state?.status === "failed" ? (
+                  <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">
+                    The update did not finish, so we kept your last completed
+                    preview. You can retry without losing it.
+                  </p>
+                ) : null}
                 {improvedPreviewAvailable ? (
                   <div className="space-y-3 rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-4">
                     <div className="space-y-1">

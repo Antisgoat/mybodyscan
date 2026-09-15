@@ -1,15 +1,14 @@
-export type ProgramPreferenceGoal = "strength" | "hypertrophy" | "fat_loss" | "athletic";
-export type ProgramPreferenceEquipment = "full_gym" | "dumbbells" | "bodyweight";
-export type ProgramPreferenceExperience = "beginner" | "intermediate" | "advanced";
+export type ProgramPreferenceGoal =
+  "strength" | "hypertrophy" | "fat_loss" | "athletic";
+export type ProgramPreferenceEquipment =
+  "full_gym" | "dumbbells" | "bodyweight";
+export type ProgramPreferenceExperience =
+  "beginner" | "intermediate" | "advanced";
 export type ProgramPreferenceFocus =
-  | "full_body"
-  | "upper_lower"
-  | "push_pull_legs"
-  | "conditioning"
-  | "mobility";
+  "full_body" | "upper_lower" | "push_pull_legs" | "conditioning" | "mobility";
 
 export type ProgramPreferences = {
-  daysPerWeek: 2 | 3 | 4 | 5 | 6;
+  daysPerWeek: 2 | 3 | 4 | 5 | 6 | 7;
   goal: ProgramPreferenceGoal;
   equipment: ProgramPreferenceEquipment;
   experience: ProgramPreferenceExperience;
@@ -30,7 +29,7 @@ export function normalizeProgramPreferences(
   raw?: Partial<ProgramPreferences> | null
 ): ProgramPreferences {
   if (!raw || typeof raw !== "object") return DEFAULT_PROGRAM_PREFERENCES;
-  const days = [2, 3, 4, 5, 6].includes(Number(raw.daysPerWeek))
+  const days = [2, 3, 4, 5, 6, 7].includes(Number(raw.daysPerWeek))
     ? (Number(raw.daysPerWeek) as ProgramPreferences["daysPerWeek"])
     : DEFAULT_PROGRAM_PREFERENCES.daysPerWeek;
   const goal =

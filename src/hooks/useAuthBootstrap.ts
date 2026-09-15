@@ -14,8 +14,6 @@ export function useAuthBootstrap() {
   const { user } = useAuthUser();
   const ranForUid = useRef<string | null>(null);
   const smokeCheckedUid = useRef<string | null>(null);
-  const failureCountRef = useRef(0);
-  const lastToastAtRef = useRef<number>(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -30,73 +28,56 @@ export function useAuthBootstrap() {
     ranForUid.current = user.uid;
 
     void (async () => {
-      try {
-        // Do not block navigation on profile writes; best-effort only.
-        void upsertUserRootProfile(user).catch(() => {
-          toast({
-            title: "Signed in, but profile sync failed",
-            description:
-              "You’re still signed in. If this persists, check your connection or try again.",
-          });
-        });
-        // Native-only: bind RevenueCat appUserID to Firebase uid.
-        void initPurchases({ uid: user.uid }).catch(() => undefined);
-        // Best-effort and never prompts: refresh an already opted-in native
-        // FCM token so scheduled plateau notifications survive token rotation.
-        void syncNativePushRegistration(user.uid).catch(() => undefined);
-        await bootstrapSystem();
+      // These are independent, best-effort bootstrap operations. A store,
+      // push, or diagnostics outage must not be presented as an auth failure.
+      void upsertUserRootProfile(user).catch((error) => {
+        console.warn("profile_sync_failed", error);
+      });
+      void initPurchases({ uid: user.uid }).catch((error) => {
+        console.warn("purchase_bootstrap_failed", error);
+      });
+      void syncNativePushRegistration(user.uid).catch((error) => {
+        console.warn("push_registration_refresh_failed", error);
+      });
+      void bootstrapSystem().catch((error) => {
+        console.warn("system_bootstrap_failed", error);
+      });
 
-        // Best-effort: ensure allowlisted admin Pro is reflected in Firestore SSoT.
-        // Retry a couple times to handle transient callable/appcheck failures.
-        const sleep = (ms: number) =>
-          new Promise<void>((resolve) => setTimeout(resolve, ms));
-        for (let attempt = 0; attempt <= 2; attempt += 1) {
+      const sleep = (ms: number) =>
+        new Promise<void>((resolve) => setTimeout(resolve, ms));
+      for (let attempt = 0; attempt <= 2; attempt += 1) {
+        try {
           const res = await syncEntitlements();
           if (res?.ok) break;
-          if (attempt < 2) {
-            await sleep(250 * (attempt + 1));
-          }
+        } catch (error) {
+          console.warn("entitlement_sync_failed", error);
         }
+        if (attempt < 2) await sleep(250 * (attempt + 1));
+      }
 
-        if (smokeCheckedUid.current !== user.uid) {
-          smokeCheckedUid.current = user.uid;
-          try {
-            const scansRef = collection(db, "users", user.uid, "scans");
-            const snap = await getDocs(query(scansRef, limit(1)));
-            if (snap.empty) {
-              toast({
-                title: "No scans yet",
-                description:
-                  "You’re all set. Start a scan to see your first result.",
-              });
-            }
-          } catch (error) {
-            console.warn("firestore_smoke_failed", error);
+      if (smokeCheckedUid.current !== user.uid) {
+        smokeCheckedUid.current = user.uid;
+        try {
+          const scansRef = collection(db, "users", user.uid, "scans");
+          const snap = await getDocs(query(scansRef, limit(1)));
+          if (snap.empty) {
             toast({
-              title: "We couldn’t load your scans yet",
-              description: "Check your connection and try again.",
+              title: "No scans yet",
+              description:
+                "You’re all set. Start a scan to see your first result.",
             });
           }
+        } catch (error) {
+          console.warn("firestore_smoke_failed", error);
         }
+      }
 
+      try {
         await getIdToken({ forceRefresh: true });
-        failureCountRef.current = 0;
-      } catch (e) {
-        console.warn("bootstrap failed", e);
-        failureCountRef.current += 1;
-        const now = Date.now();
-        if (
-          failureCountRef.current > 1 &&
-          now - lastToastAtRef.current > 10_000
-        ) {
-          toast({
-            title: "Refreshing access failed",
-            description:
-              "We could not refresh your permissions. Try signing out and back in.",
-            variant: "destructive",
-          });
-          lastToastAtRef.current = now;
-        }
+      } catch (error) {
+        // Firebase independently emits signed-out state for an invalid session.
+        // Keep a cached session usable through an ordinary offline refresh.
+        console.warn("token_refresh_deferred", error);
       }
     })();
   }, [user, toast]);

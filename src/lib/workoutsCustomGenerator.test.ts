@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { CustomPlanPrefs } from "@/lib/workouts";
 import type { MovementPattern } from "@/data/exercises";
-import { getExerciseByExactName, searchExercises } from "@/lib/exercises/library";
+import {
+  getExerciseByExactName,
+  searchExercises,
+} from "@/lib/exercises/library";
 import { generateCustomPlanDaysFromLibrary } from "@/lib/workoutsCustomGenerator";
 
-type MuscleGroup = "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
+type MuscleGroup =
+  "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
 
-function patternsForDay(day: { exercises: Array<{ name: string }> }): Set<MovementPattern> {
+function patternsForDay(day: {
+  exercises: Array<{ name: string }>;
+}): Set<MovementPattern> {
   const out = new Set<MovementPattern>();
   for (const ex of day.exercises) {
     const lib = getExerciseByExactName(ex.name);
@@ -15,7 +21,9 @@ function patternsForDay(day: { exercises: Array<{ name: string }> }): Set<Moveme
   return out;
 }
 
-function computeWeekSets(days: Array<{ exercises: Array<{ name: string; sets?: number }> }>): Record<MuscleGroup, number> {
+function computeWeekSets(
+  days: Array<{ exercises: Array<{ name: string; sets?: number }> }>
+): Record<MuscleGroup, number> {
   const out: Record<MuscleGroup, number> = {
     chest: 0,
     back: 0,
@@ -31,19 +39,45 @@ function computeWeekSets(days: Array<{ exercises: Array<{ name: string; sets?: n
       const sets = typeof ex.sets === "number" && ex.sets > 0 ? ex.sets : 3;
       if (!lib) continue;
       const tags = new Set((lib.tags ?? []).map((t) => t.toLowerCase()));
-      if (lib.movementPattern === "horizontal_push" || tags.has("chest")) out.chest += sets;
-      if (lib.movementPattern === "horizontal_pull" || lib.movementPattern === "vertical_pull" || tags.has("back") || tags.has("lats")) out.back += sets;
-      if (lib.movementPattern === "squat" || lib.movementPattern === "hinge" || tags.has("quads") || tags.has("hamstrings") || tags.has("glutes")) out.legs += sets;
-      if (lib.movementPattern === "vertical_push" || tags.has("lateral_delts") || tags.has("rear_delts")) out.shoulders += sets;
+      if (lib.movementPattern === "horizontal_push" || tags.has("chest"))
+        out.chest += sets;
+      if (
+        lib.movementPattern === "horizontal_pull" ||
+        lib.movementPattern === "vertical_pull" ||
+        tags.has("back") ||
+        tags.has("lats")
+      )
+        out.back += sets;
+      if (
+        lib.movementPattern === "squat" ||
+        lib.movementPattern === "hinge" ||
+        tags.has("quads") ||
+        tags.has("hamstrings") ||
+        tags.has("glutes")
+      )
+        out.legs += sets;
+      if (
+        lib.movementPattern === "vertical_push" ||
+        tags.has("lateral_delts") ||
+        tags.has("rear_delts")
+      )
+        out.shoulders += sets;
       if (tags.has("biceps") || tags.has("triceps")) out.arms += sets;
       if (tags.has("calves")) out.calves += sets;
-      if (lib.movementPattern === "core" || lib.movementPattern === "carry" || tags.has("core")) out.core += sets;
+      if (
+        lib.movementPattern === "core" ||
+        lib.movementPattern === "carry" ||
+        tags.has("core")
+      )
+        out.core += sets;
     }
   }
   return out;
 }
 
-function pushPullSets(days: Array<{ exercises: Array<{ name: string; sets?: number }> }>): { push: number; pull: number } {
+function pushPullSets(
+  days: Array<{ exercises: Array<{ name: string; sets?: number }> }>
+): { push: number; pull: number } {
   let push = 0;
   let pull = 0;
   for (const d of days) {
@@ -51,14 +85,24 @@ function pushPullSets(days: Array<{ exercises: Array<{ name: string; sets?: numb
       const lib = getExerciseByExactName(ex.name);
       const sets = typeof ex.sets === "number" && ex.sets > 0 ? ex.sets : 3;
       if (!lib) continue;
-      if (lib.movementPattern === "horizontal_push" || lib.movementPattern === "vertical_push") push += sets;
-      if (lib.movementPattern === "horizontal_pull" || lib.movementPattern === "vertical_pull") pull += sets;
+      if (
+        lib.movementPattern === "horizontal_push" ||
+        lib.movementPattern === "vertical_push"
+      )
+        push += sets;
+      if (
+        lib.movementPattern === "horizontal_pull" ||
+        lib.movementPattern === "vertical_pull"
+      )
+        pull += sets;
     }
   }
   return { push, pull };
 }
 
-function primaryCompoundIdsForWeek(days: Array<{ exercises: Array<{ name: string }> }>): string[] {
+function primaryCompoundIdsForWeek(
+  days: Array<{ exercises: Array<{ name: string }> }>
+): string[] {
   const ids: string[] = [];
   for (const d of days) {
     for (const ex of d.exercises) {
@@ -93,8 +137,12 @@ describe("custom plan generation (exercise library)", () => {
     for (const d of v1) {
       const patterns = patternsForDay(d);
       expect(patterns.has("squat") || patterns.has("hinge")).toBe(true);
-      expect(patterns.has("horizontal_push") || patterns.has("vertical_push")).toBe(true);
-      expect(patterns.has("horizontal_pull") || patterns.has("vertical_pull")).toBe(true);
+      expect(
+        patterns.has("horizontal_push") || patterns.has("vertical_push")
+      ).toBe(true);
+      expect(
+        patterns.has("horizontal_pull") || patterns.has("vertical_pull")
+      ).toBe(true);
     }
   });
 
@@ -134,6 +182,31 @@ describe("custom plan generation (exercise library)", () => {
     expect(unique.size).toBe(primaryIds.length);
   });
 
+  it("uses active recovery instead of a seventh hard lifting day", () => {
+    const days = generateCustomPlanDaysFromLibrary({
+      goal: "build_muscle",
+      experience: "advanced",
+      focus: "push_pull_legs",
+      daysPerWeek: 7,
+      preferredDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      timePerWorkout: "60",
+      equipment: ["gym"],
+      trainingStyle: "balanced",
+    });
+
+    expect(days).toHaveLength(7);
+    expect(days[6]?.day).toBe("Sun");
+    expect(days[6]?.exercises.map((exercise) => exercise.name)).toEqual(
+      expect.arrayContaining([
+        "Easy Zone 2 walk, bike, or swim",
+        "Full-body mobility flow",
+      ])
+    );
+    expect(days[6]?.exercises.every((exercise) => exercise.sets === 1)).toBe(
+      true
+    );
+  });
+
   it("Upper/Lower 4-day: upper days include push + pull patterns; lower days include squat + hinge", () => {
     const prefs: CustomPlanPrefs = {
       goal: "recomp",
@@ -153,13 +226,21 @@ describe("custom plan generation (exercise library)", () => {
     const upper2 = patternsForDay(days[2]!);
     const lower2 = patternsForDay(days[3]!);
 
-    expect(upper1.has("horizontal_push") || upper1.has("vertical_push")).toBe(true);
-    expect(upper1.has("horizontal_pull") || upper1.has("vertical_pull")).toBe(true);
+    expect(upper1.has("horizontal_push") || upper1.has("vertical_push")).toBe(
+      true
+    );
+    expect(upper1.has("horizontal_pull") || upper1.has("vertical_pull")).toBe(
+      true
+    );
     expect(lower1.has("squat")).toBe(true);
     expect(lower1.has("hinge")).toBe(true);
 
-    expect(upper2.has("horizontal_push") || upper2.has("vertical_push")).toBe(true);
-    expect(upper2.has("horizontal_pull") || upper2.has("vertical_pull")).toBe(true);
+    expect(upper2.has("horizontal_push") || upper2.has("vertical_push")).toBe(
+      true
+    );
+    expect(upper2.has("horizontal_pull") || upper2.has("vertical_pull")).toBe(
+      true
+    );
     expect(lower2.has("squat")).toBe(true);
     expect(lower2.has("hinge")).toBe(true);
   });
@@ -205,8 +286,12 @@ describe("custom plan generation (exercise library)", () => {
     for (const d of days) {
       const patterns = patternsForDay(d);
       expect(patterns.has("squat") || patterns.has("hinge")).toBe(true);
-      expect(patterns.has("horizontal_push") || patterns.has("vertical_push")).toBe(true);
-      expect(patterns.has("horizontal_pull") || patterns.has("vertical_pull")).toBe(true);
+      expect(
+        patterns.has("horizontal_push") || patterns.has("vertical_push")
+      ).toBe(true);
+      expect(
+        patterns.has("horizontal_pull") || patterns.has("vertical_pull")
+      ).toBe(true);
     }
   });
 
@@ -240,7 +325,14 @@ describe("swap search", () => {
     const alternatives = searchExercises({
       query: "bench",
       movementPattern: bench.movementPattern,
-      equipment: new Set(["barbell", "dumbbell", "machine", "smith", "cables", "bodyweight"]),
+      equipment: new Set([
+        "barbell",
+        "dumbbell",
+        "machine",
+        "smith",
+        "cables",
+        "bodyweight",
+      ]),
       excludeIds: new Set([bench.id]),
       limit: 50,
     });
@@ -249,4 +341,3 @@ describe("swap search", () => {
     expect(alternatives.length).toBeGreaterThanOrEqual(8);
   });
 });
-

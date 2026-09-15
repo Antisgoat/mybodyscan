@@ -47,7 +47,7 @@ function toProgramPreferences(raw: RawCoachOnboarding): ProgramPreferences {
   const goal = asString(raw.goal, "lose_fat");
   const equipment = asString(raw.equipment, "full_gym");
   const experience = asString(raw.experience, "beginner");
-  const days = clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 6, 4);
+  const days = clamp(raw.training_days_per_week ?? raw.daysPerWeek, 2, 7, 4);
   const hasInjuries = asStringArray(raw.injuries).length > 0;
   return normalizeProgramPreferences({
     daysPerWeek: days as ProgramPreferences["daysPerWeek"],
@@ -93,7 +93,7 @@ export async function completeCoachOnboarding(raw: RawCoachOnboarding) {
   const trainingDays = clamp(
     raw.training_days_per_week ?? raw.daysPerWeek,
     2,
-    6,
+    7,
     4
   );
   const injuries = asStringArray(raw.injuries ?? raw.medical_flags);
