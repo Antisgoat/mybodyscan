@@ -938,7 +938,8 @@ export default function Onboarding() {
           </p>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-muted-foreground">
             About two minutes. More detail helps tailor your training and meals;
-            optional questions can be left blank and updated later.
+            required fields keep your plan safe and specific. Optional details
+            can be left blank and updated later.
           </p>
         </div>
 

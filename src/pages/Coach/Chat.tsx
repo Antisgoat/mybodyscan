@@ -868,7 +868,28 @@ export default function CoachChatPage() {
               ],
             },
       };
-      await coachChatApi(payload);
+      const response = await coachChatApi(payload);
+      // Render the callable response immediately. The Firestore listener will
+      // reconcile persisted replies by assistantMessageId. A deterministic
+      // fallback may return without a stored assistant document, so without
+      // this optimistic assistant message the user can see their question
+      // succeed but receive no visible answer.
+      const assistantMessageId =
+        response.assistantMessageId || `${messageId}-assistant`;
+      setMessages((prev) =>
+        sortMessages(
+          dedupeMessages([
+            ...prev.filter((message) => message.id !== assistantMessageId),
+            {
+              id: assistantMessageId,
+              role: "assistant",
+              content: response.replyText,
+              createdAt: new Date(),
+              suggestions: response.suggestions ?? null,
+            },
+          ])
+        )
+      );
       setInput("");
     } catch (error: any) {
       console.error("coachChat error", error);

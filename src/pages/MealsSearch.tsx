@@ -353,9 +353,8 @@ export default function MealsSearch() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
-  const [visibleResultCount, setVisibleResultCount] = useState(
-    INITIAL_RESULT_COUNT
-  );
+  const [visibleResultCount, setVisibleResultCount] =
+    useState(INITIAL_RESULT_COUNT);
   const [primarySource, setPrimarySource] = useState<
     "USDA" | "Open Food Facts" | null
   >(null);
@@ -842,7 +841,25 @@ export default function MealsSearch() {
             {results.slice(0, visibleResultCount).map((item) => {
               const favorite = favoritesMap.get(item.id);
               const subtitle = item.brand || item.source;
-              const base = item.basePer100g;
+              const serving = calculateSelection(item, 1, "serving");
+              const hasServingPreview =
+                serving.calories != null ||
+                serving.protein != null ||
+                serving.carbs != null ||
+                serving.fat != null;
+              const preview = hasServingPreview
+                ? serving
+                : {
+                    calories: item.basePer100g.kcal,
+                    protein: item.basePer100g.protein,
+                    carbs: item.basePer100g.carbs,
+                    fat: item.basePer100g.fat,
+                  };
+              const previewLabel = hasServingPreview
+                ? item.serving.text ||
+                  item.servings.find((option) => option.isDefault)?.label ||
+                  "1 serving"
+                : "100 g";
               return (
                 <Card key={item.id} className="border">
                   <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
@@ -852,11 +869,22 @@ export default function MealsSearch() {
                         {subtitle}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {roundKcal(base.kcal)} kcal · {roundGrams(base.protein)}
-                        g P · {roundGrams(base.carbs)}g C ·{" "}
-                        {roundGrams(base.fat)}g F &nbsp;
+                        {preview.calories == null
+                          ? "—"
+                          : roundKcal(preview.calories)}{" "}
+                        kcal ·{" "}
+                        {preview.protein == null
+                          ? "—"
+                          : roundGrams(preview.protein)}
+                        g P ·{" "}
+                        {preview.carbs == null
+                          ? "—"
+                          : roundGrams(preview.carbs)}
+                        g C ·{" "}
+                        {preview.fat == null ? "—" : roundGrams(preview.fat)}g F
+                        &nbsp;
                         <span className="text-[10px] text-muted-foreground">
-                          per 100 g
+                          per {previewLabel}
                         </span>
                       </p>
                     </div>
@@ -897,7 +925,12 @@ export default function MealsSearch() {
                   )
                 }
               >
-                Show {Math.min(INITIAL_RESULT_COUNT, results.length - visibleResultCount)} more
+                Show{" "}
+                {Math.min(
+                  INITIAL_RESULT_COUNT,
+                  results.length - visibleResultCount
+                )}{" "}
+                more
               </Button>
             ) : null}
           </CardContent>

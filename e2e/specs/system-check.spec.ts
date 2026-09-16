@@ -15,14 +15,21 @@ test.describe("System check utilities", () => {
     const response = await page.goto("/system-check");
     await acceptPoliciesIfShown(page);
 
-    if (response && response.ok()) {
+    const root = page.getByTestId("system-check-root");
+    if (await root.isVisible()) {
       await expect(page).toHaveURL(/\/system-check/);
-      const root = page.getByTestId("system-check-root");
       await expect(root).toBeVisible();
       return;
     }
 
-    const healthResponse = await page.request.get("/__/functions/health");
+    // Production intentionally removes internal diagnostics from the public
+    // router. Firebase Hosting still returns the SPA shell with HTTP 200, so
+    // response.ok() cannot distinguish the protected 404 page from the tool.
+    await expect(
+      page.getByRole("heading", { name: "Page not found" })
+    ).toBeVisible();
+
+    const healthResponse = await page.request.get("/system/health");
     expect(healthResponse.ok()).toBeTruthy();
   });
 });
