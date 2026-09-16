@@ -463,28 +463,21 @@ the current-state notes below say it was configured:
       internal-test install. No real card charge is required or acceptable for
       release verification.
 
-Current Android external state on 2026-08-19: the Firebase Android app exists
+Current Android external state on 2026-09-16: the Firebase Android app exists
 in `mybodyscan-f3daf` with package `com.mybodyscan.app`; its ignored
 `google-services.json`, local debug fingerprints, API-36 project, and release
 bundle are verified. The ADLR LABS LLC Play organization now owns app
 `4973106928551115866`, named `MyBodyScan: Body Progress`, for package
-`com.mybodyscan.app`. Signed bundle version code 2/version 1.0 was accepted by
-Play and published on the private internal-testing track as
-`1.0 Internal Test 2`; tester list `Internal QA Testers` contains one licensed
-tester. The track reports the release as active and available to internal
-testers. Version code 1 (`1.0 Internal Test 1`) is superseded. This is not a
-public production release and has not been reviewed by Google. Play's missing
-deobfuscation-file warning is expected for this build because release
-minification is disabled; it is not a blocking validation error.
-
-Signed version code 3/version 1.0 was built, verified, and uploaded on
-2026-08-19 as draft `1.0 Internal Test 3`. Google Play returned transient error
-`5317C37E` while publishing it, so version code 2 remains the active internal
-release until the console confirms version 3 is available to testers. Do not
-discard or recreate the version-3 draft; retry publishing it from the internal
-track. Once active, version code 3 is the Android acceptance candidate. It must
-not be promoted to production until the Android device and purchase smoke tests
-pass.
+`com.mybodyscan.app`. Signed bundle version code 11/version 1.0 from main
+commit `8021194` was accepted by Play and published on the private
+internal-testing track as `1.0 Internal Test 11`; tester list `Internal QA
+Testers` contains one licensed tester. The track reports the release as active
+and available to internal testers. Version codes 1 through 10 are superseded.
+This is not a public production release and has not been reviewed by Google.
+Play's missing deobfuscation-file warning is expected because release
+minification is disabled; it is not a blocking validation error. Version code
+11 is the Android acceptance candidate and must not be promoted to production
+until the Android device and purchase smoke tests pass.
 
 Play App Signing is active. The upload certificate and both current
 Play-managed signing identities are registered on the Firebase Android app,
@@ -506,7 +499,7 @@ under service `MyBodyScan Android Upload Keystore` and account
 The upload certificate SHA-1 is
 `6F:FF:1F:AF:9A:98:E1:7D:37:60:92:42:55:57:C7:1E:3A:2F:AB:AB` and SHA-256 is
 `FE:0F:86:19:89:5B:D8:39:3F:3F:C1:01:6C:30:C6:A4:59:F0:A5:38:62:98:6C:C0:FD:9C:C0:4D:0A:5D:21:4D`.
-The backup hash matches the working keystore. The version-code-2 release AAB
+The backup hash matches the working keystore. The version-code-11 release AAB
 was built through
 the production credential guard, unit tests, Android lint, and Gradle release
 signing, and `jarsigner -verify` accepted it before the internal-track upload.
@@ -526,16 +519,17 @@ yet; the internal-track build still requires Google sign-in, cold launch,
 camera/barcode, four-photo scan, push, App Check, purchase/restore, and account
 deletion tests on a supported Android device.
 
-Current iOS external state on 2026-08-19: the App Store app record exists;
+Current iOS external state on 2026-09-16: the App Store app record exists;
 Xcode is signed into the ADLR Labs team; the physical iPhone is paired with
 Developer Mode; and the internal tester invitation has been accepted. Version
-1.0.0 build 18 was archived, validated, exported, and uploaded successfully on
-2026-08-19. Apple reported the package as processing;
+1.0.0 build 29 from main commit `8021194` was archived, passed every Apple
+validation check, and uploaded successfully for internal TestFlight on
+2026-09-16. Apple processing must complete;
 do not treat it as available to testers until App Store Connect reports that
 processing has completed and it has been manually added to `Internal QA`.
-Builds 2 through 17 are superseded and must not be submitted.
+Builds 2 through 28 are superseded and must not be submitted.
 
-Build 18 includes the native request-routing and CORS fixes, four-photo upload
+Build 29 includes the native request-routing and CORS fixes, four-photo upload
 normalization, safe-area layout, user-facing Coach/nutrition error handling,
 the final customer terminology cleanup, and the reviewed Food Diary typography
 and responsive layout. It also corrects goal-preview orientation, strengthens
@@ -547,8 +541,8 @@ evidence. The real-photo, purchase, restore, notification, authentication,
 cold-launch, offline, nutrition, Coach-adjustment, and account-deletion
 checklist remains mandatory.
 
-The matching production web and backend are deployed from main merge
-`d24644f`. Guarded deployment run `32260042834` completed successfully after
+The matching production web and backend are deployed from main commit
+`8021194`. Guarded deployment run `35157346770` completed successfully after
 the web and Functions builds, rules emulator checks, scan/credit/refund/account
 deletion pipeline, and dependency audits passed. Post-deploy verification
 confirmed the public and direct regional health endpoints, production CORS,

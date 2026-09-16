@@ -43,9 +43,10 @@ runbook before shipping.
   at the exact iPhone and iPad dimensions described in the runbook.
 - Select only the freshly uploaded candidate build. Superseded TestFlight
   builds are not release evidence.
-- Current candidate: version 1.0.0 build 15 from main merge `9e1d4cf`. Its
-  upload succeeded on 2026-07-31 and Apple processing must finish before an
-  operator adds only build 15 to `Internal QA` and selects it for version 1.0.
+- Current candidate: version 1.0.0 build 29 from main commit `8021194`. It
+  passed Xcode/App Store Connect validation and uploaded successfully on
+  2026-09-16. Apple processing must finish before an operator confirms that
+  only build 29 is available to `Internal QA` and selects it for version 1.0.
 - Complete truthful App Review contact details and a dedicated reviewer
   account. An Account Holder/Admin must publish App Privacy, declare Content
   Rights, and complete Digital Services Act/trader status; do not guess those
