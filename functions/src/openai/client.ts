@@ -53,6 +53,7 @@ type ChatRequest = {
   user?: string;
   responseFormat?: "json_object";
   timeoutMs?: number;
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
 };
 
 export type StructuredJsonRequest<T> = {
@@ -63,6 +64,7 @@ export type StructuredJsonRequest<T> = {
   userId?: string;
   requestId?: string;
   timeoutMs?: number;
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
   model?: string;
   apiKey?: string;
   baseUrl?: string;
@@ -191,12 +193,14 @@ function buildChatBodies(
 ): Record<string, unknown>[] {
   const maxTokens = clampMaxTokens(request.maxTokens);
   const isGpt56 = /^gpt-5\.6(?:-|$)/.test(model);
+  const isAstra = /^gpt-6-astra(?:-|$)/.test(model);
+  const isCurrentReasoningModel = isGpt56 || isAstra;
   const base: Record<string, unknown> = {
     model,
     messages: normalizeMessages(request.messages),
   };
   if (request.user) {
-    if (isGpt56) {
+    if (isCurrentReasoningModel) {
       base.safety_identifier = request.user;
     } else {
       base.user = request.user;
@@ -206,10 +210,12 @@ function buildChatBodies(
   // GPT-5.6 defaults to medium reasoning. The retired GPT-4o/4.1 mini
   // models used here were non-reasoning, latency-sensitive routes, so keep
   // their effective behavior explicit during the family migration.
-  if (isGpt56) {
+  if (isCurrentReasoningModel) {
     const current: Record<string, unknown> = {
       ...base,
-      reasoning_effort: "none",
+      // Astra does not support `none`; GPT-5.6 keeps it for inexpensive,
+      // latency-sensitive routes unless a feature explicitly opts up.
+      reasoning_effort: request.reasoningEffort ?? (isAstra ? "low" : "none"),
     };
     if (typeof maxTokens === "number") {
       current.max_completion_tokens = maxTokens;
@@ -527,6 +533,7 @@ export async function chatOnce(
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
     apiKey?: string;
     baseUrl?: string;
   } = {}
@@ -561,6 +568,7 @@ export async function chatOnce(
               ? opts.temperature
               : DEFAULT_TEXT_TEMPERATURE,
           maxTokens: opts.maxTokens ?? 256,
+          reasoningEffort: opts.reasoningEffort,
           timeoutMs: opts.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
         opts.requestId,
@@ -606,6 +614,7 @@ export async function chatWithMessages(
     temperature?: number;
     maxTokens?: number;
     timeoutMs?: number;
+    reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
     apiKey?: string;
     baseUrl?: string;
   } = {}
@@ -628,6 +637,7 @@ export async function chatWithMessages(
               ? opts.temperature
               : DEFAULT_TEXT_TEMPERATURE,
           maxTokens: opts.maxTokens ?? 512,
+          reasoningEffort: opts.reasoningEffort,
           timeoutMs: opts.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },
         opts.requestId,
@@ -685,6 +695,7 @@ export async function structuredJsonChat<T>(
           user: request.userId,
           temperature: request.temperature,
           maxTokens: request.maxTokens,
+          reasoningEffort: request.reasoningEffort,
           responseFormat: "json_object",
           timeoutMs: request.timeoutMs ?? OPENAI_TIMEOUT_MS,
         },

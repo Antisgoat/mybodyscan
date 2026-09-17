@@ -5,14 +5,17 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getFirestore, getStorage } from "./firebase.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { getOpenAIKey, openAiSecretParam } from "./openai/keys.js";
+import { modelForFeature } from "./openai/models.js";
 import { normalizeProviderUsage } from "./openai/usage.js";
 import { scanObjectPath } from "./scan/paths.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
 
 const db = getFirestore();
 const storage = getStorage();
-const MODEL = "gpt-image-2";
-export const TRANSFORMATION_PROMPT_VERSION = "2026-07-31-goal-definition-v2";
+const MODEL = modelForFeature("transformation");
+const QUALITY = "high";
+export const TRANSFORMATION_PROMPT_VERSION =
+  "2026-09-17-sunburst-scan-context-v3";
 const DISCLAIMER =
   "Illustrative motivational wellness visualization only. Not a prediction, guarantee, medical result, or exact representation of future appearance.";
 
@@ -28,6 +31,9 @@ type Goal = (typeof GOALS)[number];
 export function buildTransformationPrompt(input: {
   goal: Goal;
   timelineWeeks: number;
+  currentWeightKg?: number | null;
+  goalWeightKg?: number | null;
+  bodyFatPercent?: number | null;
 }): string {
   const direction: Record<Goal, string> = {
     lose_fat:
@@ -41,12 +47,31 @@ export function buildTransformationPrompt(input: {
     performance:
       "show a clearly noticeable athletic-development outcome with a leaner waist, stronger posture, and believable functional muscle definition without bodybuilding exaggeration",
   };
+  const context: string[] = [];
+  if (Number.isFinite(input.currentWeightKg ?? NaN)) {
+    context.push(
+      `current recorded weight ${Number(input.currentWeightKg).toFixed(1)} kg`
+    );
+  }
+  if (Number.isFinite(input.goalWeightKg ?? NaN)) {
+    context.push(`goal weight ${Number(input.goalWeightKg).toFixed(1)} kg`);
+  }
+  if (Number.isFinite(input.bodyFatPercent ?? NaN)) {
+    context.push(
+      `photo-based body-fat estimate ${Number(input.bodyFatPercent).toFixed(1)}%`
+    );
+  }
   return [
     "Edit the supplied reference photo into a photorealistic adult fitness progress portrait.",
     "Preserve the person's identity, facial features, facial expression (including the same smile or serious expression), hairstyle, skin tone, pose, camera angle, background, and clothing coverage.",
     "Do not beautify, age, de-age, reshape, retouch, or otherwise change the face.",
     "Render the person fully upright in portrait orientation with the head above the torso and the feet below it. Correct any reference-orientation metadata before editing. Never return a sideways, tilted, mirrored, or upside-down person.",
     direction[input.goal],
+    ...(context.length
+      ? [
+          `Use this private scan context only to calibrate a plausible amount of visible change: ${context.join(", ")}. Do not render these values as text and do not treat them as clinical measurements.`,
+        ]
+      : []),
     `Treat ${input.timelineWeeks} weeks only as motivational context, not as a guaranteed outcome.`,
     "Make the goal-direction easy to recognize at a glance, but keep it naturally attainable. Do not create stage-lean conditioning, extreme vascularity, oversized bodybuilding proportions, impossible abdominal definition, or an unhealthy degree of thinness.",
     "Do not add text, measurements, internal anatomy, medical imagery, diagnoses, before-and-after labels, nudity, or revealing clothing.",
@@ -84,12 +109,15 @@ async function createImage(input: {
   timelineWeeks: number;
   uid: string;
   requestId: string;
+  currentWeightKg?: number | null;
+  goalWeightKg?: number | null;
+  bodyFatPercent?: number | null;
 }): Promise<Buffer> {
   const form = new FormData();
   form.append("model", MODEL);
   form.append("prompt", buildTransformationPrompt(input));
   form.append("size", "1024x1536");
-  form.append("quality", "medium");
+  form.append("quality", QUALITY);
   form.append("output_format", "jpeg");
   form.append("output_compression", "82");
   form.append(
@@ -121,7 +149,7 @@ async function createImage(input: {
     requestId: input.requestId,
     providerRequestId: response.headers.get("x-request-id"),
     status: response.status,
-    quality: "medium",
+    quality: QUALITY,
     size: "1024x1536",
     usage: usage ?? null,
     usageAvailable: usage !== undefined,
@@ -259,6 +287,16 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
         timelineWeeks,
         uid,
         requestId,
+        currentWeightKg: Number(
+          (scan.input as any)?.currentWeightKg ?? scan.currentWeightKg
+        ),
+        goalWeightKg: Number(
+          (scan.input as any)?.goalWeightKg ?? scan.goalWeightKg
+        ),
+        bodyFatPercent: Number(
+          (scan.estimate as any)?.bodyFatPercent ??
+            (scan.results as any)?.bodyFatPercent
+        ),
       });
       // Use an immutable object name so a regenerated preview cannot be hidden
       // behind an hour-long browser/CDN cache for the previous image.

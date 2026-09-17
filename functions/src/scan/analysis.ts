@@ -7,6 +7,7 @@ import {
   structuredJsonChat,
   type ChatContentPart,
 } from "../openai/client.js";
+import { modelForFeature } from "../openai/models.js";
 import type { EngineConfig } from "./engineConfig.js";
 import type {
   ScanEstimate,
@@ -549,12 +550,15 @@ export async function callOpenAI(
   const { data } = await structuredJsonChat<OpenAIResult>({
     systemPrompt,
     userContent,
-    temperature: 0.4,
-    maxTokens: 1_100,
+    temperature: 0.2,
+    maxTokens: 3_000,
+    reasoningEffort: "medium",
     userId: input.uid,
     requestId,
     timeoutMs: OPENAI_TIMEOUT_MS,
-    model: engine.model,
+    // Body analysis is intentionally routed independently from routine chat.
+    // OPENAI_MODEL_BODY_SCAN remains a narrow production escape hatch.
+    model: modelForFeature("bodyScan"),
     apiKey: engine.apiKey,
     baseUrl: engine.baseUrl ?? undefined,
     validate: validateVisionPayload,

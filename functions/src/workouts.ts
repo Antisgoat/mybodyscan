@@ -1115,6 +1115,7 @@ async function requestAiAdjustment(input: {
     userContent: prompt,
     temperature: 0.2,
     maxTokens: 320,
+    reasoningEffort: "low",
     userId: input.uid,
     requestId: input.requestId,
     timeoutMs: ADJUST_TIMEOUT_MS,
@@ -1126,10 +1127,13 @@ async function requestAiAdjustment(input: {
 }
 
 const PLAN_SYSTEM_PROMPT = [
-  "You design pragmatic progressive overload workout plans.",
+  "You design detailed, evidence-informed progressive overload workout plans tailored to the member's goal, schedule, experience, equipment, and limitations.",
   'Respond with JSON matching {"days":[{"day":"Mon","exercises":[{"name":"Goblet Squat","sets":3,"reps":"10"}]}]}.',
-  'Provide 3-6 days max, each with 4-6 exercises and normally 16-22 working sets. Keep reps as short strings (e.g. "8-12 @ RPE 8" or "10").',
-  "Use progressive overload and mostly 1-3 reps in reserve. Never prescribe failure on heavy compound lifts; reduce volume when injury notes or recovery limits require it.",
+  "Provide exactly the requested number of weekly days. For a requested seventh day, make at least one day mobility, easy conditioning, or active recovery rather than another hard lifting session.",
+  'Use 4-7 exercises on lifting days and a recoverable 14-24 working sets per session, scaled down for beginners, short sessions, injuries, or limited equipment. Keep reps as short strings such as "8-12 @ 2 RIR".',
+  "Distribute hard weekly sets across movement patterns and major muscle groups instead of maximizing one session. Use roughly 8-14 challenging weekly sets per major muscle group for beginners and 10-20 for trained members when schedule and recovery allow.",
+  "Prioritize stable compounds, then complementary isolation work. Include unilateral, core, mobility, and conditioning work when appropriate to the stated goal.",
+  "Use progressive overload and mostly 1-3 reps in reserve. Never prescribe failure on heavy compound lifts. Do not diagnose injuries; avoid or substitute movements that conflict with stated limitations.",
   "Return JSON only with no markdown fences or prose.",
 ].join("\n");
 
@@ -1151,7 +1155,7 @@ function validatePlanResponse(raw: unknown): AiPlanSchema {
 function buildPlanPrompt(prefs: PlanPrefs): string {
   const focus = prefs.focus || "balanced";
   const equipment = prefs.equipment || "bodyweight";
-  const daysPerWeek = Math.max(2, Math.min(prefs.daysPerWeek || 4, 6));
+  const daysPerWeek = Math.max(2, Math.min(prefs.daysPerWeek || 4, 7));
   const injuries =
     Array.isArray(prefs.injuries) && prefs.injuries.length
       ? prefs.injuries.join(", ")
@@ -1208,7 +1212,8 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
       systemPrompt: PLAN_SYSTEM_PROMPT,
       userContent: buildPlanPrompt(prefs),
       temperature: 0.4,
-      maxTokens: 800,
+      maxTokens: 2_400,
+      reasoningEffort: "low",
       timeoutMs: PLAN_TIMEOUT_MS,
       model: modelForFeature("workoutPlan"),
       validate: validatePlanResponse,

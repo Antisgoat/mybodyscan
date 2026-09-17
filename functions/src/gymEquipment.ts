@@ -146,7 +146,9 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
       },
       ...frames.map((url): ChatContentPart => ({
         type: "image_url",
-        image_url: { url, detail: "low" },
+        // Let the provider spend detail only where multi-frame inventory
+        // recognition needs it rather than forcing every frame to high cost.
+        image_url: { url, detail: "auto" },
       })),
     ];
 
@@ -156,6 +158,7 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
         userContent: content,
         temperature: 0.1,
         maxTokens: 900,
+        reasoningEffort: "low",
         userId: uid,
         requestId,
         timeoutMs: 30_000,

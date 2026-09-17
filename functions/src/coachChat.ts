@@ -20,7 +20,7 @@ import { hasProEntitlement } from "./lib/proEntitlements.js";
 import { getEnvInt } from "./lib/env.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
 import { enforceMonthlyQuota } from "./middleware/monthlyQuota.js";
-import { modelForFeature } from "./openai/models.js";
+import { modelForCoachMessage } from "./openai/models.js";
 import {
   persistDailyWorkoutAdjustment,
   type DailyWorkoutAdjustment,
@@ -28,6 +28,10 @@ import {
 
 const coachRequestsPerMinute = () =>
   Math.max(1, Math.min(1_000, Math.trunc(getEnvInt("COACH_RPM", 12))));
+
+export function modelForCoachRequest(input: Pick<CoachChatRequest, "message">) {
+  return modelForCoachMessage(input.message);
+}
 
 export interface CoachChatRequest {
   /** Optional thread support (ChatGPT-style). */
@@ -721,10 +725,11 @@ async function generateCoachResponse(
   context: RequestContext
 ): Promise<CoachChatResponsePayload> {
   const prompt = buildPrompt(payload);
+  const selectedModel = modelForCoachRequest(payload);
   const answer = await chatOnce(prompt, {
     userId: context.uid ?? undefined,
     requestId: context.requestId,
-    model: modelForFeature("coach"),
+    model: selectedModel,
   });
   const parsed = parseMetadataLine(answer);
   const adaptation = await maybeApplyCoachAdaptation(payload, context);
@@ -739,7 +744,7 @@ async function generateCoachResponse(
     meta: {
       debugId: context.requestId,
       metadata,
-      model: modelForFeature("coach"),
+      model: selectedModel,
     },
   };
 }
@@ -879,11 +884,12 @@ async function generateCoachResponseForThread(
   const history = await loadThreadHistory(context.uid, threadId, 18);
   const nextUserContent = buildThreadUserContent(payload);
   const messages = threadMessagesToOpenAI(history, nextUserContent);
+  const selectedModel = modelForCoachRequest(payload);
 
   const { content, usage, model } = await chatWithMessages(messages, {
     userId: context.uid,
     requestId: context.requestId,
-    model: modelForFeature("coach"),
+    model: selectedModel,
   });
   const tokens =
     usage?.totalTokens ??

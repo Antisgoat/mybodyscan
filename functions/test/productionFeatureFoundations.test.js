@@ -27,6 +27,9 @@ test("transformation prompt is restrained and prohibits predictive or revealing 
   const prompt = buildTransformationPrompt({
     goal: "recomp",
     timelineWeeks: 12,
+    currentWeightKg: 90.7,
+    goalWeightKg: 74.8,
+    bodyFatPercent: 25,
   });
   assert.match(prompt, /realistic/i);
   assert.match(prompt, /not as a guaranteed outcome/i);
@@ -38,6 +41,9 @@ test("transformation prompt is restrained and prohibits predictive or revealing 
   assert.match(prompt, /easy to recognize at a glance/i);
   assert.match(prompt, /clearly visible body-recomposition goal-state/i);
   assert.match(prompt, /Do not create stage-lean conditioning/i);
+  assert.match(prompt, /private scan context/i);
+  assert.match(prompt, /current recorded weight 90\.7 kg/i);
+  assert.match(prompt, /photo-based body-fat estimate 25\.0%/i);
   assert.doesNotMatch(prompt, /exact body fat|exact weight/i);
 });
 
@@ -57,6 +63,8 @@ test("transformation previews regenerate for changed inputs and use immutable im
     /transformation-previews\/\$\{uid\}\/\$\{scanId\}\/\$\{requestId\}\.jpg/
   );
   assert.match(source, /promptVersion: TRANSFORMATION_PROMPT_VERSION/);
+  assert.match(source, /modelForFeature\("transformation"\)/);
+  assert.match(source, /const QUALITY = "high"/);
 });
 
 test("USDA labeled serving nutrients are converted before being shown per 100 g", () => {

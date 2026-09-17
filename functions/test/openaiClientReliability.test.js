@@ -112,3 +112,37 @@ test("falls back from a retired override to the current image-capable model", as
     else process.env.OPENAI_MODEL = originalModel;
   }
 });
+
+test("sends Astra requests with supported reasoning parameters", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    return jsonResponse(JSON.stringify({ estimate: "ok" }));
+  };
+
+  try {
+    await structuredJsonChat({
+      systemPrompt: "Return JSON.",
+      userContent: "Analyze consistently.",
+      temperature: 0.2,
+      maxTokens: 512,
+      reasoningEffort: "medium",
+      apiKey: "test-key",
+      model: "gpt-6-astra",
+      userId: "firebase-user-456",
+      validate(payload) {
+        return payload;
+      },
+    });
+
+    assert.equal(requestBody.model, "gpt-6-astra");
+    assert.equal(requestBody.reasoning_effort, "medium");
+    assert.equal(requestBody.max_completion_tokens, 512);
+    assert.equal(requestBody.temperature, undefined);
+    assert.equal(requestBody.safety_identifier, "firebase-user-456");
+    assert.deepEqual(requestBody.response_format, { type: "json_object" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

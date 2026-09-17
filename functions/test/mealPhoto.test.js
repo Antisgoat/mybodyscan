@@ -17,6 +17,7 @@ const result = {
   fat: 10,
   grams: 300,
   notes: "Portion and oil are uncertain.",
+  confidence: 0.84,
 };
 test("meal image rejects missing consent, remote URLs, invalid headers and oversized payloads", () => {
   for (const input of [
@@ -27,6 +28,35 @@ test("meal image rejects missing consent, remote URLs, invalid headers and overs
   ])
     assert.throws(() => validateMealPhotoInput(input));
   assert.equal(validateMealPhotoInput(data), data.image);
+});
+test("an ambiguous meal receives one stronger pass", async () => {
+  const previous = process.env.MEAL_PHOTO_ENABLED;
+  const models = [];
+  try {
+    process.env.MEAL_PHOTO_ENABLED = "true";
+    const estimate = await processMealPhoto(
+      { auth: { uid: "member" }, data },
+      {
+        authorize: async () => {},
+        limit: async () => {},
+        analyze: async (config) => {
+          models.push(config.model);
+          return {
+            data: {
+              ...result,
+              confidence: models.length === 1 ? 0.5 : 0.9,
+              name: models.length === 1 ? "Mixed plate" : "Chicken rice bowl",
+            },
+          };
+        },
+      }
+    );
+    assert.deepEqual(models, ["gpt-5.6-sol", "gpt-6-astra"]);
+    assert.equal(estimate.name, "Chicken rice bowl");
+  } finally {
+    if (previous === undefined) delete process.env.MEAL_PHOTO_ENABLED;
+    else process.env.MEAL_PHOTO_ENABLED = previous;
+  }
 });
 test("meal output rejects invented or invalid totals", () => {
   for (const output of [

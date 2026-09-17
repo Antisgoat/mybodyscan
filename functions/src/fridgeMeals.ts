@@ -253,7 +253,7 @@ export const analyzeFridge = onCallWithOptionalAppCheck(
       },
       ...frames.map((url): ChatContentPart => ({
         type: "image_url",
-        image_url: { url, detail: "low" },
+        image_url: { url, detail: "auto" },
       })),
     ];
     try {
@@ -262,6 +262,7 @@ export const analyzeFridge = onCallWithOptionalAppCheck(
         userContent: content,
         temperature: 0.1,
         maxTokens: 1_200,
+        reasoningEffort: "low",
         userId: uid,
         requestId,
         timeoutMs: 30_000,
@@ -360,6 +361,7 @@ export const suggestFridgeMeals = onCallWithOptionalAppCheck(
         }),
         temperature: 0.4,
         maxTokens: 1_800,
+        reasoningEffort: "low",
         userId: uid,
         requestId,
         timeoutMs: 30_000,
