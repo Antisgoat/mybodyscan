@@ -60,7 +60,7 @@ function BodyFigure({
   // Warm studio clay reads as a human form without implying that this
   // parametric model reproduces skin tone or photographic identity.
   const baseColor = ghost ? "#bae6fd" : "#b98973";
-  const selectedColor = ghost ? "#bae6fd" : "#e0b08e";
+  const selectedColor = ghost ? "#bae6fd" : "#bf907b";
   const torsoY = (value: number) =>
     -0.18 + (value + 0.18) * profile.torsoLengthScale;
   const shoulderY = torsoY(1.94);
@@ -81,7 +81,31 @@ function BodyFigure({
       0.76 + (value - 0.76) * profile.armLengthScale;
     const bodyLegY = (value: number) =>
       -0.22 + (value + 0.22) * profile.legLengthScale;
-    const torso = createBodyLoftGeometry([
+    const trunk = createBodyLoftGeometry([
+      {
+        y: -0.24,
+        radiusX: 0.43 * profile.hipScale,
+        radiusZ: 0.36 * profile.hipDepthScale,
+        centerZ: -0.025,
+      },
+      {
+        y: 0,
+        radiusX: 0.58 * profile.hipScale,
+        radiusZ: 0.45 * profile.hipDepthScale,
+        centerZ: -0.015,
+      },
+      {
+        y: bodyY(0.23),
+        radiusX: 0.54 * profile.hipScale,
+        radiusZ: 0.42 * profile.hipDepthScale,
+        centerZ: profile.abdominalProjection * 0.45,
+      },
+      {
+        y: bodyY(0.48),
+        radiusX: 0.5 * (profile.hipScale * 0.4 + profile.waistScale * 0.6),
+        radiusZ: 0.4 * (profile.depthScale * 0.7 + profile.hipDepthScale * 0.3),
+        centerZ: profile.abdominalProjection,
+      },
       {
         y: bodyY(0.78),
         radiusX: 0.47 * profile.waistScale,
@@ -106,54 +130,13 @@ function BodyFigure({
       },
       {
         y: bodyShoulderY,
-        radiusX: 0.72 * profile.shoulderScale,
+        radiusX: 0.62 * profile.shoulderScale,
         radiusZ: 0.34 * profile.depthScale,
       },
       {
         y: bodyY(2.1),
         radiusX: 0.28 * profile.neckScale,
         radiusZ: 0.24 * profile.neckScale,
-      },
-    ]);
-    const core = createBodyLoftGeometry([
-      {
-        y: bodyY(0.18),
-        radiusX: 0.54 * profile.hipScale,
-        radiusZ:
-          0.42 * (profile.depthScale * 0.45 + profile.hipDepthScale * 0.55),
-        centerZ: profile.abdominalProjection * 0.5,
-      },
-      {
-        y: bodyY(0.48),
-        radiusX: 0.5 * (profile.hipScale * 0.4 + profile.waistScale * 0.6),
-        radiusZ: 0.4 * (profile.depthScale * 0.7 + profile.hipDepthScale * 0.3),
-        centerZ: profile.abdominalProjection,
-      },
-      {
-        y: bodyY(0.82),
-        radiusX: 0.47 * profile.waistScale,
-        radiusZ: 0.36 * profile.depthScale,
-        centerZ: profile.abdominalProjection * 0.45,
-      },
-    ]);
-    const hips = createBodyLoftGeometry([
-      {
-        y: -0.24,
-        radiusX: 0.49 * profile.hipScale,
-        radiusZ: 0.4 * profile.hipDepthScale,
-        centerZ: -0.025,
-      },
-      {
-        y: 0,
-        radiusX: 0.58 * profile.hipScale,
-        radiusZ: 0.45 * profile.hipDepthScale,
-        centerZ: -0.015,
-      },
-      {
-        y: bodyY(0.23),
-        radiusX: 0.54 * profile.hipScale,
-        radiusZ: 0.42 * profile.hipDepthScale,
-        centerZ: profile.abdominalProjection * 0.45,
       },
     ]);
     const arm = createBodyLoftGeometry([
@@ -232,7 +215,7 @@ function BodyFigure({
         radiusZ: 0.14 * profile.neckScale,
       },
     ]);
-    return { torso, core, hips, arm, leg, neck };
+    return { trunk, arm, leg, neck };
   }, [profile]);
 
   useEffect(
@@ -244,7 +227,7 @@ function BodyFigure({
   const bodyMaterial = (region: BodyRegionId) => ({
     color: selectedRegion === region ? selectedColor : baseColor,
     emissive: selectedRegion === region && !ghost ? "#4a2417" : "#120a08",
-    emissiveIntensity: selectedRegion === region && !ghost ? 0.16 : 0.025,
+    emissiveIntensity: selectedRegion === region && !ghost ? 0.07 : 0.025,
     roughness: ghost ? 0.42 : 0.72 - profile.definitionScale * 0.1,
     metalness: 0,
     transparent: ghost,
@@ -277,14 +260,14 @@ function BodyFigure({
       scale={profile.heightScale * (ghost ? 1.012 : reducedMotion ? 1 : 0.01)}
       position={ghost ? [0, 0, -0.035] : [0, 0, 0]}
     >
-      <mesh geometry={geometries.torso} onClick={() => select("upper")}>
+      <mesh
+        geometry={geometries.trunk}
+        onClick={(event) => {
+          const localY = event.point.y / profile.heightScale;
+          select(localY > torsoY(0.85) ? "upper" : localY > torsoY(0.2) ? "core" : "hips");
+        }}
+      >
         <meshStandardMaterial {...bodyMaterial("upper")} />
-      </mesh>
-      <mesh geometry={geometries.core} onClick={() => select("core")}>
-        <meshStandardMaterial {...bodyMaterial("core")} />
-      </mesh>
-      <mesh geometry={geometries.hips} onClick={() => select("hips")}>
-        <meshStandardMaterial {...bodyMaterial("hips")} />
       </mesh>
       <mesh geometry={geometries.neck} onClick={() => select("upper")}>
         <meshStandardMaterial {...bodyMaterial("upper")} />

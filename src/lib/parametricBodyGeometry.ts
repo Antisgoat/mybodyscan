@@ -29,10 +29,22 @@ export function createBodyLoftGeometry(
     index: number,
     progress: number
   ) => {
+    const before = sections[Math.max(0, index - 1)][key] ?? 0;
     const start = sections[index][key] ?? 0;
     const end = sections[index + 1][key] ?? 0;
-    const eased = progress * progress * (3 - 2 * progress);
-    return start + (end - start) * eased;
+    const after = sections[Math.min(sections.length - 1, index + 2)][key] ?? 0;
+    const t = progress;
+    const t2 = t * t;
+    const t3 = t2 * t;
+    // Catmull-Rom keeps a continuous tangent through adjacent measurements.
+    // Per-segment smoothstep flattened every cross-section into a hard-looking
+    // band, especially at the chest, waist, and hips.
+    return 0.5 * (
+      2 * start +
+      (end - before) * t +
+      (2 * before - 5 * start + 4 * end - after) * t2 +
+      (-before + 3 * start - 3 * end + after) * t3
+    );
   };
   const sampledSections: BodyLoftSection[] = [];
   for (let index = 0; index < sections.length - 1; index += 1) {
