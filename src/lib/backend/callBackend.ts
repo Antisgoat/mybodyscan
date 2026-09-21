@@ -3,6 +3,8 @@ import { ensureAppCheck, getAppCheckTokenHeader } from "@/lib/appCheck";
 import { requireIdToken } from "@/auth/mbs-auth";
 import { functions } from "@/lib/firebase";
 import { fetchJson } from "@/lib/backend/fetchJson";
+import { isCapacitorNative } from "@/lib/platform/isNative";
+import { requestFunctionPath, unwrapRequestFunctionResponse } from "@/lib/backend/legacyRequestRoute";
 
 export async function callCallable<TReq = unknown, TRes = unknown>(
   name: string,
@@ -23,7 +25,7 @@ export async function callRequestFunction<TRes = unknown>(
   await ensureAppCheck();
   const token = await requireIdToken();
   const appCheck = await getAppCheckTokenHeader();
-  return fetchJson<TRes>(`/${name}`, {
+  const response = await fetchJson<unknown>(requestFunctionPath(name, isCapacitorNative()), {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -32,9 +34,9 @@ export async function callRequestFunction<TRes = unknown>(
     },
     ...(method === "POST" ? { body: JSON.stringify(body ?? {}) } : {}),
   }, options?.timeoutMs ?? 15000);
+  return unwrapRequestFunctionResponse<TRes>(name, response);
 }
 
 export async function backendHealthCheck(timeoutMs = 2500): Promise<{ ok: boolean }> {
   return fetchJson<{ ok: boolean }>("/health", { method: "GET" }, timeoutMs);
 }
-

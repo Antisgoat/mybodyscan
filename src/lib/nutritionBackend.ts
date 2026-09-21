@@ -122,16 +122,10 @@ async function callFn(path: string, body?: any, method: "GET" | "POST" = "POST")
   const tzOffsetMins =
     typeof Intl !== "undefined" ? new Date().getTimezoneOffset() : 0;
   const name = path.replace(/^\/+/, "");
-  const response = await callRequestFunction(name, body || {}, {
+  return callRequestFunction(name, body || {}, {
     method,
     headers: { "x-tz-offset-mins": String(tzOffsetMins) },
   });
-  // Hosting's /api gateway wraps legacy function responses, while native
-  // clients call those functions directly. Keep both transports equivalent.
-  if (response && typeof response === "object" && "ok" in response && "data" in response) {
-    return (response as { data: unknown }).data;
-  }
-  return response;
 }
 
 export async function addMeal(dateISO: string, meal: MealEntry) {
