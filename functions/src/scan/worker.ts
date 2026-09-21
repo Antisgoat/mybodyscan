@@ -67,7 +67,9 @@ export function deriveDeterministicWorkoutPlan(
   const scoredRegions = Object.entries(physiqueScores)
     .filter(
       (entry): entry is [keyof PhysiqueScores, number] =>
-        typeof entry[1] === "number" && Number.isFinite(entry[1])
+        typeof entry[1] === "number" &&
+        Number.isFinite(entry[1]) &&
+        entry[1] > 0
     )
     .sort((a, b) => a[1] - b[1]);
   // A sparse score is too easy to over-interpret. Only adapt a plan when at
@@ -88,6 +90,8 @@ export function deriveDeterministicWorkoutPlan(
     Number.isInteger(requested) && requested >= 2 && requested <= 7
       ? requested
       : 3;
+  const usesStarterSchedule =
+    !(Number.isInteger(requested) && requested >= 2 && requested <= 7);
   const normalizeTextList = (value: unknown): string[] =>
     (Array.isArray(value) ? value : typeof value === "string" ? [value] : [])
       .map((item) =>
@@ -235,7 +239,7 @@ export function deriveDeterministicWorkoutPlan(
         ? "full-body plan"
         : "upper/lower balanced split";
   return {
-    summary: `${daysPerWeek}-day ${structureName} based on your available training frequency${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""} (${experience} level)${equipment.size ? " using your available equipment" : ""}${prioritySummary ? `, with modest extra volume for ${prioritySummary}` : ""}.`,
+    summary: `${daysPerWeek}-day ${structureName} ${usesStarterSchedule ? "starter schedule; set your training days to personalize it" : "based on your selected training frequency"}${goal ? ` and ${goal.replace(/_/g, " ")} goal` : ""} (${experience} level)${equipment.size ? " using your available equipment" : ""}${prioritySummary ? `, with modest extra volume for ${prioritySummary}` : ""}.`,
     progressionRules: [
       "Leave 2-3 repetitions in reserve while learning each movement.",
       "Add repetitions before increasing load by 2-5%.",

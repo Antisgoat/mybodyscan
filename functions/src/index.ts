@@ -13,6 +13,7 @@ import { nutritionRouter } from "./nutrition.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { stripeSecretKeyParam, stripeSecretParam } from "./stripe/keys.js";
 import { systemRouter } from "./systemRouter.js";
+import { legacyFunctionUrl } from "./lib/legacyFunctionUrl.js";
 
 export { health } from "./health.js";
 export { systemHealth } from "./systemHealth.js";
@@ -139,32 +140,32 @@ async function forwardLegacyFunctionRoute(
   fnName: string
 ) {
   try {
-    const protocol = req.get("x-forwarded-proto") || "https";
-    const host = req.get("host");
-    if (!host) {
-      const payload = buildError("missing_host", "Missing host header");
+    const target = legacyFunctionUrl(fnName);
+    if (!target) {
+      const payload = buildError("missing_project", "Function routing unavailable");
       res.status(500).json(payload);
       return;
     }
-    const target = `${protocol}://${host}/${fnName}`;
     const response = await fetch(target, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: req.get("authorization") || "",
         "x-firebase-appcheck": req.get("x-firebase-appcheck") || "",
+        "x-tz-offset-mins": req.get("x-tz-offset-mins") || "0",
       },
       body: JSON.stringify(req.body ?? {}),
     });
     const text = await response.text();
     let body: any = {};
     try {
+      if (!response.headers.get("content-type")?.includes("application/json")) {
+        throw new Error("Unexpected response type");
+      }
       body = text ? JSON.parse(text) : {};
     } catch {
-      body = buildError(
-        "upstream_invalid_json",
-        "Upstream returned invalid JSON"
-      );
+      res.status(502).json(buildError("upstream_invalid_json", "Upstream returned invalid JSON"));
+      return;
     }
     if (response.ok) {
       res.status(response.status).json({ ok: true, data: body });

@@ -131,10 +131,10 @@ describe("production deployment authentication", () => {
   it("deploys Functions on the supported Node 22 runtime", () => {
     expect(FUNCTIONS_PACKAGE_JSON.engines.node).toBe("22");
     expect(FUNCTIONS_PACKAGE_JSON.dependencies["firebase-admin"]).toBe(
-      "^14.2.0"
+      "14.4.0"
     );
     expect(FUNCTIONS_PACKAGE_JSON.dependencies["firebase-functions"]).toBe(
-      "7.3.2"
+      "7.4.0"
     );
     expect(FIREBASE_JSON.functions[0].runtime).toBe("nodejs22");
     expect(FIREBASE_JSON.functions[0].predeploy).toEqual([

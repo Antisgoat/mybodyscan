@@ -36,7 +36,8 @@ import { ErrorBoundary } from "@/components/system/ErrorBoundary";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCoachTodayAtAGlance } from "@/hooks/useCoachTodayAtAGlance";
 import { formatDistanceToNow } from "date-fns";
-import { deriveNutritionGoals } from "@/lib/nutritionGoals";
+import { useLatestSuccessfulScan } from "@/hooks/useLatestSuccessfulScan";
+import { resolveNutritionTargets } from "@/lib/nutrition/resolveTargets";
 import { useActiveWeeklyReview } from "@/hooks/useActiveWeeklyReview";
 
 const DEFAULT_PROGRAM_ID = "beginner-full-body";
@@ -87,47 +88,20 @@ export default function CoachOverview() {
   const readOnlyDemo = demo && !user;
   const signUpHref = `/auth?next=${encodeURIComponent(`${location.pathname}${location.search}`)}`;
   const { totals, latestScan } = useCoachTodayAtAGlance();
+  const latestSuccessfulScan = useLatestSuccessfulScan();
   const { calorieDelta: weeklyCalorieDelta } = useActiveWeeklyReview();
-  const computedGoals = useMemo(() => {
-    const overrides: { calories?: number; proteinGrams?: number } = {};
-    if (
-      typeof plan?.calorieTarget === "number" &&
-      Number.isFinite(plan.calorieTarget)
-    ) {
-      overrides.calories = plan.calorieTarget;
-    }
-    if (
-      typeof plan?.proteinFloor === "number" &&
-      Number.isFinite(plan.proteinFloor)
-    ) {
-      overrides.proteinGrams = plan.proteinFloor;
-    }
-    return deriveNutritionGoals({
-      weightKg: profile?.weight_kg ?? null,
-      heightCm: profile?.height_cm ?? null,
-      age: profile?.age ?? null,
-      sex: profile?.sex ?? null,
-      goal:
-        profile?.goal === "lose_fat"
-          ? "lose_fat"
-          : profile?.goal === "gain_muscle"
-            ? "gain_muscle"
-            : null,
-      activityLevel: profile?.activity_level ?? null,
-      overrides,
-    });
-  }, [
-    plan?.calorieTarget,
-    plan?.proteinFloor,
-    profile?.activity_level,
-    profile?.goal,
-    profile?.weight_kg,
-  ]);
-
-  const todayCaloriesGoal = Math.max(
-    1200,
-    computedGoals.calories + weeklyCalorieDelta
+  const computedGoals = useMemo(
+    () =>
+      resolveNutritionTargets({
+        scan: latestSuccessfulScan,
+        profile,
+        plan,
+        calorieDelta: weeklyCalorieDelta,
+      }).goals,
+    [latestSuccessfulScan, profile, plan, weeklyCalorieDelta]
   );
+
+  const todayCaloriesGoal = computedGoals.calories;
   const todayProteinGoalGrams = computedGoals.proteinGrams;
 
   useEffect(() => {

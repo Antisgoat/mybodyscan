@@ -18,7 +18,12 @@ describe("physique development scores", () => {
         legs: "not-a-score",
         inventedRegion: 99,
       })
-    ).toEqual({ chest: 72, back: 81, shoulders: 100, arms: 0 });
+    ).toEqual({ chest: 72, back: 81, shoulders: 100 });
+  });
+
+  it("does not present an unassessable zero region as a weakness", () => {
+    expect(physiquePriorityAreas({ chest: 40, legs: 0 }, 2).map((item) => item.key))
+      .toEqual(["chest"]);
   });
 
   it("never turns qualitative prose into a score", () => {

@@ -7,44 +7,28 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { deriveNutritionGoals } from "@/lib/nutritionGoals";
+import { useLatestSuccessfulScan } from "@/hooks/useLatestSuccessfulScan";
+import { resolveNutritionTargets } from "@/lib/nutrition/resolveTargets";
 import { buildWeeklyMealPlan } from "@/lib/nutrition/mealPlan";
 import { useNutritionSafety } from "@/hooks/useNutritionSafety";
 import { useActiveWeeklyReview } from "@/hooks/useActiveWeeklyReview";
 
 export default function MealPlan() {
   const { plan, profile } = useUserProfile();
+  const latestScan = useLatestSuccessfulScan();
   const [selectedDay, setSelectedDay] = useState(0);
   const { preferences: nutritionSafety } = useNutritionSafety();
   const { calorieDelta } = useActiveWeeklyReview();
   const allergies = nutritionSafety.allergies;
 
   const goals = useMemo(() => {
-    const baseGoals = deriveNutritionGoals({
-      weightKg: profile?.weight_kg ?? profile?.weightKg ?? null,
-      heightCm: profile?.height_cm ?? profile?.heightCm ?? null,
-      age: profile?.age ?? null,
-      sex: profile?.sex ?? null,
-      goal:
-        profile?.goal === "lose_fat"
-          ? "lose_fat"
-          : profile?.goal === "gain_muscle"
-            ? "gain_muscle"
-            : null,
-      activityLevel: profile?.activity_level ?? null,
-      overrides: {
-        calories:
-          typeof plan?.calorieTarget === "number"
-            ? plan.calorieTarget
-            : undefined,
-        proteinGrams: plan?.proteinFloor,
-      },
-    });
-    return {
-      ...baseGoals,
-      calories: Math.max(1200, baseGoals.calories + calorieDelta),
-    };
-  }, [calorieDelta, plan?.calorieTarget, plan?.proteinFloor, profile]);
+    return resolveNutritionTargets({
+      scan: latestScan,
+      profile,
+      plan,
+      calorieDelta,
+    }).goals;
+  }, [calorieDelta, latestScan, plan, profile]);
 
   const weeklyPlan = useMemo(
     () =>

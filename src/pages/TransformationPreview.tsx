@@ -353,6 +353,17 @@ export default function TransformationPreviewPage() {
                       {eligibility.label}
                     </p>
                     <p>{eligibility.copy}</p>
+                    {canAccessPreview && vm?.isValidResult && !adult ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="mt-2"
+                        onClick={() => navigate("/settings")}
+                      >
+                        Add age in Settings
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
                 {internalAccess && state?.status ? (

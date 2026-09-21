@@ -30,7 +30,9 @@ function finiteScore(value: unknown): number | null {
   if (typeof value !== "number" && typeof value !== "string") return null;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return null;
-  return Math.round(Math.min(100, Math.max(0, parsed)));
+  // An unassessable region must not appear as a zero-strength weakness.
+  if (parsed <= 0) return null;
+  return Math.round(Math.min(100, Math.max(1, parsed)));
 }
 
 /**

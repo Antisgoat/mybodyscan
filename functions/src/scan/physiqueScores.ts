@@ -23,8 +23,11 @@ export function sanitizePhysiqueScores(value: unknown): PhysiqueScores {
   for (const key of PHYSIQUE_SCORE_KEYS) {
     const raw = source[key];
     if (typeof raw !== "number") continue;
-    if (!Number.isFinite(raw)) continue;
-    result[key] = Math.round(Math.min(100, Math.max(0, raw)));
+    // Zero/negative values are not evidence of absent development. In practice
+    // they are often emitted for a region hidden by clothing or the crop.
+    // Treat them as unassessable so they cannot become training priorities.
+    if (!Number.isFinite(raw) || raw <= 0) continue;
+    result[key] = Math.round(Math.min(100, Math.max(1, raw)));
   }
 
   return result;

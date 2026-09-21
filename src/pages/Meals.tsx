@@ -73,7 +73,8 @@ import { gramsToOunces, roundGrams } from "@/lib/nutritionMath";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { deriveNutritionGoals } from "@/lib/nutritionGoals";
+import { useLatestSuccessfulScan } from "@/hooks/useLatestSuccessfulScan";
+import { resolveNutritionTargets } from "@/lib/nutrition/resolveTargets";
 import {
   subscribeActiveWeeklyReview,
   type WeeklyReviewDocument,
@@ -631,54 +632,23 @@ export default function Meals() {
     }
   };
 
-  const computedGoals = useMemo(() => {
-    // Use persisted plan targets when available, but always derive a full macro set
-    // (carbs/fat) deterministically so all pages agree.
-    const overrides: { calories?: number; proteinGrams?: number } = {};
-    if (
-      typeof plan?.calorieTarget === "number" &&
-      Number.isFinite(plan.calorieTarget)
-    ) {
-      overrides.calories = plan.calorieTarget;
-    }
-    if (
-      typeof plan?.proteinFloor === "number" &&
-      Number.isFinite(plan.proteinFloor)
-    ) {
-      overrides.proteinGrams = plan.proteinFloor;
-    }
-    return deriveNutritionGoals({
-      weightKg: profile?.weight_kg ?? null,
-      heightCm: profile?.height_cm ?? null,
-      age: profile?.age ?? null,
-      sex: profile?.sex ?? null,
-      goalWeightKg: undefined,
-      goal:
-        profile?.goal === "lose_fat"
-          ? "lose_fat"
-          : profile?.goal === "gain_muscle"
-            ? "gain_muscle"
-            : null,
-      activityLevel: profile?.activity_level ?? null,
-      overrides,
-    });
-  }, [
-    plan?.calorieTarget,
-    plan?.proteinFloor,
-    profile?.activity_level,
-    profile?.goal,
-    profile?.weight_kg,
-  ]);
-
+  const latestSuccessfulScan = useLatestSuccessfulScan();
   const weeklyCalorieDelta =
     activeWeeklyReview?.status === "accepted" &&
     Number.isFinite(activeWeeklyReview.activeCalorieDelta)
       ? Number(activeWeeklyReview.activeCalorieDelta)
       : 0;
-  const targetCalories = Math.max(
-    1200,
-    (computedGoals.calories || DEFAULT_DAILY_TARGET) + weeklyCalorieDelta
+  const computedGoals = useMemo(
+    () =>
+      resolveNutritionTargets({
+        scan: latestSuccessfulScan,
+        profile,
+        plan,
+        calorieDelta: weeklyCalorieDelta,
+      }).goals,
+    [latestSuccessfulScan, profile, plan, weeklyCalorieDelta]
   );
+  const targetCalories = computedGoals.calories || DEFAULT_DAILY_TARGET;
   const targetProtein = computedGoals.proteinGrams || 140;
   const targetCarbs = computedGoals.carbsGrams || 0;
   const targetFat = computedGoals.fatGrams || 0;

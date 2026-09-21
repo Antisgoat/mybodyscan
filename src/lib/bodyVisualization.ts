@@ -50,7 +50,7 @@ const score = (
 ): number | null => {
   for (const key of keys) {
     const value = finite(values[key]);
-    if (value != null) return clamp(value, 0, 100);
+    if (value != null && value > 0) return clamp(value, 1, 100);
   }
   return null;
 };

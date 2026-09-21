@@ -14,11 +14,15 @@ function postJson(base, path, body = {}) {
 
 test("api router returns json for legacy workout endpoints on / and /api aliases", async () => {
   const originalFetch = global.fetch;
+  const originalProject = process.env.GCLOUD_PROJECT;
+  process.env.GCLOUD_PROJECT = "mybodyscan-f3daf";
+  const forwarded = [];
   global.fetch = async (url, init) => {
     const u = String(url);
     if (u.startsWith("http://127.0.0.1:")) {
       return originalFetch(url, init);
     }
+    forwarded.push(u);
     const fnName = u.split("/").pop();
     return new Response(JSON.stringify({ ok: true, fnName }), {
       status: 200,
@@ -47,6 +51,11 @@ test("api router returns json for legacy workout endpoints on / and /api aliases
       assert.equal(payload.ok, true);
       assert.ok(payload.data);
     }
+    assert.ok(
+      forwarded.every((url) =>
+        url.startsWith("https://us-central1-mybodyscan-f3daf.cloudfunctions.net/")
+      )
+    );
 
     const billing = await postJson(
       base,
@@ -60,6 +69,39 @@ test("api router returns json for legacy workout endpoints on / and /api aliases
     });
   } finally {
     global.fetch = originalFetch;
+    if (originalProject == null) delete process.env.GCLOUD_PROJECT;
+    else process.env.GCLOUD_PROJECT = originalProject;
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("api never reports an HTML upstream page as a successful food write", async () => {
+  const originalFetch = global.fetch;
+  const originalProject = process.env.GCLOUD_PROJECT;
+  process.env.GCLOUD_PROJECT = "mybodyscan-f3daf";
+  global.fetch = async (url, init) => {
+    if (String(url).startsWith("http://127.0.0.1:")) {
+      return originalFetch(url, init);
+    }
+    return new Response("<html>MyBodyScan</html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+  };
+  const server = http.createServer(apiAppForTest);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const res = await postJson(base, "/api/addMeal", {
+      dateISO: "2026-09-21",
+      meal: { name: "Egg" },
+    });
+    assert.equal(res.status, 502);
+    assert.equal((await res.json()).error.code, "upstream_invalid_json");
+  } finally {
+    global.fetch = originalFetch;
+    if (originalProject == null) delete process.env.GCLOUD_PROJECT;
+    else process.env.GCLOUD_PROJECT = originalProject;
     await new Promise((resolve) => server.close(resolve));
   }
 });

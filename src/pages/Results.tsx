@@ -6,7 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowRight,
   Dumbbell,
@@ -147,6 +147,35 @@ const Results = () => {
   const { profile, plan } = useUserProfile();
   const { entitlements } = useEntitlements();
   const subscriberFeaturesAvailable = demo || hasPro(entitlements);
+  const profileGoal = profile?.goal;
+  const scanCurrentWeight = Number(activeScan?.input?.currentWeightKg);
+  const scanGoalWeight = Number(activeScan?.input?.goalWeightKg);
+  const goalLabel =
+    typeof profileGoal === "string" && profileGoal.trim()
+      ? profileGoal.replace(/_/g, " ")
+      : Number.isFinite(scanCurrentWeight) &&
+          Number.isFinite(scanGoalWeight) &&
+          scanGoalWeight > 0
+        ? scanGoalWeight < scanCurrentWeight - 0.25
+          ? "Lose weight"
+          : scanGoalWeight > scanCurrentWeight + 0.25
+            ? "Gain weight"
+            : "Maintain weight"
+        : "Not set";
+  const trainingProfile = profile as
+    | (typeof profile & { training_days_per_week?: number; trainingDaysPerWeek?: number })
+    | null;
+  const preferenceDays =
+    trainingProfile?.programPreferences &&
+    typeof trainingProfile.programPreferences === "object" &&
+    "daysPerWeek" in trainingProfile.programPreferences
+      ? trainingProfile.programPreferences.daysPerWeek
+      : null;
+  const hasChosenTrainingDays = [
+    trainingProfile?.training_days_per_week,
+    trainingProfile?.trainingDaysPerWeek,
+    preferenceDays,
+  ].some((value) => Number.isInteger(Number(value)) && Number(value) >= 2 && Number(value) <= 7);
   const [previousScan, setPreviousScan] = useState<ScanDocument | null>(null);
   const sampleDay = useMemo(() => {
     const meals = (activeScan as ScanDocument | null)?.nutritionPlan?.sampleDay;
@@ -413,7 +442,7 @@ const Results = () => {
             <div>
               <div className="text-zinc-500">Goal</div>
               <div className="mt-1 capitalize">
-                {String((profile as any)?.goal || "Not set").replace(/_/g, " ")}
+                {goalLabel}
               </div>
             </div>
             <div>
@@ -436,6 +465,14 @@ const Results = () => {
               </div>
             </div>
           </div>
+          {!hasChosenTrainingDays && !readOnlyDemo ? (
+            <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3 text-sm text-zinc-300">
+              <span>This scan used a starter training schedule. Choose your available days and equipment for your next plan.</span>
+              <Button asChild size="sm" variant="secondary">
+                <Link to="/coach/onboarding">Personalize my plan</Link>
+              </Button>
+            </div>
+          ) : null}
         </header>
 
         <section aria-labelledby="primary-metrics">
