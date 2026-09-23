@@ -96,6 +96,7 @@ interface CustomPlanPrefs {
   injuries?: string | null;
   avoidExercises?: string | null;
   cardioPreference?: string | null;
+  startDate?: string | null;
 }
 
 function clampInt(value: unknown, min: number, max: number, fallback: number) {
@@ -219,6 +220,11 @@ function sanitizeCustomPrefs(raw: any): CustomPlanPrefs {
     typeof raw?.cardioPreference === "string" &&
     raw.cardioPreference.trim().length
       ? raw.cardioPreference.trim().slice(0, 120)
+      : null;
+  prefs.startDate =
+    typeof raw?.startDate === "string" &&
+    /^\d{4}-\d{2}-\d{2}$/.test(raw.startDate.trim())
+      ? raw.startDate.trim()
       : null;
   return prefs;
 }
@@ -1675,6 +1681,7 @@ async function handleApplyCustomPlan(req: Request, res: Response) {
       goal: sanitized.goal ?? goal,
       level: sanitized.level ?? level,
       customPrefs: prefs as unknown as Record<string, unknown>,
+      startDate: prefs.startDate ?? null,
       days: sanitized.days,
     } satisfies WorkoutPlan)
   );
@@ -1714,6 +1721,10 @@ type UpdateWorkoutPlanOp =
       type: "set_day_name";
       dayIndex: number;
       day: string;
+    }
+  | {
+      type: "shift_schedule";
+      days: 1;
     };
 
 function assertIndex(name: string, value: any, maxExclusive: number) {
@@ -1752,6 +1763,7 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
   if (!snap.exists) throw new HttpsError("not-found", "Plan not found.");
   const plan = snap.data() as WorkoutPlan;
   const days = Array.isArray(plan.days) ? [...plan.days] : [];
+  let shiftedStartDate: string | null | undefined;
   if (!days.length)
     throw new HttpsError("failed-precondition", "Plan is empty.");
 
@@ -1818,6 +1830,35 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
       throw new HttpsError("invalid-argument", "Invalid day.");
     }
     days[op.dayIndex] = { ...days[op.dayIndex]!, day: dayName };
+  } else if (op.type === "shift_schedule") {
+    if (op.days !== 1) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Schedule can only move one day at a time."
+      );
+    }
+    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (let index = 0; index < days.length; index += 1) {
+      const current = weekdays.indexOf(String(days[index]?.day ?? ""));
+      if (current < 0) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Plan has an invalid workout day."
+        );
+      }
+      days[index] = {
+        ...days[index]!,
+        day: weekdays[(current + 1) % 7]!,
+      };
+    }
+    if (
+      typeof plan.startDate === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(plan.startDate)
+    ) {
+      const start = new Date(`${plan.startDate}T00:00:00.000Z`);
+      start.setUTCDate(start.getUTCDate() + 1);
+      shiftedStartDate = start.toISOString().slice(0, 10);
+    }
   } else {
     throw new HttpsError("invalid-argument", "Unknown op type.");
   }
@@ -1826,6 +1867,7 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
   await planRef.set(
     scrubUndefined({
       days,
+      startDate: shiftedStartDate,
       updatedAt: now,
     }),
     { merge: true }

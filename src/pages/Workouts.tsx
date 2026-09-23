@@ -133,6 +133,7 @@ export default function Workouts() {
   const [adjusting, setAdjusting] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activationPending, setActivationPending] = useState(false);
+  const [shiftingSchedule, setShiftingSchedule] = useState(false);
   const [showPlanStartHint, setShowPlanStartHint] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -178,6 +179,38 @@ export default function Workouts() {
     [swapTarget]
   );
   const restTimerActive = restRemaining > 0;
+
+  const shiftPlanOneDay = async () => {
+    if (!plan || shiftingSchedule) return;
+    setShiftingSchedule(true);
+    try {
+      await updateWorkoutPlanRemote({
+        planId: plan.id,
+        op: { type: "shift_schedule", days: 1 },
+      });
+      const shiftedDays = plan.days.map((day) => {
+        const current = dayNames.indexOf(day.day);
+        return current < 0
+          ? day
+          : { ...day, day: dayNames[(current + 1) % 7]! };
+      });
+      setPlan({ ...plan, days: shiftedDays });
+      toast({
+        title: "Plan moved forward one day",
+        description:
+          "Every upcoming workout shifted together; your exercise order stayed intact.",
+      });
+    } catch (error) {
+      toast({
+        title: "Could not move the plan",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setShiftingSchedule(false);
+    }
+  };
 
   useEffect(() => {
     if (sessionStartedAt == null) return;
@@ -953,6 +986,19 @@ export default function Workouts() {
             >
               Customize plan
             </Button>
+            <Button
+              onClick={shiftPlanOneDay}
+              variant="outline"
+              className="w-full"
+              disabled={demo || shiftingSchedule}
+            >
+              {shiftingSchedule
+                ? "Moving plan…"
+                : "I missed a day — move plan forward"}
+            </Button>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Moves every workout forward one day without deleting progress.
+            </p>
             {showPlanStartHint ? (
               <p className="text-xs text-muted-foreground">
                 Your new program is active. If today looks wrong, pull down to
@@ -1143,8 +1189,8 @@ export default function Workouts() {
               const currentSummary = formatLogSummary(current);
               const showPR = Boolean(
                 lastLog &&
-                  (current.load || current.repsDone) &&
-                  isPR({ previous: lastLog, current })
+                (current.load || current.repsDone) &&
+                isPR({ previous: lastLog, current })
               );
 
               return (

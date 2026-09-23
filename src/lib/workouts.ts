@@ -43,6 +43,7 @@ export interface WorkoutSummary {
 export interface ActiveWorkoutPlan {
   id: string;
   title?: string;
+  startDate?: string;
   days: WorkoutDay[];
 }
 
@@ -91,6 +92,7 @@ export interface CustomPlanPrefs {
   injuries?: string | null;
   avoidExercises?: string | null;
   cardioPreference?: string | null;
+  startDate?: string | null;
 }
 
 export type UpdateWorkoutPlanOp =
@@ -119,6 +121,10 @@ export type UpdateWorkoutPlanOp =
       type: "set_day_name";
       dayIndex: number;
       day: "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+    }
+  | {
+      type: "shift_schedule";
+      days: 1;
     };
 
 function normalizeWorkoutExercise(value: unknown): WorkoutExercise | null {
@@ -396,6 +402,7 @@ export async function activateCustomPlan(params: {
   goal?: string;
   level?: string;
   days: CatalogPlanDay[];
+  startDate?: string;
 }): Promise<{ planId: string }> {
   if (isDemoActive()) {
     track("demo_block", { action: "workout_activate_custom_plan" });

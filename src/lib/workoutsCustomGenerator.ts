@@ -112,10 +112,10 @@ function allowedEquipFromPrefs(prefs: CustomPlanPrefs): {
 }
 
 function maxMovesForTime(time: CustomPlanPrefs["timePerWorkout"]): number {
-  if (time === "30") return 4;
-  if (time === "60") return 6;
-  if (time === "75+") return 7;
-  return 5; // default 45
+  if (time === "30") return 5;
+  if (time === "60") return 7;
+  if (time === "75+") return 8;
+  return 6; // default 45
 }
 
 function difficultyOrder(d: Difficulty): number {
@@ -273,7 +273,7 @@ function setsRepsForSlot(params: {
   const baseSets =
     exp === "beginner"
       ? params.isPrimaryCompound
-        ? 3
+        ? 4
         : 3
       : exp === "intermediate"
         ? 4
@@ -306,7 +306,7 @@ function setsRepsForSlot(params: {
   }
   if (goal === "lose_fat") {
     return {
-      sets: Math.max(2, baseSets - 1),
+      sets: Math.max(3, baseSets - 1),
       reps: params.isPrimaryCompound ? "6-10" : "10-15",
     };
   }
@@ -1309,6 +1309,34 @@ export function generateCustomPlanDaysFromLibrary(
         },
       ],
     });
+  }
+
+  const cardioSessions = Math.max(
+    0,
+    Math.min(7, Number.parseInt(String(prefs.cardioPreference ?? "0"), 10) || 0)
+  );
+  for (let index = 0; index < cardioSessions; index += 1) {
+    const day = generated[index % generated.length];
+    if (!day) break;
+    if (
+      day.exercises.some((exercise) => /cardio|zone 2/i.test(exercise.name))
+    ) {
+      continue;
+    }
+    const isHardSession = cardioSessions >= 3 && (index === 1 || index === 4);
+    day.exercises.push(
+      isHardSession
+        ? {
+            name: "Cardio intervals",
+            sets: 1,
+            reps: "15-25 min · controlled hard efforts",
+          }
+        : {
+            name: "Zone 2 cardio",
+            sets: 1,
+            reps: "20-40 min · conversational pace",
+          }
+    );
   }
   return generated;
 }

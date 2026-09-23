@@ -9,9 +9,9 @@ describe("createBodyLoftGeometry", () => {
       { y: 2, radiusX: 0.3, radiusZ: 0.2 },
     ]);
 
-    expect(geometry.getAttribute("position").count).toBe(290);
-    expect(geometry.getAttribute("normal").count).toBe(290);
-    expect(geometry.index?.count).toBe(1_728);
+    expect(geometry.getAttribute("position").count).toBe(522);
+    expect(geometry.getAttribute("normal").count).toBe(522);
+    expect(geometry.index?.count).toBe(3_120);
     expect(geometry.boundingSphere?.radius).toBeGreaterThan(1);
   });
 

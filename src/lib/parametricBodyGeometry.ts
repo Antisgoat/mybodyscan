@@ -15,8 +15,8 @@ export type BodyLoftSection = {
  */
 export function createBodyLoftGeometry(
   sections: BodyLoftSection[],
-  radialSegments = 32,
-  subdivisions = 4
+  radialSegments = 40,
+  subdivisions = 6
 ): BufferGeometry {
   if (sections.length < 2) {
     throw new Error("A body loft requires at least two cross-sections.");
@@ -39,11 +39,12 @@ export function createBodyLoftGeometry(
     // Catmull-Rom keeps a continuous tangent through adjacent measurements.
     // Per-segment smoothstep flattened every cross-section into a hard-looking
     // band, especially at the chest, waist, and hips.
-    return 0.5 * (
-      2 * start +
-      (end - before) * t +
-      (2 * before - 5 * start + 4 * end - after) * t2 +
-      (-before + 3 * start - 3 * end + after) * t3
+    return (
+      0.5 *
+      (2 * start +
+        (end - before) * t +
+        (2 * before - 5 * start + 4 * end - after) * t2 +
+        (-before + 3 * start - 3 * end + after) * t3)
     );
   };
   const sampledSections: BodyLoftSection[] = [];

@@ -207,6 +207,26 @@ describe("custom plan generation (exercise library)", () => {
     );
   });
 
+  it("supports daily cardio while limiting hard interval sessions", () => {
+    const days = generateCustomPlanDaysFromLibrary({
+      goal: "lose_fat",
+      experience: "intermediate",
+      focus: "upper_lower",
+      daysPerWeek: 7,
+      preferredDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+      timePerWorkout: "60",
+      equipment: ["gym"],
+      cardioPreference: "7x",
+    });
+    const cardio = days.flatMap((day) =>
+      day.exercises.filter((exercise) => /cardio|zone 2/i.test(exercise.name))
+    );
+    expect(cardio).toHaveLength(7);
+    expect(
+      cardio.filter((exercise) => exercise.name === "Cardio intervals")
+    ).toHaveLength(2);
+  });
+
   it("Upper/Lower 4-day: upper days include push + pull patterns; lower days include squat + hinge", () => {
     const prefs: CustomPlanPrefs = {
       goal: "recomp",

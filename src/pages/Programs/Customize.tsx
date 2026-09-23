@@ -48,6 +48,13 @@ import {
 type DayName = "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
 const DAYS: DayName[] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+function localDateInputValue(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function allowedEquipmentFromPrefs(prefs: CustomPlanPrefs): {
   mode: "full_gym" | "minimal";
   allowed: Set<Equipment>;
@@ -121,6 +128,9 @@ export default function CustomizeProgram() {
   const [injuries, setInjuries] = useState<string>("");
   const [avoidExercises, setAvoidExercises] = useState<string>("");
   const [cardioPreference, setCardioPreference] = useState<string>("none");
+  const [startDate, setStartDate] = useState<string>(() =>
+    localDateInputValue()
+  );
 
   const [title, setTitle] = useState<string>("My custom plan");
   const [generatedDays, setGeneratedDays] = useState<CatalogPlanDay[] | null>(
@@ -152,6 +162,7 @@ export default function CustomizeProgram() {
       cardioPreference: cardioPreference.trim()
         ? cardioPreference.trim()
         : null,
+      startDate,
     }),
     [
       goal,
@@ -167,6 +178,7 @@ export default function CustomizeProgram() {
       injuries,
       avoidExercises,
       cardioPreference,
+      startDate,
     ]
   );
 
@@ -443,6 +455,7 @@ export default function CustomizeProgram() {
         goal: goal.replace(/_/g, " "),
         level: experience,
         days: generatedDays,
+        startDate,
       });
       nav(`/workouts?plan=${res.planId}&started=1`, { replace: true });
     } catch (err: any) {
@@ -810,6 +823,10 @@ export default function CustomizeProgram() {
                   ["1x", "1x / week"],
                   ["2x", "2x / week"],
                   ["3x", "3x / week"],
+                  ["4x", "4x / week"],
+                  ["5x", "5x / week"],
+                  ["6x", "6x / week"],
+                  ["7x", "7x / week"],
                 ].map(([value, label]) => (
                   <Label
                     key={value}
@@ -820,6 +837,25 @@ export default function CustomizeProgram() {
                   </Label>
                 ))}
               </RadioGroup>
+              <p className="text-xs leading-5 text-muted-foreground">
+                Daily cardio uses mostly easy Zone 2 work and no more than two
+                interval days so recovery still supports strength progress.
+              </p>
+            </section>
+
+            <section className="space-y-2">
+              <Label htmlFor="plan-start-date">Ideal start date</Label>
+              <Input
+                id="plan-start-date"
+                type="date"
+                min={localDateInputValue()}
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+              />
+              <p className="text-xs leading-5 text-muted-foreground">
+                Start today or choose the day that fits your schedule. You can
+                move the full plan forward later if life gets in the way.
+              </p>
             </section>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

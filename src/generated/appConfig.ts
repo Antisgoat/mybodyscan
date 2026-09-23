@@ -16,7 +16,7 @@ export const APP_CONFIG = {
 export const BUILD_META = {
   "mode": "production",
   "isNative": false,
-  "commit": "6490e93",
-  "branch": "codex/data-safety-account-deletion",
+  "commit": "59cfb38",
+  "branch": "main",
   "timestamp": null
 } as const;

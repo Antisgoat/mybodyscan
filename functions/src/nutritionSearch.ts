@@ -860,7 +860,14 @@ export function curateNutritionResults(
   query: string
 ): FoodItem[] {
   const normalizedQuery = normalizeSearchText(query);
-  if (normalizedQuery === "egg" || normalizedQuery === "eggs") {
+  const eggTokens = normalizedQuery.split(" ").filter(Boolean);
+  const isGenericEggSearch =
+    eggTokens.length > 0 &&
+    eggTokens.some((token) => token === "egg" || token === "eggs") &&
+    eggTokens.every((token) =>
+      ["egg", "eggs", "large", "whole", "white", "yolk"].includes(token)
+    );
+  if (isGenericEggSearch) {
     return canonicalEggs();
   }
   return rankNutritionResults(items, query);
@@ -1026,6 +1033,19 @@ async function runNutritionSearchCore(
       "rate_limited",
       "Too many requests. Please slow down."
     );
+  }
+
+  const standardized = curateNutritionResults([], input.query);
+  if (
+    standardized.length > 0 &&
+    standardized.every((item) => item.id.startsWith("canonical:"))
+  ) {
+    return {
+      status: "ok",
+      results: standardized.map(({ raw: _raw, ...item }) => item),
+      source: "USDA",
+      debugId: context.requestId,
+    };
   }
 
   const apiKey = getUsdaApiKey();

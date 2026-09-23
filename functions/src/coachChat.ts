@@ -28,6 +28,11 @@ import {
 
 const coachRequestsPerMinute = () =>
   Math.max(1, Math.min(1_000, Math.trunc(getEnvInt("COACH_RPM", 12))));
+const coachRequestsPerMonth = () =>
+  Math.max(
+    25,
+    Math.min(500, Math.trunc(getEnvInt("COACH_MONTHLY_LIMIT", 200)))
+  );
 
 export function modelForCoachRequest(input: Pick<CoachChatRequest, "message">) {
   return modelForCoachMessage(input.message);
@@ -115,10 +120,10 @@ type ThreadMessage = {
 
 const db = getFirestore();
 const THREADS_COLLECTION = "coachThreads";
-const MAX_MESSAGE_LENGTH = 2000;
+const MAX_MESSAGE_LENGTH = 800;
 const COACH_PERSONA_AND_SAFETY_PROMPT =
-  "You are MyBodyScan's virtual coach. Keep responses concise, motivational, and practical. " +
-  "Prioritize safe training, progressive overload, recovery, sustainable nutrition, and hydration. " +
+  "You are MyBodyScan's workout coach. Only answer questions about exercise programming, gym equipment, workout technique, training recovery, and workout scheduling. Keep responses concise, motivational, and practical. " +
+  "Prioritize safe training, progressive overload, and recovery. " +
   "Refuse crash diets, extreme dehydration, steroid/drug advice, illegal or dangerous requests, and training through serious injury. " +
   "If pain or injury is mentioned, recommend safer substitutions and medical evaluation for severe symptoms. " +
   "Do not present guidance as medical advice.";
@@ -132,6 +137,44 @@ const FATIGUE_PATTERN =
   /\b(tired|fatigued|exhausted|drained|poor sleep|slept badly|low energy|worn out)\b/i;
 const EXTRA_ACTIVITY_PATTERN =
   /\b(played|playing|did|went|completed)\b.{0,40}\b(pickleball|tennis|basketball|soccer|football|run|running|jog|jogging|cycling|bike ride|hike|hiking|swim|swimming|sport|cardio)\b/i;
+const TRAINING_SCOPE_PATTERN =
+  /\b(workout|exercise|training|train|gym|lift|lifting|weights?|sets?|reps?|rpe|rir|cardio|run|running|walk|walking|bike|cycling|swim|sport|strength|muscle|hypertrophy|mobility|stretch|warmup|warm-up|cooldown|cool-down|recovery|recover|sore|soreness|fatigue|tired|injury|pain|form|technique|squat|deadlift|press|row|pull-?up|push-?up|lunge|machine|dumbbell|barbell|kettlebell|band|rest day)\b/i;
+const SHORT_TRAINING_FOLLOW_UP =
+  /^(yes|no|why|how|when|today|tomorrow|what about|can you adjust|make it easier|make it harder|swap it|change it|show me|go on|continue)[?.! ]*$/i;
+
+export function isCoachMessageInScope(
+  message: string,
+  options?: { hasThread?: boolean }
+): boolean {
+  const clean = sanitizeMessage(message);
+  if (!clean) return false;
+  if (
+    /^(hi|hello|hey|good morning|good afternoon|good evening)[!. ]*$/i.test(
+      clean
+    )
+  ) {
+    return true;
+  }
+  if (TRAINING_SCOPE_PATTERN.test(clean)) return true;
+  return Boolean(
+    options?.hasThread &&
+    clean.length <= 80 &&
+    SHORT_TRAINING_FOLLOW_UP.test(clean)
+  );
+}
+
+function outOfScopeCoachResponse(requestId: string): CoachChatResponsePayload {
+  return {
+    reply:
+      "I’m your workout coach, so I can help with training plans, exercise form, gym equipment, recovery, soreness, and workout scheduling. Ask me a workout-related question and I’ll keep it focused.",
+    suggestions: [
+      "Adjust today’s workout",
+      "Swap an exercise",
+      "Plan my training week",
+    ],
+    meta: { debugId: requestId, model: "scope-filter-v1", tokens: 0 },
+  };
+}
 
 function sanitizeMessage(value: unknown): string {
   if (typeof value !== "string") return "";
@@ -881,7 +924,7 @@ async function generateCoachResponseForThread(
 
   // Load recent history first, then append the current user message content so
   // we don't depend on serverTimestamp propagation for context building.
-  const history = await loadThreadHistory(context.uid, threadId, 18);
+  const history = await loadThreadHistory(context.uid, threadId, 10);
   const nextUserContent = buildThreadUserContent(payload);
   const messages = threadMessagesToOpenAI(history, nextUserContent);
   const selectedModel = modelForCoachRequest(payload);
@@ -1104,7 +1147,18 @@ export const coachChat = onCall<CoachChatRequest>(
       limit: coachRequestsPerMinute(),
       windowMs: 60_000,
     });
-    await enforceMonthlyQuota({ uid, key: "coachChat", limit: 300 });
+    if (
+      !isCoachMessageInScope(payload.message, {
+        hasThread: Boolean(payload.threadId),
+      })
+    ) {
+      return outOfScopeCoachResponse(requestId);
+    }
+    await enforceMonthlyQuota({
+      uid,
+      key: "coachChat",
+      limit: coachRequestsPerMonth(),
+    });
 
     const identifier = identifierFromRequest(request.rawRequest as Request);
     try {
@@ -1202,7 +1256,19 @@ export async function coachChatHandler(
       limit: coachRequestsPerMinute(),
       windowMs: 60_000,
     });
-    await enforceMonthlyQuota({ uid, key: "coachChat", limit: 300 });
+    if (
+      !isCoachMessageInScope(payload.message, {
+        hasThread: Boolean(payload.threadId),
+      })
+    ) {
+      res.status(200).json(outOfScopeCoachResponse(requestId));
+      return;
+    }
+    await enforceMonthlyQuota({
+      uid,
+      key: "coachChat",
+      limit: coachRequestsPerMonth(),
+    });
     payload.context = await buildServerContext({
       uid,
       requestId,

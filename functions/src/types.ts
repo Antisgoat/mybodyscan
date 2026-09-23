@@ -296,5 +296,7 @@ export interface WorkoutPlan {
   prefs?: Record<string, unknown>;
   /** Customization preferences captured when source==="custom". */
   customPrefs?: Record<string, unknown>;
+  /** Member-selected local calendar date (YYYY-MM-DD) for beginning the plan. */
+  startDate?: string | null;
   days: WorkoutDay[];
 }

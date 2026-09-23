@@ -79,3 +79,26 @@ test("generic egg searches return three consistent household choices", () => {
   assert.equal(results[0].servings[0].label, "1 large");
   assert.equal(results[0].brand, null);
 });
+
+test("egg wording does not change the standardized large-egg calories", () => {
+  for (const query of [
+    "egg",
+    "eggs",
+    "large egg",
+    "egg large",
+    "whole large egg",
+  ]) {
+    const results = curateNutritionResults(
+      [food({ id: "upstream", name: "Eggs, Grade A, Large, egg whole" })],
+      query
+    );
+    assert.equal(results[0].name, "Whole egg, large");
+    assert.equal(results[0].per_serving.kcal, 70);
+    assert.equal(results[0].serving.text, "1 large");
+  }
+});
+
+test("prepared foods containing egg still use normal search results", () => {
+  const bagel = food({ id: "bagel", name: "Bagel, egg" });
+  assert.equal(curateNutritionResults([bagel], "egg bagel")[0].id, "bagel");
+});

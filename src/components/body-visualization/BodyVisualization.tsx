@@ -83,10 +83,16 @@ function BodyFigure({
       -0.22 + (value + 0.22) * profile.legLengthScale;
     const trunk = createBodyLoftGeometry([
       {
-        y: -0.24,
-        radiusX: 0.43 * profile.hipScale,
-        radiusZ: 0.36 * profile.hipDepthScale,
+        y: -0.3,
+        radiusX: 0.37 * profile.hipScale,
+        radiusZ: 0.32 * profile.hipDepthScale,
         centerZ: -0.025,
+      },
+      {
+        y: -0.16,
+        radiusX: 0.51 * profile.hipScale,
+        radiusZ: 0.41 * profile.hipDepthScale,
+        centerZ: -0.02,
       },
       {
         y: 0,
@@ -129,9 +135,19 @@ function BodyFigure({
         radiusZ: 0.4 * profile.depthScale,
       },
       {
-        y: bodyShoulderY,
-        radiusX: 0.62 * profile.shoulderScale,
-        radiusZ: 0.34 * profile.depthScale,
+        y: bodyY(1.9),
+        radiusX: 0.66 * profile.shoulderScale,
+        radiusZ: 0.38 * profile.depthScale,
+      },
+      {
+        y: bodyY(1.99),
+        radiusX: 0.5 * profile.shoulderScale,
+        radiusZ: 0.32 * profile.depthScale,
+      },
+      {
+        y: bodyShoulderY + 0.09,
+        radiusX: 0.38 * profile.shoulderScale,
+        radiusZ: 0.3 * profile.depthScale,
       },
       {
         y: bodyY(2.1),
@@ -228,7 +244,7 @@ function BodyFigure({
     color: selectedRegion === region ? selectedColor : baseColor,
     emissive: selectedRegion === region && !ghost ? "#4a2417" : "#120a08",
     emissiveIntensity: selectedRegion === region && !ghost ? 0.07 : 0.025,
-    roughness: ghost ? 0.42 : 0.72 - profile.definitionScale * 0.1,
+    roughness: ghost ? 0.42 : 0.82 - profile.definitionScale * 0.08,
     metalness: 0,
     transparent: ghost,
     opacity: ghost ? 0.16 : 1,
@@ -264,7 +280,13 @@ function BodyFigure({
         geometry={geometries.trunk}
         onClick={(event) => {
           const localY = event.point.y / profile.heightScale;
-          select(localY > torsoY(0.85) ? "upper" : localY > torsoY(0.2) ? "core" : "hips");
+          select(
+            localY > torsoY(0.85)
+              ? "upper"
+              : localY > torsoY(0.2)
+                ? "core"
+                : "hips"
+          );
         }}
       >
         <meshStandardMaterial {...bodyMaterial("upper")} />
@@ -319,9 +341,17 @@ function BodyFigure({
       {[-1, 1].map((side) => (
         <group
           key={`arm-${side}`}
-          position={[side * 0.67 * profile.shoulderScale, shoulderY - 0.88, 0]}
+          position={[side * 0.63 * profile.shoulderScale, shoulderY - 0.88, 0]}
           rotation={[0, 0, side * -0.055]}
         >
+          <mesh
+            position={[0, armY(0.71), 0]}
+            scale={[0.22 * profile.armScale, 0.22, 0.2 * profile.armScale]}
+            onClick={() => select("arms")}
+          >
+            <sphereGeometry args={[1, 28, 22]} />
+            <meshStandardMaterial {...bodyMaterial("arms")} />
+          </mesh>
           <mesh geometry={geometries.arm} onClick={() => select("arms")}>
             <meshStandardMaterial {...bodyMaterial("arms")} />
           </mesh>
