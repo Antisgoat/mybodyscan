@@ -7,6 +7,13 @@
 import { useEffect, useRef, useState } from "react";
 import { POSES, POSE_LABEL, type Pose } from "./poses";
 import { resizeImageFile } from "./resizeImage";
+import {
+  chooseNativePhoto,
+  dataUrlToImageFile,
+  isMediaPickerCancellation,
+  takeNativePhoto,
+  usesNativePhotoPicker,
+} from "@/lib/nativePhoto";
 
 export type CaptureReady = {
   front: File | Blob;
@@ -31,9 +38,53 @@ export default function ScanCapture({ onReady }: Props) {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
 
-  function openFor(pose: Pose, source: "camera" | "library") {
+  async function processFile(file: File, pose: Pose) {
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose an image file.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const blob = await resizeImageFile(file, 1600, 0.9);
+      const url = URL.createObjectURL(blob);
+      const pick: PosePick = { file, blob, url };
+      setPicks((prev) => {
+        const prevPick = prev[pose];
+        if (prevPick?.url) URL.revokeObjectURL(prevPick.url);
+        return { ...prev, [pose]: pick };
+      });
+      setActivePose(null);
+    } catch (err: any) {
+      setError(err?.message || "Could not process image.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openFor(pose: Pose, source: "camera" | "library") {
     setActivePose(pose);
     setError(null);
+    if (usesNativePhotoPicker()) {
+      try {
+        const dataUrl =
+          source === "camera"
+            ? await takeNativePhoto()
+            : await chooseNativePhoto();
+        await processFile(
+          await dataUrlToImageFile(dataUrl, `${pose}-${Date.now()}.jpg`),
+          pose
+        );
+      } catch (pickerError) {
+        if (!isMediaPickerCancellation(pickerError)) {
+          setError(
+            "Camera or photo access is unavailable. Allow access in your phone Settings, then try again."
+          );
+        }
+        setActivePose(null);
+      }
+      return;
+    }
     const ref = source === "camera" ? cameraInputRef : libraryInputRef;
     ref.current?.click();
   }
@@ -43,29 +94,7 @@ export default function ScanCapture({ onReady }: Props) {
     e.currentTarget.value = ""; // reset for consecutive selections
     if (!file || !activePose) return;
 
-    if (!file.type.startsWith("image/")) {
-      setError("Please choose an image file.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      // Optional downscale for mobile perf/bandwidth
-      const blob = await resizeImageFile(file, 1600, 0.9);
-      const url = URL.createObjectURL(blob);
-      const pick: PosePick = { file, blob, url };
-      setPicks((prev) => {
-        // Revoke previous preview URL for this pose to avoid leaks
-        const prevPick = prev[activePose];
-        if (prevPick?.url) URL.revokeObjectURL(prevPick.url);
-        return { ...prev, [activePose]: pick };
-      });
-      setActivePose(null);
-    } catch (err: any) {
-      setError(err?.message || "Could not process image.");
-    } finally {
-      setBusy(false);
-    }
+    await processFile(file, activePose);
   }
 
   function removePose(pose: Pose) {

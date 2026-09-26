@@ -15,6 +15,8 @@ PODS:
     - Capacitor
   - CapacitorBrowser (7.0.5):
     - Capacitor
+  - CapacitorCamera (7.0.2):
+    - Capacitor
   - CapacitorCordova (7.6.8)
   - CapacitorFirebaseAppCheck (7.5.0):
     - Capacitor
@@ -125,6 +127,7 @@ DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
+  - "CapacitorCamera (from `../../node_modules/@capacitor/camera`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFirebaseAppCheck (from `../../node_modules/@capacitor-firebase/app-check`)"
   - "CapacitorFirebaseAuthentication (from `../../node_modules/@capacitor-firebase/authentication`)"
@@ -163,6 +166,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/app"
   CapacitorBrowser:
     :path: "../../node_modules/@capacitor/browser"
+  CapacitorCamera:
+    :path: "../../node_modules/@capacitor/camera"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
   CapacitorFirebaseAppCheck:
@@ -180,6 +185,7 @@ SPEC CHECKSUMS:
   Capacitor: ff6bf01336ac353098378828aff465095a89e459
   CapacitorApp: f01a913211780e0718dae9750442c3e23f96e106
   CapacitorBrowser: 6d09f59655e89aede71654ef08b98de55cf032b6
+  CapacitorCamera: f9e54db0a18bb218a8dc360907d63aaefe9209ff
   CapacitorCordova: e61ee8c40101b8cd011d0224261606a290c082cf
   CapacitorFirebaseAppCheck: 42f86272f13400f0480dcc76348ce0aaea263e69
   CapacitorFirebaseAuthentication: c5d02225dc97a1192f3b615f8c0df2ef910c40b7
@@ -205,6 +211,6 @@ SPEC CHECKSUMS:
   RevenueCat: a51003d4cb33820cc504cf177c627832b462a98e
   RevenuecatPurchasesCapacitor: fc904c3f4da985cc3498f57f956cda169698a983
 
-PODFILE CHECKSUM: 2d596fbed1f49e1c0247e5ab8cea07797b4bbaa9
+PODFILE CHECKSUM: bc9be06a11b1e0f7cdd67415542ebf69ff924873
 
 COCOAPODS: 1.16.2

@@ -619,18 +619,22 @@ export default function CustomizeProgram() {
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">
                     Days / week (2–7)
                   </span>
-                  <Input
-                    type="number"
-                    min={2}
-                    max={7}
-                    step={1}
+                  <select
+                    aria-label="Training days per week"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={daysPerWeek}
                     onChange={(e) => {
-                      const next = normalizeDaysPerWeek(Number(e.target.value));
+                      const next = Number(e.target.value);
                       setDaysPerWeek(next);
                       setPreferredDays((prev) => ensureUniqueDays(prev, next));
                     }}
-                  />
+                  >
+                    {[2, 3, 4, 5, 6, 7].map((days) => (
+                      <option key={days} value={days}>
+                        {days} days
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="space-y-1 text-sm">
                   <span className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -894,19 +898,44 @@ export default function CustomizeProgram() {
             </CardHeader>
             <CardContent className="space-y-4">
               {generatedDays.map((day, dayIndex) => (
-                <Card
+                <details
                   key={`${day.day}-${dayIndex}`}
-                  className="border bg-background/60"
+                  className="group overflow-hidden rounded-xl border bg-background/60"
                 >
-                  <CardHeader className="flex flex-col items-stretch gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="space-y-1">
-                      <div className="text-xs uppercase tracking-wide text-muted-foreground">
-                        Workout day
+                  <summary className="cursor-pointer list-none px-4 py-4 marker:hidden">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-lg font-semibold text-foreground">
+                            {day.day}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {day.exercises.length} exercises ·{" "}
+                            {day.exercises.reduce(
+                              (total, exercise) =>
+                                total + (Number(exercise.sets) || 0),
+                              0
+                            )}{" "}
+                            sets
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate text-sm text-muted-foreground">
+                          {day.exercises
+                            .slice(0, 3)
+                            .map((exercise) => exercise.name)
+                            .join(" · ")}
+                          {day.exercises.length > 3 ? " · …" : ""}
+                        </p>
                       </div>
-                      <div className="text-lg font-semibold text-foreground">
-                        {day.day}
-                      </div>
+                      <span className="shrink-0 text-xs font-medium text-primary group-open:hidden">
+                        View
+                      </span>
+                      <span className="hidden shrink-0 text-xs font-medium text-primary group-open:inline">
+                        Hide
+                      </span>
                     </div>
+                  </summary>
+                  <div className="space-y-4 border-t p-4">
                     <div className="flex flex-wrap gap-2">
                       {DAYS.map((d) => (
                         <Button
@@ -920,189 +949,189 @@ export default function CustomizeProgram() {
                         </Button>
                       ))}
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {day.exercises.map((ex, exIdx) => (
-                      <div
-                        key={`${ex.name}-${exIdx}`}
-                        className="rounded-md border p-3"
-                      >
-                        <div className="grid gap-3 md:grid-cols-[1fr_90px_120px_auto] md:items-end">
-                          <div className="space-y-1">
-                            <Label className="text-xs">Exercise</Label>
-                            <Input
-                              value={ex.name}
-                              onChange={(e) =>
-                                updateExercise(dayIndex, exIdx, {
-                                  name: e.target.value,
-                                })
-                              }
-                            />
-                            <div className="pt-2">
-                              <Dialog
-                                open={
-                                  swapTarget?.dayIndex === dayIndex &&
-                                  swapTarget?.exerciseIndex === exIdx
+                    <div className="space-y-3">
+                      {day.exercises.map((ex, exIdx) => (
+                        <div
+                          key={`${ex.name}-${exIdx}`}
+                          className="rounded-md border p-3"
+                        >
+                          <div className="grid gap-3 md:grid-cols-[1fr_90px_120px_auto] md:items-end">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Exercise</Label>
+                              <Input
+                                value={ex.name}
+                                onChange={(e) =>
+                                  updateExercise(dayIndex, exIdx, {
+                                    name: e.target.value,
+                                  })
                                 }
-                                onOpenChange={(open) => {
-                                  if (!open) {
-                                    setSwapTarget(null);
-                                    setSwapQuery("");
-                                  } else {
-                                    setSwapTarget({
-                                      dayIndex,
-                                      exerciseIndex: exIdx,
-                                    });
+                              />
+                              <div className="pt-2">
+                                <Dialog
+                                  open={
+                                    swapTarget?.dayIndex === dayIndex &&
+                                    swapTarget?.exerciseIndex === exIdx
                                   }
-                                }}
-                              >
-                                <DialogTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
+                                  onOpenChange={(open) => {
+                                    if (!open) {
+                                      setSwapTarget(null);
+                                      setSwapQuery("");
+                                    } else {
                                       setSwapTarget({
                                         dayIndex,
                                         exerciseIndex: exIdx,
                                       });
-                                      setSwapQuery("");
-                                    }}
-                                  >
-                                    Swap (search)
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-lg">
-                                  <DialogHeader>
-                                    <DialogTitle>Swap exercise</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="space-y-3">
-                                    <Input
-                                      value={swapQuery}
-                                      onChange={(e) =>
-                                        setSwapQuery(e.target.value)
-                                      }
-                                      placeholder="Search (e.g. bench, row, squat)…"
-                                      autoFocus
-                                    />
-                                    <div className="max-h-72 overflow-auto rounded-md border">
-                                      {swapResults.map((exercise) => (
-                                        <button
-                                          key={exercise.id}
-                                          type="button"
-                                          className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-muted"
-                                          onClick={() => {
-                                            updateExercise(dayIndex, exIdx, {
-                                              name: exercise.name,
-                                            });
-                                            setSwapTarget(null);
-                                            setSwapQuery("");
-                                            toast({
-                                              title: "Exercise updated",
-                                            });
-                                          }}
-                                        >
-                                          <span className="font-medium">
-                                            {exercise.name}
-                                          </span>
-                                          <span className="text-xs text-muted-foreground">
-                                            Select
-                                          </span>
-                                        </button>
-                                      ))}
-                                      {!swapResults.length ? (
-                                        <div className="p-3 text-sm text-muted-foreground">
-                                          No exercises available.
-                                        </div>
-                                      ) : null}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Tip: you can always type a custom name
-                                      directly in the exercise field.
-                                    </p>
-                                  </div>
-                                </DialogContent>
-                              </Dialog>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Sets</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              max={10}
-                              value={Number(ex.sets ?? 3)}
-                              onChange={(e) =>
-                                updateExercise(dayIndex, exIdx, {
-                                  sets: Number(e.target.value),
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Reps</Label>
-                            <Input
-                              value={String(ex.reps ?? "10")}
-                              onChange={(e) =>
-                                updateExercise(dayIndex, exIdx, {
-                                  reps: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                          <div className="flex flex-col gap-3 md:items-end">
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  moveExercise(dayIndex, exIdx, exIdx - 1)
-                                }
-                                disabled={exIdx === 0}
-                              >
-                                Up
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  moveExercise(dayIndex, exIdx, exIdx + 1)
-                                }
-                                disabled={exIdx === day.exercises.length - 1}
-                              >
-                                Down
-                              </Button>
-                            </div>
-                            <div className="w-full space-y-1 md:w-auto">
-                              <span className="block text-xs text-muted-foreground">
-                                Move to day
-                              </span>
-                              <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap sm:gap-2">
-                                {generatedDays.map((d, idx) => (
-                                  <Button
-                                    key={`${d.day}-${idx}`}
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    className="min-w-0 px-2"
-                                    onClick={() =>
-                                      moveExerciseToDay(dayIndex, exIdx, idx)
                                     }
-                                    disabled={idx === dayIndex}
-                                  >
-                                    {d.day}
-                                  </Button>
-                                ))}
+                                  }}
+                                >
+                                  <DialogTrigger asChild>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setSwapTarget({
+                                          dayIndex,
+                                          exerciseIndex: exIdx,
+                                        });
+                                        setSwapQuery("");
+                                      }}
+                                    >
+                                      Swap (search)
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-lg">
+                                    <DialogHeader>
+                                      <DialogTitle>Swap exercise</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-3">
+                                      <Input
+                                        value={swapQuery}
+                                        onChange={(e) =>
+                                          setSwapQuery(e.target.value)
+                                        }
+                                        placeholder="Search (e.g. bench, row, squat)…"
+                                        autoFocus
+                                      />
+                                      <div className="max-h-72 overflow-auto rounded-md border">
+                                        {swapResults.map((exercise) => (
+                                          <button
+                                            key={exercise.id}
+                                            type="button"
+                                            className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-muted"
+                                            onClick={() => {
+                                              updateExercise(dayIndex, exIdx, {
+                                                name: exercise.name,
+                                              });
+                                              setSwapTarget(null);
+                                              setSwapQuery("");
+                                              toast({
+                                                title: "Exercise updated",
+                                              });
+                                            }}
+                                          >
+                                            <span className="font-medium">
+                                              {exercise.name}
+                                            </span>
+                                            <span className="text-xs text-muted-foreground">
+                                              Select
+                                            </span>
+                                          </button>
+                                        ))}
+                                        {!swapResults.length ? (
+                                          <div className="p-3 text-sm text-muted-foreground">
+                                            No exercises available.
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Tip: you can always type a custom name
+                                        directly in the exercise field.
+                                      </p>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Sets</Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={10}
+                                value={Number(ex.sets ?? 3)}
+                                onChange={(e) =>
+                                  updateExercise(dayIndex, exIdx, {
+                                    sets: Number(e.target.value),
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Reps</Label>
+                              <Input
+                                value={String(ex.reps ?? "10")}
+                                onChange={(e) =>
+                                  updateExercise(dayIndex, exIdx, {
+                                    reps: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="flex flex-col gap-3 md:items-end">
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    moveExercise(dayIndex, exIdx, exIdx - 1)
+                                  }
+                                  disabled={exIdx === 0}
+                                >
+                                  Up
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    moveExercise(dayIndex, exIdx, exIdx + 1)
+                                  }
+                                  disabled={exIdx === day.exercises.length - 1}
+                                >
+                                  Down
+                                </Button>
+                              </div>
+                              <div className="w-full space-y-1 md:w-auto">
+                                <span className="block text-xs text-muted-foreground">
+                                  Move to day
+                                </span>
+                                <div className="grid grid-cols-4 gap-1 sm:flex sm:flex-wrap sm:gap-2">
+                                  {generatedDays.map((d, idx) => (
+                                    <Button
+                                      key={`${d.day}-${idx}`}
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      className="min-w-0 px-2"
+                                      onClick={() =>
+                                        moveExerciseToDay(dayIndex, exIdx, idx)
+                                      }
+                                      disabled={idx === dayIndex}
+                                    >
+                                      {d.day}
+                                    </Button>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
+                      ))}
+                    </div>
+                  </div>
+                </details>
               ))}
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

@@ -28,6 +28,13 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { allergenLabel } from "@/lib/nutrition/allergens";
 import { callCallable } from "@/lib/backend/callBackend";
 import { prepareGymPhoto } from "@/lib/gymCapture";
+import {
+  chooseNativePhoto,
+  dataUrlToImageFile,
+  isMediaPickerCancellation,
+  takeNativePhoto,
+  usesNativePhotoPicker,
+} from "@/lib/nativePhoto";
 import type { FridgeAnalysis, FridgeMealSuggestions } from "@/lib/fridgeMeals";
 
 function ingredientKey(value: string): string {
@@ -142,6 +149,23 @@ export default function FridgeMeals() {
       });
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleNativePhoto = async (source: "camera" | "library") => {
+    try {
+      const dataUrl =
+        source === "camera"
+          ? await takeNativePhoto()
+          : await chooseNativePhoto();
+      await handlePhotos([
+        await dataUrlToImageFile(dataUrl, `kitchen-${Date.now()}.jpg`),
+      ]);
+    } catch (pickerError) {
+      if (isMediaPickerCancellation(pickerError)) return;
+      setError(
+        "Photo access is unavailable. Allow Camera or Photos access in your phone Settings, then try again."
+      );
     }
   };
 
@@ -273,7 +297,10 @@ export default function FridgeMeals() {
                 type="button"
                 variant="outline"
                 className="min-h-12 w-full gap-2"
-                onClick={() => cameraRef.current?.click()}
+                onClick={() => {
+                  if (usesNativePhotoPicker()) void handleNativePhoto("camera");
+                  else cameraRef.current?.click();
+                }}
                 disabled={busy || demo || !processingConsent}
               >
                 <Camera className="h-4 w-4" aria-hidden="true" /> Take a photo
@@ -281,7 +308,11 @@ export default function FridgeMeals() {
               <Button
                 type="button"
                 className="min-h-14 w-full gap-3"
-                onClick={() => inputRef.current?.click()}
+                onClick={() => {
+                  if (usesNativePhotoPicker())
+                    void handleNativePhoto("library");
+                  else inputRef.current?.click();
+                }}
                 disabled={busy || demo || !processingConsent}
               >
                 {analyzing ? (

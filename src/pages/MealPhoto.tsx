@@ -7,6 +7,12 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { prepareGymPhoto } from "@/lib/gymCapture";
+import {
+  chooseNativePhoto,
+  isMediaPickerCancellation,
+  takeNativePhoto,
+  usesNativePhotoPicker,
+} from "@/lib/nativePhoto";
 import { callCallable } from "@/lib/backend/callBackend";
 import { addMeal } from "@/lib/nutritionBackend";
 
@@ -44,7 +50,7 @@ export default function MealPhoto() {
     ? Math.round(estimate.protein * 4 + estimate.carbs * 4 + estimate.fat * 9)
     : 0;
 
-  async function analyze(file?: File) {
+  async function analyze(file?: File | string) {
     if (!file || !allowed || !consent || lock.current) return;
     lock.current = true;
     setBusy(true);
@@ -53,8 +59,10 @@ export default function MealPhoto() {
     saveDate.current = null;
     setMessage("");
     try {
-      if (file.size > 20 * 1024 * 1024) throw new Error("large_file");
-      const image = await prepareGymPhoto(file);
+      if (typeof file !== "string" && file.size > 20 * 1024 * 1024)
+        throw new Error("large_file");
+      const image =
+        typeof file === "string" ? file : await prepareGymPhoto(file);
       const result = await callCallable<
         { image: string; processingConsent: boolean },
         Estimate
@@ -72,6 +80,23 @@ export default function MealPhoto() {
     } finally {
       setBusy(false);
       lock.current = false;
+    }
+  }
+
+  async function openNativePhoto(source: "camera" | "library") {
+    try {
+      await analyze(
+        source === "camera"
+          ? await takeNativePhoto()
+          : await chooseNativePhoto()
+      );
+    } catch (error) {
+      if (isMediaPickerCancellation(error)) return;
+      setMessage(
+        source === "camera"
+          ? "Camera access is unavailable. Allow Camera access in iPhone Settings, or choose a saved photo."
+          : "Photo access is unavailable. Allow Photos access in iPhone Settings, or take a new photo."
+      );
     }
   }
 
@@ -159,14 +184,20 @@ export default function MealPhoto() {
         <div className="grid grid-cols-2 gap-3">
           <Button
             disabled={!allowed || !consent || busy}
-            onClick={() => camera.current?.click()}
+            onClick={() => {
+              if (usesNativePhotoPicker()) void openNativePhoto("camera");
+              else camera.current?.click();
+            }}
           >
             Take photo
           </Button>
           <Button
             variant="outline"
             disabled={!allowed || !consent || busy}
-            onClick={() => library.current?.click()}
+            onClick={() => {
+              if (usesNativePhotoPicker()) void openNativePhoto("library");
+              else library.current?.click();
+            }}
           >
             Choose photo
           </Button>

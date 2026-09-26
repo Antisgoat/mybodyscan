@@ -48,9 +48,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>We use the camera to capture body scan photos, gym walkthroughs, and food barcodes.</string>
+	<string>We use the camera when you choose to capture body scans, meals, gym equipment, or food barcodes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is used only while you choose to record a gym walkthrough video. Audio is not analyzed or saved.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>We use your photo library to select body scan photos and gym views you choose to analyze.</string>
+	<string>We use your photo library only to select body scan, meal, refrigerator, or gym photos you choose to analyze.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>We save body scan photos to your photo library when you choose to export or save them.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>

@@ -6,6 +6,7 @@ import {
   searchExercises,
 } from "@/lib/exercises/library";
 import { generateCustomPlanDaysFromLibrary } from "@/lib/workoutsCustomGenerator";
+import { exerciseAllowedByGymInventory } from "@/lib/gymEquipment";
 
 type MuscleGroup =
   "chest" | "back" | "legs" | "shoulders" | "arms" | "calves" | "core";
@@ -219,12 +220,52 @@ describe("custom plan generation (exercise library)", () => {
       cardioPreference: "7x",
     });
     const cardio = days.flatMap((day) =>
-      day.exercises.filter((exercise) => /cardio|zone 2/i.test(exercise.name))
+      day.exercises.filter((exercise) =>
+        /cardio|zone 2|intervals/i.test(exercise.name)
+      )
     );
     expect(cardio).toHaveLength(7);
     expect(
-      cardio.filter((exercise) => exercise.name === "Cardio intervals")
+      cardio.filter((exercise) => /intervals$/i.test(exercise.name))
     ).toHaveLength(2);
+  });
+
+  it("keeps every generated lift inside a confirmed gym inventory", () => {
+    const inventory = [
+      "open_floor",
+      "dumbbells",
+      "adjustable_bench",
+      "leg_press",
+      "pull_up_bar",
+      "stationary_bike",
+    ] as const;
+    const days = generateCustomPlanDaysFromLibrary({
+      goal: "build_muscle",
+      experience: "intermediate",
+      focus: "upper_lower",
+      daysPerWeek: 4,
+      preferredDays: ["Mon", "Tue", "Thu", "Fri"],
+      timePerWorkout: "60",
+      equipment: ["bodyweight", "dumbbell", "machine"],
+      equipmentInventory: [...inventory],
+      cardioPreference: "2x",
+    });
+
+    const names = days.flatMap((day) =>
+      day.exercises.map((exercise) => exercise.name)
+    );
+    expect(
+      names.some((name) => /hack squat|belt squat|treadmill/i.test(name))
+    ).toBe(false);
+    expect(names.some((name) => /stationary bike/i.test(name))).toBe(true);
+    for (const name of names) {
+      const exercise = getExerciseByExactName(name);
+      if (exercise) {
+        expect(exerciseAllowedByGymInventory(exercise, [...inventory])).toBe(
+          true
+        );
+      }
+    }
   });
 
   it("Upper/Lower 4-day: upper days include push + pull patterns; lower days include squat + hinge", () => {

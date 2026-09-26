@@ -38,6 +38,7 @@ const expectedNativePackages = {
   "@capacitor/ios": "7.6.8",
   "@capacitor/app": "7.1.2",
   "@capacitor/browser": "7.0.5",
+  "@capacitor/camera": "7.0.2",
   "@capacitor-firebase/messaging": "7.5.0",
   "@revenuecat/purchases-capacitor": "11.2.6",
 };

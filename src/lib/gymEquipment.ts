@@ -14,7 +14,7 @@ export const GYM_EQUIPMENT = [
   { id: "seated_row", label: "Seated row", group: "Machines" },
   { id: "chest_press", label: "Chest press", group: "Machines" },
   { id: "shoulder_press", label: "Shoulder press", group: "Machines" },
-  { id: "leg_press", label: "Leg press or hack squat", group: "Machines" },
+  { id: "leg_press", label: "Leg press", group: "Machines" },
   { id: "leg_extension", label: "Leg extension", group: "Machines" },
   { id: "leg_curl", label: "Leg curl", group: "Machines" },
   { id: "functional_trainer", label: "Functional trainer", group: "Machines" },
@@ -218,24 +218,17 @@ export function exerciseAllowedByGymInventory(
     return false;
   };
   const supportsMachineExercise = () => {
-    if (items.has("other_strength_machines")) return true;
-    if (items.has("leg_press") && /leg press|hack squat/.test(name))
-      return true;
+    if (items.has("leg_press") && /leg press/.test(name)) return true;
     if (items.has("leg_extension") && /leg extension/.test(name)) return true;
     if (items.has("leg_curl") && /leg curl|hamstring curl/.test(name))
       return true;
     if (
       items.has("chest_press") &&
-      /chest press|pec deck|machine press/.test(name)
+      /chest press|machine chest press/.test(name)
     )
       return true;
-    if (
-      items.has("shoulder_press") &&
-      /shoulder press|lateral raise machine/.test(name)
-    )
-      return true;
-    if (items.has("lat_pulldown") && /pulldown|assisted pull up/.test(name))
-      return true;
+    if (items.has("shoulder_press") && /shoulder press/.test(name)) return true;
+    if (items.has("lat_pulldown") && /pulldown/.test(name)) return true;
     if (items.has("seated_row") && /machine row|seated row/.test(name))
       return true;
     return false;

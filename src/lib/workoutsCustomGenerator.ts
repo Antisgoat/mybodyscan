@@ -1324,15 +1324,24 @@ export function generateCustomPlanDaysFromLibrary(
       continue;
     }
     const isHardSession = cardioSessions >= 3 && (index === 1 || index === 4);
+    const cardioOptions = [
+      equipmentInventory.includes("treadmill") ? "Treadmill" : null,
+      equipmentInventory.includes("stationary_bike") ? "Stationary bike" : null,
+      equipmentInventory.includes("rower") ? "Rowing machine" : null,
+      equipmentInventory.includes("elliptical") ? "Elliptical" : null,
+      equipmentInventory.includes("stair_climber") ? "Stair climber" : null,
+    ].filter((value): value is string => Boolean(value));
+    const cardioMode =
+      cardioOptions[index % cardioOptions.length] ?? "Brisk walk";
     day.exercises.push(
       isHardSession
         ? {
-            name: "Cardio intervals",
+            name: `${cardioMode} intervals`,
             sets: 1,
             reps: "15-25 min · controlled hard efforts",
           }
         : {
-            name: "Zone 2 cardio",
+            name: `${cardioMode} Zone 2 cardio`,
             sets: 1,
             reps: "20-40 min · conversational pace",
           }

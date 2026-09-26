@@ -32,6 +32,7 @@ const capacitorCli = path.join(
 const allowedPlugins = new Set([
   "@capacitor/app",
   "@capacitor/browser",
+  "@capacitor/camera",
   "@capacitor-firebase/app-check",
   "@capacitor-firebase/authentication",
   "@capacitor-firebase/messaging",
@@ -143,7 +144,7 @@ function assertCapPlugins() {
     }
   }
   pass(
-    "Capacitor iOS plugins match expected native App Check, Auth, Messaging, and RevenueCat list."
+    "Capacitor iOS plugins match expected Camera, App Check, Auth, Messaging, and RevenueCat list."
   );
 }
 

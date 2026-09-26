@@ -25,6 +25,12 @@ import { callCallable } from "@/lib/backend/callBackend";
 import { db } from "@/lib/firebase";
 import { prepareGymPhoto, sampleGymVideo } from "@/lib/gymCapture";
 import {
+  chooseNativePhoto,
+  isMediaPickerCancellation,
+  takeNativePhoto,
+  usesNativePhotoPicker,
+} from "@/lib/nativePhoto";
+import {
   deriveExerciseEquipment,
   GYM_EQUIPMENT,
   gymProfileEquipment,
@@ -55,6 +61,7 @@ export default function GymSetup() {
   const [searchParams] = useSearchParams();
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const videoLibraryInputRef = useRef<HTMLInputElement | null>(null);
   const [selected, setSelected] = useState<Set<GymEquipmentId>>(new Set());
   const [locationName, setLocationName] = useState("");
   const [notes, setNotes] = useState("");
@@ -253,6 +260,29 @@ export default function GymSetup() {
     }
   };
 
+  const handleNativePhoto = async (source: "camera" | "library") => {
+    try {
+      const frame =
+        source === "camera"
+          ? await takeNativePhoto()
+          : await chooseNativePhoto();
+      await analyzeFrames(
+        [frame],
+        "photo",
+        source === "camera" ? "New gym photo" : "Gym photo"
+      );
+    } catch (error) {
+      if (isMediaPickerCancellation(error)) return;
+      toast({
+        title:
+          source === "camera" ? "Camera unavailable" : "Photos unavailable",
+        description:
+          "Allow access in your phone Settings, then try again. You can always use the equipment checklist.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSave = async () => {
     if (!user?.uid) {
       toast({ title: "Sign in required", variant: "destructive" });
@@ -400,18 +430,47 @@ export default function GymSetup() {
                 type="button"
                 variant="outline"
                 className="min-h-20 justify-start gap-3 whitespace-normal text-left"
-                onClick={() => photoInputRef.current?.click()}
+                onClick={() => {
+                  if (usesNativePhotoPicker()) void handleNativePhoto("camera");
+                  else photoInputRef.current?.click();
+                }}
                 disabled={analyzing}
               >
                 <Camera className="h-5 w-5 shrink-0" />
                 <span>
-                  <span className="block font-semibold">Add gym photos</span>
+                  <span className="block font-semibold">
+                    {usesNativePhotoPicker()
+                      ? "Take gym photo"
+                      : "Add gym photos"}
+                  </span>
                   <span className="block text-xs text-muted-foreground">
                     Use 1–6 clear views
                   </span>
                 </span>
               </Button>
             </div>
+            {usesNativePhotoPicker() ? (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => void handleNativePhoto("library")}
+                  disabled={analyzing}
+                >
+                  Choose a gym photo from library
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => videoLibraryInputRef.current?.click()}
+                  disabled={analyzing}
+                >
+                  Choose a saved walkthrough video
+                </Button>
+              </div>
+            ) : null}
             <input
               ref={videoInputRef}
               className="sr-only"
@@ -419,6 +478,18 @@ export default function GymSetup() {
               accept="video/*"
               capture="environment"
               aria-label="Record or choose a gym walkthrough video"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0] ?? null;
+                event.currentTarget.value = "";
+                void handleVideo(file);
+              }}
+            />
+            <input
+              ref={videoLibraryInputRef}
+              className="sr-only"
+              type="file"
+              accept="video/*"
+              aria-label="Choose a saved gym walkthrough video"
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0] ?? null;
                 event.currentTarget.value = "";
