@@ -71,9 +71,25 @@ export default function GymSetup() {
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [analysis, setAnalysis] = useState<GymEquipmentAnalysis | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [mediaKind, setMediaKind] = useState<"photo" | "video" | null>(null);
   const [mediaLabel, setMediaLabel] = useState<string | null>(null);
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"));
+
+  useEffect(() => {
+    if (!analysis) return;
+    setExpandedGroups(
+      new Set(
+        GROUPS.filter((group) =>
+          analysis.detected.some((entry) =>
+            GYM_EQUIPMENT.some(
+              (item) => item.id === entry.id && item.group === group
+            )
+          )
+        )
+      )
+    );
+  }, [analysis]);
 
   useEffect(() => {
     let cancelled = false;
@@ -597,53 +613,79 @@ export default function GymSetup() {
               selected
             </p>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-3">
             {GROUPS.map((group) => (
-              <fieldset key={group} className="space-y-2">
-                <legend className="mb-2 text-sm font-semibold">{group}</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {GYM_EQUIPMENT.filter((item) => item.group === group).map(
-                    (item) => {
-                      const detection = analysis?.detected.find(
-                        (entry) => entry.id === item.id
-                      );
-                      const uncertain = analysis?.uncertain.find(
-                        (entry) => entry.id === item.id
-                      );
-                      return (
-                        <Label
-                          key={item.id}
-                          className="flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border bg-card px-3 py-3 hover:border-primary"
-                        >
-                          <Checkbox
-                            checked={selected.has(item.id)}
-                            onCheckedChange={(checked) =>
-                              toggle(item.id, checked === true)
-                            }
-                            aria-label={item.label}
-                          />
-                          <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                              {item.label}
-                              {detection ? (
-                                <Badge variant="secondary">Detected</Badge>
-                              ) : null}
-                              {uncertain ? (
-                                <Badge variant="outline">Check</Badge>
+              <details
+                key={group}
+                className="group rounded-xl border bg-card p-3"
+                open={expandedGroups.has(group)}
+                onToggle={(event) => {
+                  const isOpen = event.currentTarget.open;
+                  setExpandedGroups((current) => {
+                    const next = new Set(current);
+                    if (isOpen) next.add(group);
+                    else next.delete(group);
+                    return next;
+                  });
+                }}
+              >
+                <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 font-semibold">
+                  <span>{group}</span>
+                  <Badge variant="secondary">
+                    {
+                      GYM_EQUIPMENT.filter(
+                        (item) => item.group === group && selected.has(item.id)
+                      ).length
+                    }{" "}
+                    selected
+                  </Badge>
+                </summary>
+                <fieldset className="mt-3 space-y-2">
+                  <legend className="sr-only">{group}</legend>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {GYM_EQUIPMENT.filter((item) => item.group === group).map(
+                      (item) => {
+                        const detection = analysis?.detected.find(
+                          (entry) => entry.id === item.id
+                        );
+                        const uncertain = analysis?.uncertain.find(
+                          (entry) => entry.id === item.id
+                        );
+                        return (
+                          <Label
+                            key={item.id}
+                            className="flex min-h-12 cursor-pointer items-start gap-3 rounded-lg border bg-card px-3 py-3 hover:border-primary"
+                          >
+                            <Checkbox
+                              checked={selected.has(item.id)}
+                              onCheckedChange={(checked) =>
+                                toggle(item.id, checked === true)
+                              }
+                              aria-label={item.label}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                                {item.label}
+                                {detection ? (
+                                  <Badge variant="secondary">Detected</Badge>
+                                ) : null}
+                                {uncertain ? (
+                                  <Badge variant="outline">Check</Badge>
+                                ) : null}
+                              </span>
+                              {(detection || uncertain)?.evidence ? (
+                                <span className="mt-1 block text-xs leading-4 text-muted-foreground">
+                                  {(detection ?? uncertain)?.evidence}
+                                </span>
                               ) : null}
                             </span>
-                            {(detection || uncertain)?.evidence ? (
-                              <span className="mt-1 block text-xs leading-4 text-muted-foreground">
-                                {(detection ?? uncertain)?.evidence}
-                              </span>
-                            ) : null}
-                          </span>
-                        </Label>
-                      );
-                    }
-                  )}
-                </div>
-              </fieldset>
+                          </Label>
+                        );
+                      }
+                    )}
+                  </div>
+                </fieldset>
+              </details>
             ))}
           </CardContent>
         </Card>

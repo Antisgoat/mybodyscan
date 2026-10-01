@@ -393,6 +393,18 @@ export default function FridgeMeals() {
           </Alert>
         ) : null}
 
+        {analysis && candidates.length === 0 ? (
+          <Alert>
+            <Refrigerator className="h-4 w-4" />
+            <AlertTitle>No food was clear enough to identify</AlertTitle>
+            <AlertDescription>
+              Retake close, well-lit photos with labels facing the camera, or
+              add the ingredients manually below. We will not guess when the
+              image is unclear.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
         <Card>
           <CardHeader>
             <h2 className="text-xl font-semibold">Review ingredients</h2>

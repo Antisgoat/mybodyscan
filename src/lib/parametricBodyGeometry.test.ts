@@ -20,4 +20,21 @@ describe("createBodyLoftGeometry", () => {
       createBodyLoftGeometry([{ y: 0, radiusX: 1, radiusZ: 1 }])
     ).toThrow(/at least two/);
   });
+
+  it("does not create silhouette spikes between measured sections", () => {
+    const geometry = createBodyLoftGeometry([
+      { y: 0, radiusX: 0.2, radiusZ: 0.2 },
+      { y: 1, radiusX: 1, radiusZ: 0.8 },
+      { y: 2, radiusX: 0.22, radiusZ: 0.21 },
+    ]);
+    const position = geometry.getAttribute("position");
+    let maxX = 0;
+    let maxZ = 0;
+    for (let index = 0; index < position.count; index += 1) {
+      maxX = Math.max(maxX, Math.abs(position.getX(index)));
+      maxZ = Math.max(maxZ, Math.abs(position.getZ(index)));
+    }
+    expect(maxX).toBeLessThanOrEqual(1.00001);
+    expect(maxZ).toBeLessThanOrEqual(0.80001);
+  });
 });

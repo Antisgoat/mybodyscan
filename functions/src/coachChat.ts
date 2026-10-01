@@ -138,7 +138,13 @@ const FATIGUE_PATTERN =
 const EXTRA_ACTIVITY_PATTERN =
   /\b(played|playing|did|went|completed)\b.{0,40}\b(pickleball|tennis|basketball|soccer|football|run|running|jog|jogging|cycling|bike ride|hike|hiking|swim|swimming|sport|cardio)\b/i;
 const TRAINING_SCOPE_PATTERN =
-  /\b(workout|exercise|training|train|gym|lift|lifting|weights?|sets?|reps?|rpe|rir|cardio|run|running|walk|walking|bike|cycling|swim|sport|strength|muscle|hypertrophy|mobility|stretch|warmup|warm-up|cooldown|cool-down|recovery|recover|sore|soreness|fatigue|tired|injury|pain|form|technique|squat|deadlift|press|row|pull-?up|push-?up|lunge|machine|dumbbell|barbell|kettlebell|band|rest day)\b/i;
+  /\b(workout|exercise|training|gym|lifting|weights?|sets?|reps?|rpe|rir|cardio|jog|jogging|cycling|swim|swimming|strength|muscle|hypertrophy|mobility|stretch|warmup|warm-up|cooldown|cool-down|recovery|soreness|fatigue|injury|squat|deadlift|pull-?up|push-?up|lunge|dumbbell|barbell|kettlebell|rest day|5k|10k|marathon)\b/i;
+const AMBIGUOUS_TRAINING_PATTERN =
+  /\b(train|lift|run|running|walk|walking|bike|sport|recover|sore|tired|pain|form|technique|press|row|machine|band)\b/i;
+const FITNESS_CONTEXT_PATTERN =
+  /\b(body|physical|fitness|exercise|workout|training|gym|muscle|strength|cardio|reps?|sets?|weight|barbell|dumbbell|kettlebell|treadmill|elliptical|rowing|chest|back|legs?|arms?|shoulder|core|glute|knee|hip|ankle|elbow|wrist|sprint|pace|mile|kilometer|race)\b/i;
+const EXPLICIT_OUT_OF_SCOPE_PATTERN =
+  /\b(code|coding|program(?:ming)?|website|app|software|business|marketing|finance|stock|crypto|legal|lawsuit|politic|election|vote|vacation|travel|hotel|relationship|dating|homework|essay|spreadsheet|press release|machine learning)\b/i;
 const SHORT_TRAINING_FOLLOW_UP =
   /^(yes|no|why|how|when|today|tomorrow|what about|can you adjust|make it easier|make it harder|swap it|change it|show me|go on|continue)[?.! ]*$/i;
 
@@ -155,7 +161,14 @@ export function isCoachMessageInScope(
   ) {
     return true;
   }
+  if (EXPLICIT_OUT_OF_SCOPE_PATTERN.test(clean)) return false;
   if (TRAINING_SCOPE_PATTERN.test(clean)) return true;
+  if (
+    AMBIGUOUS_TRAINING_PATTERN.test(clean) &&
+    FITNESS_CONTEXT_PATTERN.test(clean)
+  ) {
+    return true;
+  }
   return Boolean(
     options?.hasThread &&
     clean.length <= 80 &&

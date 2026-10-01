@@ -11,7 +11,7 @@ import { monthlyQuotaDocumentPath } from "../lib/middleware/monthlyQuota.js";
 test("routes routine features to lower-cost models and preserves flagship body scans", () => {
   assert.equal(OPENAI_FEATURE_MODELS.coach, "gpt-5.6-luna");
   assert.equal(OPENAI_FEATURE_MODELS.gymInventory, "gpt-5.6-terra");
-  assert.equal(OPENAI_FEATURE_MODELS.fridgeInventory, "gpt-5.6-terra");
+  assert.equal(OPENAI_FEATURE_MODELS.fridgeInventory, "gpt-5.6-sol");
   assert.equal(OPENAI_FEATURE_MODELS.fridgeMeals, "gpt-5.6-terra");
   assert.equal(OPENAI_FEATURE_MODELS.mealPhoto, "gpt-5.6-sol");
   assert.equal(OPENAI_FEATURE_MODELS.mealPhotoEscalation, "gpt-6-astra");

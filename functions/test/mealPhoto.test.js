@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   processMealPhoto,
   validateMealPhotoInput,
+  validateMealPhotoHint,
   validateMealEstimate,
 } from "../lib/mealPhoto.js";
 
@@ -28,6 +29,14 @@ test("meal image rejects missing consent, remote URLs, invalid headers and overs
   ])
     assert.throws(() => validateMealPhotoInput(input));
   assert.equal(validateMealPhotoInput(data), data.image);
+});
+test("meal hint is optional, normalized and length-limited", () => {
+  assert.equal(
+    validateMealPhotoHint("  salmon   and rice  "),
+    "salmon and rice"
+  );
+  assert.equal(validateMealPhotoHint(null), "");
+  assert.equal(validateMealPhotoHint("x".repeat(200)).length, 160);
 });
 test("an ambiguous meal receives one stronger pass", async () => {
   const previous = process.env.MEAL_PHOTO_ENABLED;
@@ -57,6 +66,25 @@ test("an ambiguous meal receives one stronger pass", async () => {
     if (previous === undefined) delete process.env.MEAL_PHOTO_ENABLED;
     else process.env.MEAL_PHOTO_ENABLED = previous;
   }
+});
+test("a member food hint is supplied as untrusted context", async () => {
+  let prompt = "";
+  await processMealPhoto(
+    {
+      auth: { uid: "member" },
+      data: { ...data, foodHint: "  grilled salmon   and rice " },
+    },
+    {
+      authorize: async () => {},
+      limit: async () => {},
+      analyze: async (config) => {
+        prompt = config.userContent[0].text;
+        return { data: result };
+      },
+    }
+  );
+  assert.match(prompt, /grilled salmon and rice/);
+  assert.match(prompt, /untrusted context/);
 });
 test("meal output rejects invented or invalid totals", () => {
   for (const output of [

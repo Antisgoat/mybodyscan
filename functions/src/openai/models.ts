@@ -1,7 +1,7 @@
 export const OPENAI_FEATURE_MODELS = {
   coach: "gpt-5.6-luna",
   gymInventory: "gpt-5.6-terra",
-  fridgeInventory: "gpt-5.6-terra",
+  fridgeInventory: "gpt-5.6-sol",
   fridgeMeals: "gpt-5.6-terra",
   mealPhoto: "gpt-5.6-sol",
   mealPhotoEscalation: "gpt-6-astra",

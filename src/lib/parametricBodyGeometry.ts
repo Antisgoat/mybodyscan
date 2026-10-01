@@ -39,13 +39,22 @@ export function createBodyLoftGeometry(
     // Catmull-Rom keeps a continuous tangent through adjacent measurements.
     // Per-segment smoothstep flattened every cross-section into a hard-looking
     // band, especially at the chest, waist, and hips.
-    return (
+    const interpolated =
       0.5 *
       (2 * start +
         (end - before) * t +
         (2 * before - 5 * start + 4 * end - after) * t2 +
-        (-before + 3 * start - 3 * end + after) * t3)
-    );
+        (-before + 3 * start - 3 * end + after) * t3);
+    // Catmull-Rom can overshoot abrupt waist/shoulder measurements and create
+    // spikes. Radius values should transition smoothly without exceeding the
+    // two measured sections that bound this segment.
+    if (key === "radiusX" || key === "radiusZ") {
+      return Math.min(
+        Math.max(interpolated, Math.min(start, end)),
+        Math.max(start, end)
+      );
+    }
+    return interpolated;
   };
   const sampledSections: BodyLoftSection[] = [];
   for (let index = 0; index < sections.length - 1; index += 1) {

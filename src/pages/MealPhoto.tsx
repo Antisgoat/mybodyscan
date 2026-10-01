@@ -24,6 +24,7 @@ type Estimate = {
   grams: number;
   notes: string;
   requestId: string;
+  confidence: number;
 };
 
 export default function MealPhoto() {
@@ -36,6 +37,7 @@ export default function MealPhoto() {
   const saveDate = useRef<string | null>(null);
   const [estimate, setEstimate] = useState<Estimate | null>(null);
   const [mealType, setMealType] = useState("lunch");
+  const [foodHint, setFoodHint] = useState("");
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(false);
   const camera = useRef<HTMLInputElement>(null);
@@ -64,9 +66,13 @@ export default function MealPhoto() {
       const image =
         typeof file === "string" ? file : await prepareGymPhoto(file);
       const result = await callCallable<
-        { image: string; processingConsent: boolean },
+        { image: string; foodHint?: string; processingConsent: boolean },
         Estimate
-      >("analyzeMealPhoto", { image, processingConsent: true });
+      >("analyzeMealPhoto", {
+        image,
+        foodHint: foodHint.trim() || undefined,
+        processingConsent: true,
+      });
       setEstimate(result);
     } catch (error) {
       const code = String((error as any)?.code ?? "");
@@ -163,6 +169,23 @@ export default function MealPhoto() {
           Up to 3 analysis attempts per rolling 24 hours. Include the whole
           plate. Avoid faces, documents, and other private information.
         </p>
+        <label className="block space-y-2 text-sm font-medium">
+          What is on the plate?{" "}
+          <span className="font-normal text-muted-foreground">
+            (recommended)
+          </span>
+          <Input
+            value={foodHint}
+            maxLength={160}
+            disabled={!allowed || busy}
+            onChange={(event) => setFoodHint(event.target.value)}
+            placeholder="Example: grilled salmon, rice, and broccoli"
+          />
+          <span className="block text-xs font-normal leading-5 text-muted-foreground">
+            A short hint helps distinguish visually similar foods. The photo
+            must still support it.
+          </span>
+        </label>
         <label className="flex items-start gap-3 text-sm leading-6">
           <input
             type="checkbox"
@@ -236,6 +259,11 @@ export default function MealPhoto() {
             Estimated portion: {Math.round(estimate.grams)} g. Oils, sauces, and
             portion size can change the result substantially. Correct the totals
             below for what you actually ate.
+          </p>
+          <p className="text-xs font-medium text-muted-foreground">
+            Food identification confidence:{" "}
+            {Math.round(estimate.confidence * 100)}%. Review every item before
+            saving.
           </p>
           <p className="text-sm leading-6">{estimate.notes}</p>
           <label className="block space-y-2 text-sm">

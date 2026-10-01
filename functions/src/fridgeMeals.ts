@@ -200,13 +200,31 @@ export function validateFridgeMealInventory(
   shoppingMode: "exact" | "staples" | "flexible" = "staples"
 ): FridgeMealSuggestions {
   const result = validateFridgeMealSuggestions(value);
-  const confirmed = new Set(
-    ingredients.map((name) => name.toLocaleLowerCase("en-US"))
-  );
+  const ingredientKey = (name: string) => {
+    const normalized = name
+      .toLocaleLowerCase("en-US")
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\b(large|small|fresh|plain|whole|raw|cooked)\b/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return normalized
+      .split(" ")
+      .map((word) =>
+        word.endsWith("ies") && word.length > 4
+          ? `${word.slice(0, -3)}y`
+          : word.endsWith("es") && /(ches|shes|xes|zes|oes)$/.test(word)
+            ? word.slice(0, -2)
+            : word.endsWith("s") && word.length > 3 && !/(ss|us|is)$/.test(word)
+              ? word.slice(0, -1)
+              : word
+      )
+      .join(" ");
+  };
+  const confirmed = new Set(ingredients.map(ingredientKey));
   for (const meal of result.meals) {
     if (
       !meal.uses.length ||
-      meal.uses.some((name) => !confirmed.has(name.toLocaleLowerCase("en-US")))
+      meal.uses.some((name) => !confirmed.has(ingredientKey(name)))
     ) {
       throw new Error("unconfirmed_fridge_ingredient");
     }
@@ -253,7 +271,7 @@ export const analyzeFridge = onCallWithOptionalAppCheck(
       },
       ...frames.map((url): ChatContentPart => ({
         type: "image_url",
-        image_url: { url, detail: "auto" },
+        image_url: { url, detail: "high" },
       })),
     ];
     try {

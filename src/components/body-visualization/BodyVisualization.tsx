@@ -306,61 +306,13 @@ function BodyFigure({
         <sphereGeometry args={[1, 32, 28]} />
         <meshStandardMaterial {...bodyMaterial("upper")} />
       </mesh>
-      {!ghost ? (
-        <>
-          {[-1, 1].map((side) => (
-            <mesh
-              key={`ear-${side}`}
-              position={[side * 0.285 * profile.headScale, headY + 0.015, 0]}
-              scale={[0.035, 0.085, 0.045]}
-              onClick={() => select("upper")}
-            >
-              <sphereGeometry args={[1, 18, 14]} />
-              <meshStandardMaterial {...bodyMaterial("upper")} />
-            </mesh>
-          ))}
-          <mesh
-            position={[0, headY - 0.015, 0.305 * profile.headScale]}
-            scale={[0.05, 0.09, 0.075]}
-            rotation={[0.18, 0, 0]}
-            onClick={() => select("upper")}
-          >
-            <sphereGeometry args={[1, 18, 14]} />
-            <meshStandardMaterial {...bodyMaterial("upper")} />
-          </mesh>
-          <mesh
-            position={[0, headY - 0.245 * profile.headScale, 0.12]}
-            scale={[0.17, 0.08, 0.16]}
-            onClick={() => select("upper")}
-          >
-            <sphereGeometry args={[1, 20, 14]} />
-            <meshStandardMaterial {...bodyMaterial("upper")} />
-          </mesh>
-        </>
-      ) : null}
       {[-1, 1].map((side) => (
         <group
           key={`arm-${side}`}
           position={[side * 0.63 * profile.shoulderScale, shoulderY - 0.88, 0]}
           rotation={[0, 0, side * -0.055]}
         >
-          <mesh
-            position={[0, armY(0.71), 0]}
-            scale={[0.22 * profile.armScale, 0.22, 0.2 * profile.armScale]}
-            onClick={() => select("arms")}
-          >
-            <sphereGeometry args={[1, 28, 22]} />
-            <meshStandardMaterial {...bodyMaterial("arms")} />
-          </mesh>
           <mesh geometry={geometries.arm} onClick={() => select("arms")}>
-            <meshStandardMaterial {...bodyMaterial("arms")} />
-          </mesh>
-          <mesh
-            position={[0, armY(-0.04), 0]}
-            scale={[0.13 * profile.armScale, 0.13, 0.12 * profile.armScale]}
-            onClick={() => select("arms")}
-          >
-            <sphereGeometry args={[1, 20, 16]} />
             <meshStandardMaterial {...bodyMaterial("arms")} />
           </mesh>
           <mesh
@@ -379,14 +331,6 @@ function BodyFigure({
           position={[side * 0.27 * profile.hipScale, 0, 0]}
         >
           <mesh geometry={geometries.leg} onClick={() => select("legs")}>
-            <meshStandardMaterial {...bodyMaterial("legs")} />
-          </mesh>
-          <mesh
-            position={[0, legY(-1.17), 0.035]}
-            scale={[0.18 * profile.legScale, 0.16, 0.17 * profile.legScale]}
-            onClick={() => select("legs")}
-          >
-            <sphereGeometry args={[1, 20, 16]} />
             <meshStandardMaterial {...bodyMaterial("legs")} />
           </mesh>
           <mesh

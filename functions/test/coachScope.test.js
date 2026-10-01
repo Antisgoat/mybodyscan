@@ -18,6 +18,19 @@ test("unrelated requests are blocked before an AI call", () => {
   assert.equal(isCoachMessageInScope("Write code for my website"), false);
   assert.equal(isCoachMessageInScope("Who should I vote for?"), false);
   assert.equal(isCoachMessageInScope("Plan a vacation to Italy"), false);
+  assert.equal(isCoachMessageInScope("Help me run my business"), false);
+  assert.equal(isCoachMessageInScope("Write a press release"), false);
+  assert.equal(isCoachMessageInScope("Explain machine learning"), false);
+  assert.equal(isCoachMessageInScope("Add a row to my spreadsheet"), false);
+});
+
+test("ambiguous words need real fitness context", () => {
+  assert.equal(isCoachMessageInScope("Help my running pace for a 5k"), true);
+  assert.equal(isCoachMessageInScope("Check my chest press form"), true);
+  assert.equal(
+    isCoachMessageInScope("How should I use a rowing machine?"),
+    true
+  );
 });
 
 test("brief follow-ups require an existing workout thread", () => {
