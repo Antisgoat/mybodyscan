@@ -66,7 +66,6 @@ function BodyFigure({
   const shoulderY = torsoY(1.94);
   const neckY = torsoY(2.19);
   const headY = neckY + 0.39;
-  const frontDepth = 0.39 * profile.depthScale;
   const armY = (value: number) =>
     0.76 + (value - 0.76) * profile.armLengthScale;
   const legY = (value: number) =>
@@ -309,7 +308,11 @@ function BodyFigure({
       {[-1, 1].map((side) => (
         <group
           key={`arm-${side}`}
-          position={[side * 0.63 * profile.shoulderScale, shoulderY - 0.88, 0]}
+          position={[
+            side * 0.6 * profile.shoulderScale,
+            shoulderY - 0.88,
+            0,
+          ]}
           rotation={[0, 0, side * -0.055]}
         >
           <mesh geometry={geometries.arm} onClick={() => select("arms")}>
@@ -344,25 +347,6 @@ function BodyFigure({
           </mesh>
         </group>
       ))}
-      {!ghost && profile.definitionScale > 0.12 ? (
-        <group position={[0, 0, frontDepth + 0.018]}>
-          {[-1, 1].map((side) => (
-            <mesh
-              key={`pectoral-${side}`}
-              position={[side * 0.25 * profile.chestScale, torsoY(1.52), 0]}
-              scale={[0.27 * profile.chestScale, 0.16, 0.028]}
-            >
-              <sphereGeometry args={[1, 24, 12]} />
-              <meshStandardMaterial
-                color="#8f5f4d"
-                transparent
-                opacity={0.16 + profile.definitionScale * 0.18}
-                roughness={0.76}
-              />
-            </mesh>
-          ))}
-        </group>
-      ) : null}
     </group>
   );
 }

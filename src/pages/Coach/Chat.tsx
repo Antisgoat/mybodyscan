@@ -47,6 +47,7 @@ import { recordPermissionDenied } from "@/lib/devDiagnostics";
 import { useEntitlements } from "@/lib/entitlements/store";
 import { isNative } from "@/lib/platform";
 import { Mic, MicOff } from "lucide-react";
+import { formatCoachMessageText } from "@/lib/coach/formatMessage";
 
 declare global {
   interface Window {
@@ -1092,10 +1093,12 @@ export default function CoachChatPage() {
                             className={
                               message.role === "user"
                                 ? "rounded-lg bg-primary/5 p-3 text-sm text-foreground shadow-sm"
-                                : "rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground"
+                                : "whitespace-pre-line rounded-lg border border-primary/20 bg-background p-3 text-sm leading-relaxed text-foreground"
                             }
                           >
-                            {message.content}
+                            {message.role === "assistant"
+                              ? formatCoachMessageText(message.content)
+                              : message.content}
                           </div>
                           {message.role === "assistant" ? (
                             <div className="flex items-center justify-between text-xs text-muted-foreground">
