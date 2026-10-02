@@ -16,7 +16,8 @@ export type BodyLoftSection = {
 export function createBodyLoftGeometry(
   sections: BodyLoftSection[],
   radialSegments = 40,
-  subdivisions = 6
+  subdivisions = 6,
+  caps: { start?: boolean; end?: boolean } = {}
 ): BufferGeometry {
   if (sections.length < 2) {
     throw new Error("A body loft requires at least two cross-sections.");
@@ -121,8 +122,8 @@ export function createBodyLoftGeometry(
     }
   };
 
-  addCap(0, true);
-  addCap(sampledSections.length - 1, false);
+  if (caps.start !== false) addCap(0, true);
+  if (caps.end !== false) addCap(sampledSections.length - 1, false);
 
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute(positions, 3));

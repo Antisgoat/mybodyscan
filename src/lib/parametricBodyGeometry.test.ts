@@ -21,6 +21,22 @@ describe("createBodyLoftGeometry", () => {
     ).toThrow(/at least two/);
   });
 
+  it("can omit caps where adjoining body surfaces overlap", () => {
+    const geometry = createBodyLoftGeometry(
+      [
+        { y: 0, radiusX: 0.4, radiusZ: 0.25 },
+        { y: 1, radiusX: 0.6, radiusZ: 0.35 },
+        { y: 2, radiusX: 0.3, radiusZ: 0.2 },
+      ],
+      40,
+      6,
+      { start: false, end: false }
+    );
+
+    expect(geometry.getAttribute("position").count).toBe(520);
+    expect(geometry.index?.count).toBe(2_880);
+  });
+
   it("does not create silhouette spikes between measured sections", () => {
     const geometry = createBodyLoftGeometry([
       { y: 0, radiusX: 0.2, radiusZ: 0.2 },

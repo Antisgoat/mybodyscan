@@ -64,8 +64,6 @@ function BodyFigure({
   const torsoY = (value: number) =>
     -0.18 + (value + 0.18) * profile.torsoLengthScale;
   const shoulderY = torsoY(1.94);
-  const neckY = torsoY(2.19);
-  const headY = neckY + 0.39;
   const armY = (value: number) =>
     0.76 + (value - 0.76) * profile.armLengthScale;
   const legY = (value: number) =>
@@ -74,150 +72,175 @@ function BodyFigure({
   const geometries = useMemo(() => {
     const bodyY = (value: number) =>
       -0.18 + (value + 0.18) * profile.torsoLengthScale;
-    const bodyShoulderY = bodyY(1.94);
     const bodyNeckY = bodyY(2.19);
     const bodyArmY = (value: number) =>
       0.76 + (value - 0.76) * profile.armLengthScale;
     const bodyLegY = (value: number) =>
       -0.22 + (value + 0.22) * profile.legLengthScale;
-    const trunk = createBodyLoftGeometry([
+    const trunk = createBodyLoftGeometry(
+      [
+        {
+          // End the pelvis inside the upper thighs. Hiding both open surfaces
+          // inside one another produces a continuous silhouette without a
+          // visible horizontal cap or a separate robotic hip primitive.
+          y: -0.05,
+          radiusX: 0.31 * profile.hipScale,
+          radiusZ: 0.29 * profile.hipDepthScale,
+          centerZ: -0.02,
+        },
+        {
+          y: 0,
+          radiusX: 0.58 * profile.hipScale,
+          radiusZ: 0.45 * profile.hipDepthScale,
+          centerZ: -0.015,
+        },
+        {
+          y: bodyY(0.23),
+          radiusX: 0.54 * profile.hipScale,
+          radiusZ: 0.42 * profile.hipDepthScale,
+          centerZ: profile.abdominalProjection * 0.45,
+        },
+        {
+          y: bodyY(0.48),
+          radiusX: 0.5 * (profile.hipScale * 0.4 + profile.waistScale * 0.6),
+          radiusZ:
+            0.4 * (profile.depthScale * 0.7 + profile.hipDepthScale * 0.3),
+          centerZ: profile.abdominalProjection,
+        },
+        {
+          y: bodyY(0.78),
+          radiusX: 0.47 * profile.waistScale,
+          radiusZ: 0.36 * profile.depthScale,
+          centerZ: profile.abdominalProjection * 0.45,
+        },
+        {
+          y: bodyY(1.08),
+          radiusX:
+            0.54 * (profile.waistScale * 0.45 + profile.chestScale * 0.55),
+          radiusZ: 0.39 * profile.depthScale,
+          centerZ: profile.abdominalProjection * 0.25,
+        },
+        {
+          y: bodyY(1.48),
+          radiusX: 0.6 * profile.chestScale,
+          radiusZ: 0.43 * profile.depthScale,
+        },
+        {
+          y: bodyY(1.66),
+          radiusX: 0.64 * profile.shoulderScale,
+          radiusZ: 0.415 * profile.depthScale,
+        },
+        {
+          y: bodyY(1.78),
+          radiusX: 0.675 * profile.shoulderScale,
+          radiusZ: 0.4 * profile.depthScale,
+        },
+        {
+          y: bodyY(1.87),
+          radiusX: 0.645 * profile.shoulderScale,
+          radiusZ: 0.37 * profile.depthScale,
+        },
+        {
+          y: bodyY(1.96),
+          radiusX: 0.56 * profile.shoulderScale,
+          radiusZ: 0.34 * profile.depthScale,
+        },
+        {
+          y: bodyY(2.04),
+          radiusX: 0.4 * profile.shoulderScale,
+          radiusZ: 0.295 * profile.depthScale,
+        },
+        {
+          y: bodyY(2.1),
+          radiusX: 0.28 * profile.neckScale,
+          radiusZ: 0.24 * profile.neckScale,
+        },
+      ],
+      48,
+      8,
+      { start: false }
+    );
+    const arm = createBodyLoftGeometry(
+      [
+        {
+          y: bodyArmY(-0.82),
+          radiusX: 0.095 * profile.armScale,
+          radiusZ: 0.085 * profile.armScale,
+        },
+        {
+          y: bodyArmY(-0.58),
+          radiusX: 0.13 * profile.armScale,
+          radiusZ: 0.11 * profile.armScale,
+        },
+        {
+          y: bodyArmY(-0.14),
+          radiusX: 0.14 * profile.armScale,
+          radiusZ: 0.125 * profile.armScale,
+        },
+        {
+          y: bodyArmY(0.06),
+          radiusX: 0.125 * profile.armScale,
+          radiusZ: 0.12 * profile.armScale,
+        },
+        {
+          y: bodyArmY(0.48),
+          radiusX: 0.185 * profile.armScale,
+          radiusZ: 0.175 * profile.armScale,
+        },
+        {
+          y: bodyArmY(0.76),
+          radiusX: 0.18 * profile.armScale,
+          radiusZ: 0.17 * profile.armScale,
+        },
+      ],
+      44,
+      7,
+      { end: false }
+    );
+    const leg = createBodyLoftGeometry(
+      [
+        {
+          y: bodyLegY(-2.18),
+          radiusX: 0.12 * profile.calfScale,
+          radiusZ: 0.1 * profile.calfScale,
+        },
+        {
+          y: bodyLegY(-1.72),
+          radiusX: 0.2 * profile.calfScale,
+          radiusZ: 0.17 * profile.calfScale,
+        },
+        {
+          y: bodyLegY(-1.35),
+          radiusX: 0.18 * profile.calfScale,
+          radiusZ: 0.16 * profile.calfScale,
+        },
+        {
+          y: bodyLegY(-1.14),
+          radiusX: 0.17 * profile.legScale,
+          radiusZ: 0.16 * profile.legScale,
+        },
+        {
+          y: bodyLegY(-0.68),
+          radiusX: 0.27 * profile.legScale,
+          radiusZ: 0.24 * profile.legScale,
+        },
+        {
+          y: bodyLegY(-0.22),
+          radiusX: 0.31 * profile.legScale,
+          radiusZ: 0.28 * profile.legScale,
+        },
       {
-        y: -0.3,
-        radiusX: 0.37 * profile.hipScale,
-        radiusZ: 0.32 * profile.hipDepthScale,
-        centerZ: -0.025,
-      },
-      {
-        y: -0.16,
-        radiusX: 0.51 * profile.hipScale,
-        radiusZ: 0.41 * profile.hipDepthScale,
-        centerZ: -0.02,
-      },
-      {
-        y: 0,
-        radiusX: 0.58 * profile.hipScale,
-        radiusZ: 0.45 * profile.hipDepthScale,
-        centerZ: -0.015,
-      },
-      {
-        y: bodyY(0.23),
-        radiusX: 0.54 * profile.hipScale,
-        radiusZ: 0.42 * profile.hipDepthScale,
-        centerZ: profile.abdominalProjection * 0.45,
-      },
-      {
-        y: bodyY(0.48),
-        radiusX: 0.5 * (profile.hipScale * 0.4 + profile.waistScale * 0.6),
-        radiusZ: 0.4 * (profile.depthScale * 0.7 + profile.hipDepthScale * 0.3),
-        centerZ: profile.abdominalProjection,
-      },
-      {
-        y: bodyY(0.78),
-        radiusX: 0.47 * profile.waistScale,
-        radiusZ: 0.36 * profile.depthScale,
-        centerZ: profile.abdominalProjection * 0.45,
-      },
-      {
-        y: bodyY(1.08),
-        radiusX: 0.54 * (profile.waistScale * 0.45 + profile.chestScale * 0.55),
-        radiusZ: 0.39 * profile.depthScale,
-        centerZ: profile.abdominalProjection * 0.25,
-      },
-      {
-        y: bodyY(1.48),
-        radiusX: 0.62 * profile.chestScale,
-        radiusZ: 0.43 * profile.depthScale,
-      },
-      {
-        y: bodyY(1.78),
-        radiusX: 0.69 * profile.shoulderScale,
-        radiusZ: 0.4 * profile.depthScale,
-      },
-      {
-        y: bodyY(1.9),
-        radiusX: 0.66 * profile.shoulderScale,
-        radiusZ: 0.38 * profile.depthScale,
-      },
-      {
-        y: bodyY(1.99),
-        radiusX: 0.5 * profile.shoulderScale,
-        radiusZ: 0.32 * profile.depthScale,
-      },
-      {
-        y: bodyShoulderY + 0.09,
-        radiusX: 0.38 * profile.shoulderScale,
-        radiusZ: 0.3 * profile.depthScale,
-      },
-      {
-        y: bodyY(2.1),
-        radiusX: 0.28 * profile.neckScale,
-        radiusZ: 0.24 * profile.neckScale,
-      },
-    ]);
-    const arm = createBodyLoftGeometry([
-      {
-        y: bodyArmY(-0.82),
-        radiusX: 0.085 * profile.armScale,
-        radiusZ: 0.075 * profile.armScale,
-      },
-      {
-        y: bodyArmY(-0.58),
-        radiusX: 0.12 * profile.armScale,
-        radiusZ: 0.1 * profile.armScale,
-      },
-      {
-        y: bodyArmY(-0.14),
-        radiusX: 0.13 * profile.armScale,
-        radiusZ: 0.115 * profile.armScale,
-      },
-      {
-        y: bodyArmY(0.06),
-        radiusX: 0.115 * profile.armScale,
-        radiusZ: 0.11 * profile.armScale,
-      },
-      {
-        y: bodyArmY(0.48),
-        radiusX: 0.17 * profile.armScale,
-        radiusZ: 0.16 * profile.armScale,
-      },
-      {
-        y: bodyArmY(0.76),
-        radiusX: 0.18 * profile.armScale,
-        radiusZ: 0.17 * profile.armScale,
-      },
-    ]);
-    const leg = createBodyLoftGeometry([
-      {
-        y: bodyLegY(-2.18),
-        radiusX: 0.12 * profile.calfScale,
-        radiusZ: 0.1 * profile.calfScale,
-      },
-      {
-        y: bodyLegY(-1.72),
-        radiusX: 0.2 * profile.calfScale,
-        radiusZ: 0.17 * profile.calfScale,
-      },
-      {
-        y: bodyLegY(-1.35),
-        radiusX: 0.18 * profile.calfScale,
-        radiusZ: 0.16 * profile.calfScale,
-      },
-      {
-        y: bodyLegY(-1.14),
-        radiusX: 0.17 * profile.legScale,
-        radiusZ: 0.16 * profile.legScale,
-      },
-      {
-        y: bodyLegY(-0.68),
+        // Continue the thigh inside the pelvis so the torso and leg surfaces
+        // overlap naturally instead of exposing two flat geometry caps.
+        y: bodyLegY(0.12),
         radiusX: 0.27 * profile.legScale,
-        radiusZ: 0.24 * profile.legScale,
-      },
-      {
-        y: bodyLegY(-0.22),
-        radiusX: 0.31 * profile.legScale,
-        radiusZ: 0.28 * profile.legScale,
-      },
-    ]);
+        radiusZ: 0.245 * profile.legScale,
+        },
+      ],
+      48,
+      8,
+      { end: false }
+    );
     const neck = createBodyLoftGeometry([
       {
         y: bodyNeckY - 0.17,
@@ -230,7 +253,55 @@ function BodyFigure({
         radiusZ: 0.14 * profile.neckScale,
       },
     ]);
-    return { trunk, arm, leg, neck };
+    const head = createBodyLoftGeometry(
+      [
+        {
+          y: bodyNeckY + 0.08,
+          radiusX: 0.14 * profile.headScale,
+          radiusZ: 0.14 * profile.headScale,
+          centerZ: -0.01,
+        },
+        {
+          y: bodyNeckY + 0.18,
+          radiusX: 0.2 * profile.headScale,
+          radiusZ: 0.2 * profile.headScale,
+          centerZ: 0.005,
+        },
+        {
+          y: bodyNeckY + 0.3,
+          radiusX: 0.255 * profile.headScale,
+          radiusZ: 0.25 * profile.headScale,
+          centerZ: 0.018,
+        },
+        {
+          y: bodyNeckY + 0.48,
+          radiusX: 0.29 * profile.headScale,
+          radiusZ: 0.295 * profile.headScale,
+          centerZ: 0,
+        },
+        {
+          y: bodyNeckY + 0.65,
+          radiusX: 0.265 * profile.headScale,
+          radiusZ: 0.28 * profile.headScale,
+          centerZ: -0.018,
+        },
+        {
+          y: bodyNeckY + 0.76,
+          radiusX: 0.19 * profile.headScale,
+          radiusZ: 0.2 * profile.headScale,
+          centerZ: -0.025,
+        },
+        {
+          y: bodyNeckY + 0.82,
+          radiusX: 0.035 * profile.headScale,
+          radiusZ: 0.04 * profile.headScale,
+          centerZ: -0.03,
+        },
+      ],
+      48,
+      8
+    );
+    return { trunk, arm, leg, neck, head };
   }, [profile]);
 
   useEffect(
@@ -293,34 +364,25 @@ function BodyFigure({
       <mesh geometry={geometries.neck} onClick={() => select("upper")}>
         <meshStandardMaterial {...bodyMaterial("upper")} />
       </mesh>
-      <mesh
-        position={[0, headY, 0]}
-        scale={[
-          0.29 * profile.headScale,
-          0.37 * profile.headScale,
-          0.31 * profile.headScale,
-        ]}
-        onClick={() => select("upper")}
-      >
-        <sphereGeometry args={[1, 32, 28]} />
+      <mesh geometry={geometries.head} onClick={() => select("upper")}>
         <meshStandardMaterial {...bodyMaterial("upper")} />
       </mesh>
       {[-1, 1].map((side) => (
         <group
           key={`arm-${side}`}
           position={[
-            side * 0.6 * profile.shoulderScale,
-            shoulderY - 0.88,
-            0,
+            side * 0.5 * profile.shoulderScale,
+            shoulderY - 0.98,
+            -0.005,
           ]}
-          rotation={[0, 0, side * -0.055]}
+          rotation={[0, 0, side * -0.04]}
         >
           <mesh geometry={geometries.arm} onClick={() => select("arms")}>
             <meshStandardMaterial {...bodyMaterial("arms")} />
           </mesh>
           <mesh
             position={[0, armY(-0.95), 0]}
-            scale={[0.105 * profile.armScale, 0.21, 0.075 * profile.armScale]}
+            scale={[0.09 * profile.armScale, 0.12, 0.065 * profile.armScale]}
             onClick={() => select("arms")}
           >
             <capsuleGeometry args={[1, 0.5, 6, 14]} />
