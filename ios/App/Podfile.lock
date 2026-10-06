@@ -9,7 +9,7 @@ PODS:
     - GoogleUtilities/Environment (~> 8.0)
     - GoogleUtilities/UserDefaults (~> 8.0)
     - PromisesObjC (~> 2.4)
-  - Capacitor (7.6.8):
+  - Capacitor (7.6.9):
     - CapacitorCordova
   - CapacitorApp (7.1.2):
     - Capacitor
@@ -17,7 +17,7 @@ PODS:
     - Capacitor
   - CapacitorCamera (7.0.2):
     - Capacitor
-  - CapacitorCordova (7.6.8)
+  - CapacitorCordova (7.6.9)
   - CapacitorFirebaseAppCheck (7.5.0):
     - Capacitor
     - FirebaseAppCheck (~> 11.7.0)
@@ -182,11 +182,11 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   AppAuth: d4f13a8fe0baf391b2108511793e4b479691fb73
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
-  Capacitor: ff6bf01336ac353098378828aff465095a89e459
+  Capacitor: 46067d1c8df89760dbed78780d436327d588c726
   CapacitorApp: f01a913211780e0718dae9750442c3e23f96e106
   CapacitorBrowser: 6d09f59655e89aede71654ef08b98de55cf032b6
   CapacitorCamera: f9e54db0a18bb218a8dc360907d63aaefe9209ff
-  CapacitorCordova: e61ee8c40101b8cd011d0224261606a290c082cf
+  CapacitorCordova: 2080fc0d6bfbc9dcc0e6d88e77fa624190d343ca
   CapacitorFirebaseAppCheck: 42f86272f13400f0480dcc76348ce0aaea263e69
   CapacitorFirebaseAuthentication: c5d02225dc97a1192f3b615f8c0df2ef910c40b7
   CapacitorFirebaseMessaging: 1ac12c0dab16d1e4edcf9cb878620507ac868a4e

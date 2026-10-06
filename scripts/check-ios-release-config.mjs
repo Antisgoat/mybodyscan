@@ -34,8 +34,8 @@ const iapServer = read("functions/src/revenuecat/plans.ts");
 const functionEnv = parseEnv(read("functions/.env.mybodyscan-f3daf"));
 
 const expectedNativePackages = {
-  "@capacitor/core": "7.6.8",
-  "@capacitor/ios": "7.6.8",
+  "@capacitor/core": "7.6.9",
+  "@capacitor/ios": "7.6.9",
   "@capacitor/app": "7.1.2",
   "@capacitor/browser": "7.0.5",
   "@capacitor/camera": "7.0.2",
@@ -47,8 +47,8 @@ for (const [name, expectedVersion] of Object.entries(expectedNativePackages)) {
     failures.push(`${name} must be pinned to ${expectedVersion}.`);
   }
 }
-if (packageJson.devDependencies?.["@capacitor/cli"] !== "7.6.8") {
-  failures.push("@capacitor/cli must be pinned to 7.6.8.");
+if (packageJson.devDependencies?.["@capacitor/cli"] !== "7.6.9") {
+  failures.push("@capacitor/cli must be pinned to 7.6.9.");
 }
 requireText(
   podLock,
