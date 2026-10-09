@@ -850,6 +850,51 @@ function canonicalEggs(): FoodItem[] {
   ];
 }
 
+function canonicalJasmineRice(): FoodItem[] {
+  const rice = (
+    id: string,
+    name: string,
+    macros: MacroBreakdown
+  ): FoodItem => ({
+    id,
+    name,
+    brand: null,
+    source: "USDA",
+    basePer100g: ensureMacroBreakdown(macros),
+    servings: [
+      { id: `${id}-100g`, label: "100 g", grams: 100, isDefault: true },
+    ],
+    serving: { qty: 100, unit: "g", text: "100 g" },
+    per_serving: {
+      kcal: macros.kcal,
+      protein_g: macros.protein,
+      carbs_g: macros.carbs,
+      fat_g: macros.fat,
+    },
+    per_100g: {
+      kcal: macros.kcal,
+      protein_g: macros.protein,
+      carbs_g: macros.carbs,
+      fat_g: macros.fat,
+    },
+  });
+
+  return [
+    rice("canonical:jasmine-rice:cooked", "Jasmine rice, cooked", {
+      kcal: 130,
+      protein: 2.7,
+      carbs: 28.2,
+      fat: 0.3,
+    }),
+    rice("canonical:jasmine-rice:dry", "Jasmine rice, dry (uncooked)", {
+      kcal: 356,
+      protein: 7,
+      carbs: 80,
+      fat: 0.5,
+    }),
+  ];
+}
+
 /**
  * Common staple searches should produce a small human choice set, not a
  * manufacturer catalog. Exact egg queries use standardized household servings;
@@ -869,6 +914,24 @@ export function curateNutritionResults(
     );
   if (isGenericEggSearch) {
     return canonicalEggs();
+  }
+  const riceTokens = normalizedQuery.split(" ").filter(Boolean);
+  const isGenericJasmineRiceSearch =
+    riceTokens.includes("rice") &&
+    riceTokens.every((token) =>
+      ["jasmine", "rice", "white", "cooked", "dry", "raw", "uncooked"].includes(
+        token
+      )
+    );
+  if (isGenericJasmineRiceSearch && riceTokens.includes("jasmine")) {
+    const choices = canonicalJasmineRice();
+    if (
+      riceTokens.some((token) => ["dry", "raw", "uncooked"].includes(token))
+    ) {
+      return [choices[1]!];
+    }
+    if (riceTokens.includes("cooked")) return [choices[0]!];
+    return choices;
   }
   return rankNutritionResults(items, query);
 }

@@ -229,12 +229,12 @@ function BodyFigure({
           radiusX: 0.31 * profile.legScale,
           radiusZ: 0.28 * profile.legScale,
         },
-      {
-        // Continue the thigh inside the pelvis so the torso and leg surfaces
-        // overlap naturally instead of exposing two flat geometry caps.
-        y: bodyLegY(0.12),
-        radiusX: 0.27 * profile.legScale,
-        radiusZ: 0.245 * profile.legScale,
+        {
+          // Continue the thigh inside the pelvis so the torso and leg surfaces
+          // overlap naturally instead of exposing two flat geometry caps.
+          y: bodyLegY(0.12),
+          radiusX: 0.27 * profile.legScale,
+          radiusZ: 0.245 * profile.legScale,
         },
       ],
       48,
@@ -293,8 +293,8 @@ function BodyFigure({
         },
         {
           y: bodyNeckY + 0.82,
-          radiusX: 0.035 * profile.headScale,
-          radiusZ: 0.04 * profile.headScale,
+          radiusX: 0.12 * profile.headScale,
+          radiusZ: 0.13 * profile.headScale,
           centerZ: -0.03,
         },
       ],
@@ -421,6 +421,7 @@ export default function BodyVisualization({
   const [view, setView] = useState<BodyView>("front");
   const [selectedRegion, setSelectedRegion] = useState<BodyRegionId>("upper");
   const [showPrevious, setShowPrevious] = useState(false);
+  const [interactive3D, setInteractive3D] = useState(false);
   const [webGL] = useState(isWebGLSupported);
   const reducedMotion = useMemo(
     () =>
@@ -434,7 +435,7 @@ export default function BodyVisualization({
     profile.regions[0];
 
   useEffect(() => {
-    track(webGL ? "body_visualization_loaded" : "body_visualization_fallback");
+    track("body_visualization_summary_loaded", { webglAvailable: webGL });
   }, [webGL]);
 
   const selectView = (nextView: BodyView) => {
@@ -468,8 +469,8 @@ export default function BodyVisualization({
               {profile.source === "photo_proportions"
                 ? "A personalized illustration shaped by proportions inferred from all four scan views."
                 : "A personalized illustration shaped by supported scan metrics."}{" "}
-              Drag to rotate, zoom, or choose a body region for its related
-              insight.
+              Choose a body region for its related insight. An optional 3D
+              illustration is available on supported devices.
             </p>
           </div>
           <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs text-cyan-200">
@@ -499,7 +500,7 @@ export default function BodyVisualization({
               ))}
             </div>
           ) : null}
-          {webGL ? (
+          {webGL && interactive3D ? (
             <Canvas
               className="touch-none"
               dpr={[1, 1.5]}
@@ -570,34 +571,52 @@ export default function BodyVisualization({
               onSelectRegion={selectRegion}
             />
           )}
-          <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-white/10 bg-black/70 p-1 backdrop-blur">
-            {(["front", "side", "back"] as BodyView[]).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => selectView(option)}
-                aria-pressed={view === option}
-                className={`min-h-10 rounded-full px-4 text-xs font-medium capitalize transition ${
-                  view === option
-                    ? "bg-cyan-300 text-slate-950"
-                    : "text-zinc-300 hover:bg-white/10"
-                }`}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+          {webGL && interactive3D ? (
+            <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-1 rounded-full border border-white/10 bg-black/70 p-1 backdrop-blur">
+              {(["front", "side", "back"] as BodyView[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => selectView(option)}
+                  aria-pressed={view === option}
+                  className={`min-h-10 rounded-full px-4 text-xs font-medium capitalize transition ${
+                    view === option
+                      ? "bg-cyan-300 text-slate-950"
+                      : "text-zinc-300 hover:bg-white/10"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-5 p-5 md:p-6">
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <Rotate3D className="h-4 w-4 text-cyan-300" />
-            {webGL
+            {webGL && interactive3D
               ? "Drag to rotate · pinch or scroll to zoom"
-              : "2D fallback view"}
+              : "Clear body-region summary"}
           </div>
 
-          {previousProfile ? (
+          {webGL ? (
+            <Button
+              type="button"
+              variant={interactive3D ? "secondary" : "outline"}
+              className="w-full border-cyan-300/25 bg-transparent text-cyan-100"
+              onClick={() => {
+                const enabled = !interactive3D;
+                setInteractive3D(enabled);
+                if (!enabled) setShowPrevious(false);
+                track("body_visualization_3d_toggled", { enabled });
+              }}
+            >
+              {interactive3D ? "Return to body map" : "Explore 3D illustration"}
+            </Button>
+          ) : null}
+
+          {previousProfile && interactive3D ? (
             <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <label
                 htmlFor="previous-scan-overlay"

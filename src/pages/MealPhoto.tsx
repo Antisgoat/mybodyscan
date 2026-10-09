@@ -9,6 +9,7 @@ import { hasPro } from "@/lib/entitlements/pro";
 import { prepareGymPhoto } from "@/lib/gymCapture";
 import {
   chooseNativePhoto,
+  dataUrlToImageFile,
   isMediaPickerCancellation,
   takeNativePhoto,
   usesNativePhotoPicker,
@@ -63,8 +64,11 @@ export default function MealPhoto() {
     try {
       if (typeof file !== "string" && file.size > 20 * 1024 * 1024)
         throw new Error("large_file");
-      const image =
-        typeof file === "string" ? file : await prepareGymPhoto(file);
+      const preparedFile =
+        typeof file === "string"
+          ? await dataUrlToImageFile(file, `meal-${Date.now()}.jpg`)
+          : file;
+      const image = await prepareGymPhoto(preparedFile);
       const result = await callCallable<
         { image: string; foodHint?: string; processingConsent: boolean },
         Estimate

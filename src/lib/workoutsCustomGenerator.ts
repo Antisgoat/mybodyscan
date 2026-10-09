@@ -98,6 +98,31 @@ function pickWeekdays(
   return (presets[clamped] ?? presets[4]) as any;
 }
 
+/**
+ * Choose the training structure for the member instead of asking beginners to
+ * understand programming jargon. Seven scheduled days means six lifting days
+ * plus active recovery, so it uses the same split decision as six days.
+ */
+export function recommendCustomPlanFocus(
+  prefs: Pick<
+    CustomPlanPrefs,
+    "daysPerWeek" | "experience" | "injuries" | "avoidExercises"
+  >
+): Focus {
+  const requestedDays = clampInt(prefs.daysPerWeek, 2, 7, 4);
+  const liftingDays = Math.min(requestedDays, 6);
+  const experience = (prefs.experience ?? "beginner") as Experience;
+  const hasMovementLimit = Boolean(
+    prefs.injuries?.trim() || prefs.avoidExercises?.trim()
+  );
+
+  if (liftingDays <= 3) return "full_body";
+  if (liftingDays === 6 && experience !== "beginner" && !hasMovementLimit) {
+    return "push_pull_legs";
+  }
+  return "upper_lower";
+}
+
 function allowedEquipFromPrefs(prefs: CustomPlanPrefs): {
   mode: "full_gym" | "minimal";
   allowed: Set<Equipment>;
@@ -1150,27 +1175,7 @@ export function generateCustomPlanDaysFromLibrary(
   const trainingWeekdays = weekdays.slice(0, daysPerWeek);
   const goal = (prefs.goal ?? "build_muscle") as Goal;
   const experience = (prefs.experience ?? "beginner") as Experience;
-  const requestedFocus = (prefs.focus ?? "full_body") as Focus;
-  const hasInjuryConstraint = Boolean(
-    (typeof prefs.injuries === "string" && prefs.injuries.trim()) ||
-    (typeof prefs.avoidExercises === "string" && prefs.avoidExercises.trim())
-  );
-  const equipmentList = Array.isArray(prefs.equipment) ? prefs.equipment : [];
-  const hasFullGym = equipmentList.some((item) =>
-    /gym|barbell|machine|cable/i.test(String(item))
-  );
-  const focus: Focus =
-    requestedFocus === "push_pull_legs" &&
-    daysPerWeek === 6 &&
-    experience !== "beginner" &&
-    hasFullGym &&
-    !hasInjuryConstraint
-      ? "push_pull_legs"
-      : requestedFocus === "push_pull_legs"
-        ? daysPerWeek <= 3
-          ? "full_body"
-          : "upper_lower"
-        : requestedFocus;
+  const focus = recommendCustomPlanFocus(prefs);
   const { mode, allowed } = allowedEquipFromPrefs(prefs);
   const equipmentInventory = normalizeGymEquipment(prefs.equipmentInventory);
   const maxMoves = maxMovesForTime(prefs.timePerWorkout);
@@ -1361,15 +1366,14 @@ export function buildCustomPlanTitleFromPrefs(prefs: CustomPlanPrefs): string {
           : prefs.goal === "recomp"
             ? "Recomp"
             : "Custom";
+  const recommendedFocus = recommendCustomPlanFocus(prefs);
   const focus =
-    prefs.focus === "upper_lower"
+    recommendedFocus === "upper_lower"
       ? "Upper / Lower"
-      : prefs.focus === "push_pull_legs"
+      : recommendedFocus === "push_pull_legs"
         ? "Push Pull Legs"
-        : prefs.focus === "full_body"
+        : recommendedFocus === "full_body"
           ? "Full Body"
-          : prefs.focus === "bro_split"
-            ? "Bro Split"
-            : "Plan";
+          : "Plan";
   return `${goal} • ${focus}`;
 }

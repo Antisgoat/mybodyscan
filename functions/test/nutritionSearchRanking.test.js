@@ -102,3 +102,25 @@ test("prepared foods containing egg still use normal search results", () => {
   const bagel = food({ id: "bagel", name: "Bagel, egg" });
   assert.equal(curateNutritionResults([bagel], "egg bagel")[0].id, "bagel");
 });
+
+test("jasmine rice requires a clear cooked or dry state", () => {
+  const results = curateNutritionResults([], "jasmine rice");
+  assert.deepEqual(
+    results.map((item) => item.name),
+    ["Jasmine rice, cooked", "Jasmine rice, dry (uncooked)"]
+  );
+  assert.equal(results[0].per_serving.kcal, 130);
+  assert.equal(results[1].per_serving.kcal, 356);
+  assert.equal(results[0].serving.text, "100 g");
+});
+
+test("a cooked or dry jasmine rice query returns only that state", () => {
+  assert.equal(
+    curateNutritionResults([], "cooked jasmine rice")[0].name,
+    "Jasmine rice, cooked"
+  );
+  assert.equal(
+    curateNutritionResults([], "raw jasmine rice")[0].name,
+    "Jasmine rice, dry (uncooked)"
+  );
+});

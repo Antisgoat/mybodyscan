@@ -22,7 +22,6 @@ import {
   activateCustomPlan,
   previewCustomPlan,
   type CatalogPlanDay,
-  type CustomPlanFocus,
   type CustomPlanGoal,
   type CustomPlanPrefs,
   type CustomPlanStyle,
@@ -34,11 +33,13 @@ import type { Equipment, MovementPattern } from "@/data/exercises";
 import { db } from "@/lib/firebase";
 import { useAuthUser } from "@/auth/mbs-auth";
 import {
+  deriveExerciseEquipment,
   exerciseAllowedByGymInventory,
   normalizeGymEquipment,
   workoutEquipmentSet,
   type GymEquipmentId,
 } from "@/lib/gymEquipment";
+import { recommendCustomPlanFocus } from "@/lib/workoutsCustomGenerator";
 import {
   getExerciseByExactName,
   normalizeExerciseName,
@@ -109,7 +110,6 @@ export default function CustomizeProgram() {
     useState<CustomPlanExperience>("beginner");
   const [trainingStyle, setTrainingStyle] =
     useState<CustomPlanStyle>("balanced");
-  const [focus, setFocus] = useState<CustomPlanFocus>("full_body");
   const [daysPerWeek, setDaysPerWeek] = useState<number>(4);
   const [preferredDays, setPreferredDays] = useState<DayName[]>([
     "Mon",
@@ -132,6 +132,17 @@ export default function CustomizeProgram() {
     localDateInputValue()
   );
 
+  const recommendedFocus = useMemo(
+    () =>
+      recommendCustomPlanFocus({
+        daysPerWeek,
+        experience,
+        injuries,
+        avoidExercises,
+      }),
+    [avoidExercises, daysPerWeek, experience, injuries]
+  );
+
   const [title, setTitle] = useState<string>("My custom plan");
   const [generatedDays, setGeneratedDays] = useState<CatalogPlanDay[] | null>(
     null
@@ -150,7 +161,7 @@ export default function CustomizeProgram() {
       goal,
       experience,
       trainingStyle,
-      focus,
+      focus: recommendedFocus,
       daysPerWeek,
       preferredDays: preferredDays.slice(0, daysPerWeek),
       timePerWorkout,
@@ -168,7 +179,7 @@ export default function CustomizeProgram() {
       goal,
       experience,
       trainingStyle,
-      focus,
+      recommendedFocus,
       daysPerWeek,
       preferredDays,
       timePerWorkout,
@@ -193,11 +204,7 @@ export default function CustomizeProgram() {
         if (cancelled || !snapshot.exists()) return;
         const data = snapshot.data() as Record<string, unknown>;
         const inventory = normalizeGymEquipment(data.inventory);
-        const exerciseEquipment = Array.isArray(data.exerciseEquipment)
-          ? data.exerciseEquipment.filter(
-              (item): item is string => typeof item === "string"
-            )
-          : [];
+        const exerciseEquipment = deriveExerciseEquipment(inventory);
         if (inventory.length) setEquipmentInventory(inventory);
         if (exerciseEquipment.length) {
           setEquipment(
@@ -447,6 +454,25 @@ export default function CustomizeProgram() {
       });
       return;
     }
+    if (equipmentInventory.length) {
+      const incompatible = generatedDays
+        .flatMap((day) => day.exercises)
+        .find((item) => {
+          const exercise = getExerciseByExactName(item.name);
+          return (
+            exercise &&
+            !exerciseAllowedByGymInventory(exercise, equipmentInventory)
+          );
+        });
+      if (incompatible) {
+        toast({
+          title: "Plan no longer matches your gym",
+          description: `${incompatible.name} needs equipment outside your confirmed inventory. Regenerate the plan before starting.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setStarting(true);
     try {
       const res = await activateCustomPlan({
@@ -587,28 +613,21 @@ export default function CustomizeProgram() {
                 </RadioGroup>
               </div>
               <div className="space-y-2">
-                <Label>Focus</Label>
-                <RadioGroup
-                  value={focus}
-                  onValueChange={(v) => setFocus(v as CustomPlanFocus)}
-                  className="grid gap-2"
-                >
-                  {[
-                    ["full_body", "Full body"],
-                    ["upper_lower", "Upper / Lower"],
-                    ["push_pull_legs", "Push / Pull / Legs"],
-                    ["bro_split", "Bro split"],
-                    ["custom_emphasis", "Custom emphasis"],
-                  ].map(([value, label]) => (
-                    <Label
-                      key={value}
-                      className="flex cursor-pointer items-center justify-between rounded-md border bg-card px-4 py-3 text-sm hover:border-primary"
-                    >
-                      <span className="font-medium">{label}</span>
-                      <RadioGroupItem value={value} />
-                    </Label>
-                  ))}
-                </RadioGroup>
+                <Label>Recommended structure</Label>
+                <div className="rounded-md border border-primary/25 bg-primary/5 p-4">
+                  <p className="font-semibold">
+                    {recommendedFocus === "full_body"
+                      ? "Full body"
+                      : recommendedFocus === "push_pull_legs"
+                        ? "Push / Pull / Legs"
+                        : "Upper / Lower"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Chosen for your experience, schedule, and movement limits.
+                    We program the split for you and keep each training day true
+                    to its purpose.
+                  </p>
+                </div>
               </div>
             </section>
 
@@ -701,67 +720,78 @@ export default function CustomizeProgram() {
                   </Link>
                 </Button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={equipment.includes("gym") ? "default" : "outline"}
-                  onClick={() => {
-                    setEquipment(["gym"]);
-                    setEquipmentInventory([]);
-                    if (trainingStyle === "minimal_equipment") {
-                      setTrainingStyle("balanced");
-                    }
-                  }}
-                >
-                  Full gym
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={
-                    (equipment.includes("dumbbells") ||
-                      equipment.includes("dumbbell")) &&
-                    equipment.includes("bodyweight")
-                      ? "default"
-                      : "outline"
-                  }
-                  onClick={() => {
-                    setEquipment(["dumbbell", "bodyweight"]);
-                    setEquipmentInventory([]);
-                    setTrainingStyle("minimal_equipment");
-                  }}
-                >
-                  Minimal equipment
-                </Button>
-              </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                {[
-                  ["bodyweight", "Bodyweight"],
-                  ["dumbbell", "Dumbbells"],
-                  ["kettlebell", "Kettlebells"],
-                  ["cables", "Cable station"],
-                  ["machine", "Machines"],
-                  ["smith", "Smith machine"],
-                  ["barbell", "Barbell"],
-                  ["bands", "Resistance bands"],
-                  ["gym", "Full gym"],
-                ].map(([value, label]) => (
-                  <Label
-                    key={value}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm hover:border-primary"
+              {equipmentInventory.length ? (
+                <div className="rounded-md border border-primary/25 bg-primary/5 p-3 text-sm">
+                  Your confirmed gym inventory is locked to this plan. Edit the
+                  saved gym if equipment changes; the plan will never assume a
+                  barbell or machine you did not confirm.
+                </div>
+              ) : null}
+              {!equipmentInventory.length ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={equipment.includes("gym") ? "default" : "outline"}
+                    onClick={() => {
+                      setEquipment(["gym"]);
+                      setEquipmentInventory([]);
+                      if (trainingStyle === "minimal_equipment") {
+                        setTrainingStyle("balanced");
+                      }
+                    }}
                   >
-                    <Checkbox
-                      checked={equipment.includes(value)}
-                      onCheckedChange={() => {
-                        setEquipmentInventory([]);
-                        toggleEquipment(value);
-                      }}
-                    />
-                    <span>{label}</span>
-                  </Label>
-                ))}
-              </div>
+                    Full gym
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      (equipment.includes("dumbbells") ||
+                        equipment.includes("dumbbell")) &&
+                      equipment.includes("bodyweight")
+                        ? "default"
+                        : "outline"
+                    }
+                    onClick={() => {
+                      setEquipment(["dumbbell", "bodyweight"]);
+                      setEquipmentInventory([]);
+                      setTrainingStyle("minimal_equipment");
+                    }}
+                  >
+                    Minimal equipment
+                  </Button>
+                </div>
+              ) : null}
+              {!equipmentInventory.length ? (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {[
+                    ["bodyweight", "Bodyweight"],
+                    ["dumbbell", "Dumbbells"],
+                    ["kettlebell", "Kettlebells"],
+                    ["cables", "Cable station"],
+                    ["machine", "Machines"],
+                    ["smith", "Smith machine"],
+                    ["barbell", "Barbell"],
+                    ["bands", "Resistance bands"],
+                    ["gym", "Full gym"],
+                  ].map(([value, label]) => (
+                    <Label
+                      key={value}
+                      className="flex cursor-pointer items-center gap-2 rounded-md border bg-card px-3 py-2 text-sm hover:border-primary"
+                    >
+                      <Checkbox
+                        checked={equipment.includes(value)}
+                        onCheckedChange={() => {
+                          setEquipmentInventory([]);
+                          toggleEquipment(value);
+                        }}
+                      />
+                      <span>{label}</span>
+                    </Label>
+                  ))}
+                </div>
+              ) : null}
               <p className="text-xs text-muted-foreground">
                 Select anything you have access to.
               </p>

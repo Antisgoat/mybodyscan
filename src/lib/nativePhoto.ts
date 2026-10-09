@@ -6,12 +6,20 @@ export function usesNativePhotoPicker(): boolean {
 }
 
 export async function takeNativePhoto(): Promise<string> {
+  const permission = await Camera.checkPermissions();
+  if (permission.camera !== "granted") {
+    const requested = await Camera.requestPermissions({
+      permissions: ["camera"],
+    });
+    if (requested.camera !== "granted")
+      throw new Error("camera_permission_denied");
+  }
   const photo = await Camera.getPhoto({
     source: CameraSource.Camera,
     resultType: CameraResultType.DataUrl,
-    quality: 82,
-    width: 1600,
-    height: 1600,
+    quality: 72,
+    width: 1024,
+    height: 1024,
     correctOrientation: true,
     saveToGallery: false,
     presentationStyle: "fullscreen",
@@ -21,12 +29,21 @@ export async function takeNativePhoto(): Promise<string> {
 }
 
 export async function chooseNativePhoto(): Promise<string> {
+  const permission = await Camera.checkPermissions();
+  if (permission.photos !== "granted" && permission.photos !== "limited") {
+    const requested = await Camera.requestPermissions({
+      permissions: ["photos"],
+    });
+    if (requested.photos !== "granted" && requested.photos !== "limited") {
+      throw new Error("photo_permission_denied");
+    }
+  }
   const photo = await Camera.getPhoto({
     source: CameraSource.Photos,
     resultType: CameraResultType.DataUrl,
-    quality: 82,
-    width: 1600,
-    height: 1600,
+    quality: 72,
+    width: 1024,
+    height: 1024,
     correctOrientation: true,
     saveToGallery: false,
     presentationStyle: "fullscreen",

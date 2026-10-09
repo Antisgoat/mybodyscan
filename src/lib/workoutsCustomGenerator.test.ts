@@ -5,7 +5,10 @@ import {
   getExerciseByExactName,
   searchExercises,
 } from "@/lib/exercises/library";
-import { generateCustomPlanDaysFromLibrary } from "@/lib/workoutsCustomGenerator";
+import {
+  generateCustomPlanDaysFromLibrary,
+  recommendCustomPlanFocus,
+} from "@/lib/workoutsCustomGenerator";
 import { exerciseAllowedByGymInventory } from "@/lib/gymEquipment";
 
 type MuscleGroup =
@@ -115,6 +118,18 @@ function primaryCompoundIdsForWeek(
 }
 
 describe("custom plan generation (exercise library)", () => {
+  it("guides beginners to a suitable split and reserves PPL for six lifting days", () => {
+    expect(
+      recommendCustomPlanFocus({ daysPerWeek: 3, experience: "beginner" })
+    ).toBe("full_body");
+    expect(
+      recommendCustomPlanFocus({ daysPerWeek: 5, experience: "beginner" })
+    ).toBe("upper_lower");
+    expect(
+      recommendCustomPlanFocus({ daysPerWeek: 7, experience: "intermediate" })
+    ).toBe("push_pull_legs");
+  });
+
   it("variant changes produce different (but valid) plans", () => {
     const prefs: CustomPlanPrefs = {
       goal: "build_muscle",

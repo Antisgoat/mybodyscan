@@ -26,6 +26,7 @@ import { db } from "@/lib/firebase";
 import { prepareGymPhoto, sampleGymVideo } from "@/lib/gymCapture";
 import {
   chooseNativePhoto,
+  dataUrlToImageFile,
   isMediaPickerCancellation,
   takeNativePhoto,
   usesNativePhotoPicker,
@@ -282,8 +283,11 @@ export default function GymSetup() {
         source === "camera"
           ? await takeNativePhoto()
           : await chooseNativePhoto();
+      const preparedFrame = await prepareGymPhoto(
+        await dataUrlToImageFile(frame, `gym-${Date.now()}.jpg`)
+      );
       await analyzeFrames(
-        [frame],
+        [preparedFrame],
         "photo",
         source === "camera" ? "New gym photo" : "Gym photo"
       );
