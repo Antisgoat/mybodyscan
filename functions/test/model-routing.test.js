@@ -9,15 +9,15 @@ import {
 import { monthlyQuotaDocumentPath } from "../lib/middleware/monthlyQuota.js";
 
 test("routes routine features to lower-cost models and preserves flagship body scans", () => {
-  assert.equal(OPENAI_FEATURE_MODELS.coach, "gpt-5.6-luna");
-  assert.equal(OPENAI_FEATURE_MODELS.gymInventory, "gpt-5.6-terra");
-  assert.equal(OPENAI_FEATURE_MODELS.fridgeInventory, "gpt-5.6-sol");
-  assert.equal(OPENAI_FEATURE_MODELS.fridgeMeals, "gpt-5.6-terra");
-  assert.equal(OPENAI_FEATURE_MODELS.mealPhoto, "gpt-5.6-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.coach, "gpt-6-luna");
+  assert.equal(OPENAI_FEATURE_MODELS.gymInventory, "gpt-6.1-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.fridgeInventory, "gpt-6.1-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.fridgeMeals, "gpt-6.1-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.mealPhoto, "gpt-6.1-sol");
   assert.equal(OPENAI_FEATURE_MODELS.mealPhotoEscalation, "gpt-6-astra");
-  assert.equal(OPENAI_FEATURE_MODELS.coachComplex, "gpt-5.6-terra");
-  assert.equal(OPENAI_FEATURE_MODELS.workoutAdjustment, "gpt-5.6-terra");
-  assert.equal(OPENAI_FEATURE_MODELS.workoutPlan, "gpt-5.6-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.coachComplex, "gpt-6.1-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.workoutAdjustment, "gpt-6.1-sol");
+  assert.equal(OPENAI_FEATURE_MODELS.workoutPlan, "gpt-6.1-sol");
   assert.equal(OPENAI_FEATURE_MODELS.bodyScan, "gpt-6-astra");
   assert.equal(OPENAI_FEATURE_MODELS.transformation, "gpt-image-2.5-sunburst");
 });
@@ -25,11 +25,11 @@ test("routes routine features to lower-cost models and preserves flagship body s
 test("escalates only coaching requests that need plan-level reasoning", () => {
   assert.equal(
     modelForCoachMessage("How many ounces are in a cup?"),
-    "gpt-5.6-luna"
+    "gpt-6-luna"
   );
   assert.equal(
     modelForCoachMessage("Adjust my workout because my shoulder is sore."),
-    "gpt-5.6-terra"
+    "gpt-6.1-sol"
   );
 });
 

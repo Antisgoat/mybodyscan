@@ -22,7 +22,7 @@ test("retries a transient provider error on the same model", async () => {
   const requestedModels = [];
   let calls = 0;
 
-  process.env.OPENAI_MODEL = "gpt-5.6-luna";
+  process.env.OPENAI_MODEL = "gpt-6-luna";
   globalThis.fetch = async (_url, init) => {
     calls += 1;
     requestedModels.push(JSON.parse(init.body).model);
@@ -35,11 +35,11 @@ test("retries a transient provider error on the same model", async () => {
   try {
     const result = await chatOnce("Give me one safe recovery tip.", {
       apiKey: "test-key",
-      model: "gpt-5.6-luna",
+      model: "gpt-6-luna",
     });
 
     assert.equal(result, "recovered");
-    assert.deepEqual(requestedModels, ["gpt-5.6-luna", "gpt-5.6-luna"]);
+    assert.deepEqual(requestedModels, ["gpt-6-luna", "gpt-6-luna"]);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalModel == null) delete process.env.OPENAI_MODEL;
@@ -95,9 +95,9 @@ test("falls back from a retired override to the current image-capable model", as
     });
 
     assert.deepEqual(result.data, { estimate: "ok" });
-    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-5.6-sol"]);
+    assert.deepEqual(requestedModels, ["gpt-4o-mini", "gpt-6.1-sol"]);
     assert.equal(requestBodies[1].messages[1].content[1].type, "image_url");
-    assert.equal(requestBodies[1].reasoning_effort, "none");
+    assert.equal(requestBodies[1].reasoning_effort, "low");
     assert.equal(requestBodies[1].max_completion_tokens, 128);
     assert.equal(requestBodies[1].temperature, undefined);
     assert.equal(requestBodies[1].safety_identifier, "firebase-user-123");
@@ -142,6 +142,63 @@ test("sends Astra requests with supported reasoning parameters", async () => {
     assert.equal(requestBody.temperature, undefined);
     assert.equal(requestBody.safety_identifier, "firebase-user-456");
     assert.deepEqual(requestBody.response_format, { type: "json_object" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("sends GPT-6.1 Sol requests without unsupported sampling parameters", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    return jsonResponse(JSON.stringify({ plan: "ok" }));
+  };
+
+  try {
+    await structuredJsonChat({
+      systemPrompt: "Return JSON.",
+      userContent: "Create a structured plan.",
+      temperature: 0.2,
+      maxTokens: 512,
+      reasoningEffort: "medium",
+      apiKey: "test-key",
+      model: "gpt-6.1-sol",
+      userId: "firebase-user-789",
+      validate(payload) {
+        return payload;
+      },
+    });
+
+    assert.equal(requestBody.model, "gpt-6.1-sol");
+    assert.equal(requestBody.reasoning_effort, "medium");
+    assert.equal(requestBody.max_completion_tokens, 512);
+    assert.equal(requestBody.temperature, undefined);
+    assert.equal(requestBody.safety_identifier, "firebase-user-789");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("keeps routine GPT-6 Luna chat on no reasoning for low latency", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    return jsonResponse("Keep two reps in reserve today.");
+  };
+
+  try {
+    await chatOnce("How hard should this set feel?", {
+      apiKey: "test-key",
+      model: "gpt-6-luna",
+      userId: "firebase-user-999",
+    });
+
+    assert.equal(requestBody.model, "gpt-6-luna");
+    assert.equal(requestBody.reasoning_effort, "none");
+    assert.equal(requestBody.temperature, undefined);
+    assert.equal(requestBody.safety_identifier, "firebase-user-999");
   } finally {
     globalThis.fetch = originalFetch;
   }

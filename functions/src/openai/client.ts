@@ -13,8 +13,8 @@ const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 const OPENAI_TIMEOUT_MS = 8_000;
 const DEFAULT_TEXT_TEMPERATURE = 0.6;
 const MAX_TOKENS_CAP = 4_096;
-const DEFAULT_OPENAI_MODEL = "gpt-5.6-sol";
-const FALLBACK_OPENAI_MODEL = "gpt-5.6-terra";
+const DEFAULT_OPENAI_MODEL = "gpt-6.1-sol";
+const FALLBACK_OPENAI_MODEL = "gpt-6-luna";
 const MAX_TRANSIENT_RETRIES = 1;
 const TRANSIENT_RETRY_DELAY_MS = 250;
 
@@ -194,7 +194,12 @@ function buildChatBodies(
   const maxTokens = clampMaxTokens(request.maxTokens);
   const isGpt56 = /^gpt-5\.6(?:-|$)/.test(model);
   const isAstra = /^gpt-6-astra(?:-|$)/.test(model);
-  const isCurrentReasoningModel = isGpt56 || isAstra;
+  const isGpt61Sol = /^gpt-6\.1-sol(?:-|$)/.test(model);
+  const isGpt6Sol = /^gpt-6-sol(?:-|$)/.test(model);
+  const isGpt6Luna = /^gpt-6-luna(?:-|$)/.test(model);
+  const isCurrentReasoningModel =
+    isGpt56 || isAstra || isGpt61Sol || isGpt6Sol || isGpt6Luna;
+  const requiresReasoning = isAstra || isGpt61Sol;
   const base: Record<string, unknown> = {
     model,
     messages: normalizeMessages(request.messages),
@@ -207,15 +212,15 @@ function buildChatBodies(
     }
   }
 
-  // GPT-5.6 defaults to medium reasoning. The retired GPT-4o/4.1 mini
-  // models used here were non-reasoning, latency-sensitive routes, so keep
-  // their effective behavior explicit during the family migration.
+  // GPT-6 Astra and GPT-6.1 Sol reject `none`; routine GPT-6 Luna requests
+  // keep reasoning disabled for predictable low latency and cost.
   if (isCurrentReasoningModel) {
     const current: Record<string, unknown> = {
       ...base,
-      // Astra does not support `none`; GPT-5.6 keeps it for inexpensive,
-      // latency-sensitive routes unless a feature explicitly opts up.
-      reasoning_effort: request.reasoningEffort ?? (isAstra ? "low" : "none"),
+      reasoning_effort:
+        request.reasoningEffort === "none" && requiresReasoning
+          ? "low"
+          : request.reasoningEffort ?? (requiresReasoning ? "low" : "none"),
     };
     if (typeof maxTokens === "number") {
       current.max_completion_tokens = maxTokens;

@@ -108,8 +108,8 @@ Non-secret runtime configuration is committed in
 Functions env file. It includes `APP_CHECK_MODE=soft`, the canonical host, auth
 feature flags, and the effective Coach and nutrition rate limits.
 The shared OpenAI client uses the configured model (currently
-`gpt-5.6-sol`), retries one transient 429/5xx response on that model, and then
-falls back to `gpt-5.6-terra`. Both models must pass an
+`gpt-6.1-sol`), retries one transient 429/5xx response on that model, and then
+falls back to `gpt-6-luna`. Both models must pass an
 image-input plus structured-JSON account smoke test before release. Do not add
 an old dated model snapshot as a fallback without verifying that the production
 OpenAI project can still access it.
@@ -246,13 +246,13 @@ back to a health store. Apple Watch support follows through HealthKit; it does
 not require delaying version 1.0 when all health-sync copy remains “coming
 soon.”
 
-The OpenAI scan pipeline defaults to the flagship `gpt-5.6-sol` with explicit
-`reasoning_effort=none` to preserve the former low-latency mini-model behavior.
+The OpenAI scan pipeline defaults to the balanced `gpt-6.1-sol`, while body
+scan analysis remains explicitly routed to `gpt-6-astra` with medium reasoning.
 Do not override `OPENAI_MODEL`, `OPENAI_PROVIDER`, or `OPENAI_BASE_URL` unless
 the replacement has passed the scan reliability suite.
 
 The optional adult-only Transformation Preview uses the same
-`OPENAI_API_KEY` with the fixed `gpt-image-2` image-edit model. The OpenAI
+`OPENAI_API_KEY` with the fixed `gpt-image-2.5-sunburst` image-edit model. The OpenAI
 organization must be verified for GPT Image access and have appropriate spend
 limits. The feature sends only the user's front scan photo after explicit,
 versioned consent, stores the result privately under

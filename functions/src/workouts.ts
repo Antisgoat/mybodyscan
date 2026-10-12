@@ -1219,7 +1219,7 @@ async function generateAiPlan(prefs: PlanPrefs): Promise<WorkoutDay[] | null> {
       userContent: buildPlanPrompt(prefs),
       temperature: 0.4,
       maxTokens: 2_400,
-      reasoningEffort: "low",
+      reasoningEffort: "medium",
       timeoutMs: PLAN_TIMEOUT_MS,
       model: modelForFeature("workoutPlan"),
       validate: validatePlanResponse,

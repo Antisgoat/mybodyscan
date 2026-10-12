@@ -258,7 +258,7 @@ Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-trick
 
 ### Scan engine configuration (Firebase Functions)
 
-- Required: `OPENAI_API_KEY` in Secret Manager (attach with `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`). `OPENAI_MODEL` is a Firebase string parameter with the vision-capable production default `gpt-4o-mini`; deployments may override it when prompted. `OPENAI_BASE_URL` and `OPENAI_PROVIDER` are optional parameters/environment variables.
+- Required: `OPENAI_API_KEY` in Secret Manager (attach with `firebase functions:secrets:set OPENAI_API_KEY --project <projectId>`). `OPENAI_MODEL` is a Firebase string parameter with the vision-capable production default `gpt-6.1-sol`; feature-specific routing keeps body scans on `gpt-6-astra`, routine coaching on `gpt-6-luna`, and transformation previews on `gpt-image-2.5-sunburst`. `OPENAI_BASE_URL` and `OPENAI_PROVIDER` are optional parameters/environment variables.
 - Verify secret metadata with `firebase functions:secrets:get OPENAI_API_KEY --project mybodyscan-f3daf`. The scan model has a tested production default; any override must pass the scan reliability suite.
 - Deploy after setting the secret: `npm --prefix functions run build && firebase deploy --only functions --project <projectId>`.
 - Verify: call `/systemHealth` and confirm `engineConfigured=true`, `engineMissingConfig=[]`, and `storageBucket/projectId` are populated. Missing entries surface as a safe list so production UIs show “scan engine not configured” until the secret is present.

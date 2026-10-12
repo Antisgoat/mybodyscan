@@ -51,7 +51,7 @@ const mockOpenAi = createServer((req, res) => {
     res.end(
       JSON.stringify({
         id: "local-scan-verification",
-        model: "gpt-5.6-sol",
+        model: "gpt-6.1-sol",
         choices: [
           {
             index: 0,
@@ -82,7 +82,7 @@ try {
   // successful analysis path without using network access or credentials.
   const envLines = [
     "OPENAI_PROVIDER=openai",
-    "OPENAI_MODEL=gpt-5.6-sol",
+    "OPENAI_MODEL=gpt-6.1-sol",
     `OPENAI_BASE_URL=http://127.0.0.1:${address.port}`,
     "APP_CHECK_MODE=SOFT",
     `STORAGE_BUCKET=${emulatorBucket}`,

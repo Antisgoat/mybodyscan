@@ -60,7 +60,7 @@ test("an ambiguous meal receives one stronger pass", async () => {
         },
       }
     );
-    assert.deepEqual(models, ["gpt-5.6-sol", "gpt-6-astra"]);
+    assert.deepEqual(models, ["gpt-6.1-sol", "gpt-6-astra"]);
     assert.equal(estimate.name, "Chicken rice bowl");
   } finally {
     if (previous === undefined) delete process.env.MEAL_PHOTO_ENABLED;
