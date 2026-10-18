@@ -4,6 +4,11 @@ import { FieldValue } from "firebase-admin/firestore";
 
 import { getFirestore, getStorage } from "./firebase.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
+import {
+  enforceMonthlyQuota,
+  refundMonthlyQuota,
+} from "./middleware/monthlyQuota.js";
 import { getOpenAIKey, openAiSecretParam } from "./openai/keys.js";
 import { modelForFeature } from "./openai/models.js";
 import { normalizeProviderUsage } from "./openai/usage.js";
@@ -269,7 +274,19 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
       return { status: claim.status, scanId };
     }
 
+    let quota: { documentPath: string } | undefined;
     try {
+      await enforceRateLimit({
+        uid,
+        key: "transformationPreview",
+        limit: 2,
+        windowMs: 60 * 60 * 1000,
+      });
+      quota = await enforceMonthlyQuota({
+        uid,
+        key: "transformationPreviews",
+        limit: 6,
+      });
       const path = scanObjectPath({ uid, scanId, pose: "front" });
       const file = storage.bucket().file(path);
       const [[metadata], [source]] = await Promise.all([
@@ -333,6 +350,11 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
       });
       return { status: "ready", scanId };
     } catch (error) {
+      if (quota) {
+        await refundMonthlyQuota(quota).catch(() =>
+          console.warn("preview_quota_refund_failed", { requestId })
+        );
+      }
       const reason =
         error instanceof Error && error.message.startsWith("provider_")
           ? error.message
@@ -351,6 +373,7 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
         requestId,
         reason,
       });
+      if (error instanceof HttpsError) throw error;
       throw new HttpsError(
         "unavailable",
         "The preview could not be generated right now. Please try again later."

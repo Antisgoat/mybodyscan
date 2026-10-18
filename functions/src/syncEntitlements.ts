@@ -22,7 +22,10 @@ export const syncEntitlements = onCallWithOptionalAppCheck(async (req) => {
   }
 
   const tokenEmail = req.auth?.token?.email;
-  const email = typeof tokenEmail === "string" ? tokenEmail : null;
+  const email =
+    req.auth?.token?.email_verified === true && typeof tokenEmail === "string"
+      ? tokenEmail
+      : null;
 
   const ensured = await ensureAdminProEntitlement(uid, email);
 

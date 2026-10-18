@@ -40,14 +40,14 @@ test("gym equipment analysis keeps known IDs and deduplicates by confidence", ()
 });
 
 test("gym frame validation accepts supported image data URLs", () => {
-  assert.deepEqual(validateGymFrames(["data:image/jpeg;base64,AAAA"]), [
-    "data:image/jpeg;base64,AAAA",
-  ]);
+  const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+  assert.deepEqual(validateGymFrames([jpeg]), [jpeg]);
 });
 
 test("gym frame validation rejects unsupported or oversized batches", () => {
   assert.throws(() => validateGymFrames([]));
   assert.throws(() => validateGymFrames(["data:text/plain;base64,AAAA"]));
+  assert.throws(() => validateGymFrames(["data:image/jpeg;base64,AAAA"]));
   assert.throws(() =>
     validateGymFrames(
       Array.from({ length: 7 }, () => "data:image/png;base64,AAAA")

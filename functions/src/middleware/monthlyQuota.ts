@@ -22,7 +22,7 @@ export async function enforceMonthlyQuota(config: {
   uid: string;
   key: string;
   limit: number;
-}): Promise<{ remaining: number }> {
+}): Promise<{ remaining: number; documentPath: string }> {
   const limit = Math.max(1, Math.trunc(config.limit));
   const ref = db.doc(monthlyQuotaDocumentPath(config.uid, config.key));
   const now = Timestamp.now();
@@ -51,6 +51,33 @@ export async function enforceMonthlyQuota(config: {
       },
       { merge: true }
     );
-    return { remaining: Math.max(0, limit - next) };
+    return { remaining: Math.max(0, limit - next), documentPath: ref.path };
+  });
+}
+
+/** Return one failed request's allowance without weakening the burst limiter. */
+export async function refundMonthlyQuota(
+  reservation: { documentPath: string },
+  quotaDb = db
+): Promise<void> {
+  if (
+    !/^users\/[^/]+\/private\/monthlyQuota_[A-Za-z0-9_-]+_\d{4}-\d{2}$/.test(
+      reservation.documentPath
+    )
+  ) {
+    throw new HttpsError("internal", "monthly_quota_key_invalid");
+  }
+  const ref = quotaDb.doc(reservation.documentPath);
+  await quotaDb.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
+    const snap = (await tx.get(
+      ref
+    )) as unknown as FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
+    if (!snap.exists) return;
+    const count = Number(snap.data()?.count) || 0;
+    tx.set(
+      ref,
+      { count: Math.max(0, count - 1), updatedAt: Timestamp.now() },
+      { merge: true }
+    );
   });
 }

@@ -223,12 +223,12 @@ service cloud.firestore {
     }
 
     function isValidCoachThreadMessageWrite() {
-      // Allow optional assistant metadata fields to exist without blocking user writes.
-      // Cloud Functions (Admin SDK) may write suggestions/meta; rules don't apply to those,
-      // but the presence of extra keys would otherwise break merge updates.
+      // Members may create user messages only. Assistant replies and metadata
+      // are authored by the backend; existing conversation history is immutable.
       return request.resource.data is map
         && request.resource.data.role is string
-        && (request.resource.data.role == 'user' || request.resource.data.role == 'assistant')
+        && request.resource.data.role == 'user'
+        && request.resource.data.keys().hasOnly(['role', 'content', 'createdAt'])
         && request.resource.data.content is string
         && request.resource.data.content.size() > 0
         && request.resource.data.content.size() <= 4000
@@ -252,7 +252,7 @@ service cloud.firestore {
     }
 
     match /events/telemetry/{eventId} {
-      allow create: if isSignedIn();
+      allow create: if false;
       allow read: if isStaff();
       allow update, delete: if false;
     }
@@ -272,7 +272,7 @@ service cloud.firestore {
         match /messages/{messageId} {
           allow read: if hasActivePro(uid);
           allow create: if !isDemoUser() && hasActivePro(uid) && isValidCoachThreadMessageWrite();
-          allow update: if !isDemoUser() && hasActivePro(uid) && isValidCoachThreadMessageWrite();
+          allow update: if false;
           allow delete: if false;
         }
 
@@ -281,7 +281,7 @@ service cloud.firestore {
         match /coachMessages/{messageId} {
           allow read: if hasActivePro(uid);
           allow create: if !isDemoUser() && hasActivePro(uid) && isValidCoachThreadMessageWrite();
-          allow update: if !isDemoUser() && hasActivePro(uid) && isValidCoachThreadMessageWrite();
+          allow update: if false;
           allow delete: if false;
         }
       }

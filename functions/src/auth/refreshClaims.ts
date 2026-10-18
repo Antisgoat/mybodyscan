@@ -5,20 +5,15 @@ import { isUnlimitedUser } from "../lib/unlimitedUsers.js";
 import { hasUnlimitedCreditsMirror } from "../lib/unlimitedCredits.js";
 import { ensureUnlimitedEntitlements } from "../lib/unlimitedEntitlements.js";
 import { ensureAdminGrantedProEntitlement } from "../lib/adminGrantPro.js";
+import {
+  configuredAdminEmails,
+  configuredAdminUids,
+  isPrivilegedIdentity,
+  tokenIdentity,
+} from "../lib/privilegedAuth.js";
 
 if (!getApps().length) {
   initializeApp();
-}
-
-const fallbackAdmins = ["developer@adlrlabs.com", "developer@adlerlabs.com"];
-
-function parseAdminEmails() {
-  const raw = String(process.env.ADMIN_EMAILS_CSV || "");
-  const entries = raw
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-  return Array.from(new Set([...entries, ...fallbackAdmins]));
 }
 
 export const refreshClaims = onCallWithOptionalAppCheck(async (req) => {
@@ -30,10 +25,14 @@ export const refreshClaims = onCallWithOptionalAppCheck(async (req) => {
 
   const provider = String((req.auth?.token as any)?.firebase?.sign_in_provider || "");
 
-  const adminEmails = parseAdminEmails();
-  const isAdmin = Boolean(email) && adminEmails.includes(email);
+  const verifiedEmail = req.auth?.token?.email_verified === true ? email : "";
+  const isAdmin = isPrivilegedIdentity(tokenIdentity(req.auth ?? {}), {
+    allowedEmails: configuredAdminEmails(),
+    allowedUids: configuredAdminUids(),
+    acceptedClaims: ["admin"],
+  });
 
-  const allowlistUnlimited = isUnlimitedUser({ uid, email: email || null });
+  const allowlistUnlimited = isUnlimitedUser({ uid, email: verifiedEmail || null });
   // Also treat users as unlimited if an admin has already granted it via Firestore mirror.
   // This supports historical/admin-granted "unlimitedCredits" users who are not in the hardcoded allowlist.
   const mirrorUnlimited = allowlistUnlimited

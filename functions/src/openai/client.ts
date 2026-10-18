@@ -74,6 +74,7 @@ export type StructuredJsonRequest<T> = {
 type ChatResponse = {
   content: string;
   usage?: ProviderUsage;
+  model?: string;
 };
 
 function buildModelList(candidate?: string): string[] {
@@ -220,7 +221,7 @@ function buildChatBodies(
       reasoning_effort:
         request.reasoningEffort === "none" && requiresReasoning
           ? "low"
-          : request.reasoningEffort ?? (requiresReasoning ? "low" : "none"),
+          : (request.reasoningEffort ?? (requiresReasoning ? "low" : "none")),
     };
     if (typeof maxTokens === "number") {
       current.max_completion_tokens = maxTokens;
@@ -452,6 +453,7 @@ async function executeChat(
       return {
         content: message,
         usage,
+        model: typeof data?.model === "string" ? data.model : model,
       };
     }
 
@@ -676,7 +678,7 @@ export async function chatWithMessages(
 
 export async function structuredJsonChat<T>(
   request: StructuredJsonRequest<T>
-): Promise<{ raw: string; data: T }> {
+): Promise<{ raw: string; data: T; model?: string; usage?: ProviderUsage }> {
   const systemPrompt = request.systemPrompt?.trim();
   if (!systemPrompt) {
     throw new OpenAIClientError("openai_failed", 400, "missing_system_prompt");
@@ -730,7 +732,12 @@ export async function structuredJsonChat<T>(
         );
       }
 
-      return { raw: response.content, data: validated };
+      return {
+        raw: response.content,
+        data: validated,
+        model: response.model ?? model,
+        usage: response.usage,
+      };
     } catch (error) {
       console.warn({
         fn: "openai",

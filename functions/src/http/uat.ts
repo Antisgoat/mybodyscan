@@ -4,6 +4,11 @@ import { onRequest } from "firebase-functions/v2/https";
 import { getAuth } from "../firebase.js";
 import { requireAuthWithClaims, verifyAppCheck } from "../http.js";
 import { getPriceAllowlist } from "../lib/config.js";
+import {
+  configuredAdminEmails,
+  configuredStaffUids,
+  isPrivilegedIdentity,
+} from "../lib/privilegedAuth.js";
 
 const PRICE_CONFIG = getPriceAllowlist();
 const PRICE_ALLOWLIST = PRICE_CONFIG.allowlist;
@@ -23,8 +28,6 @@ const ORIGIN_ALLOWLIST = new Set([
   "capacitor://localhost",
   "ionic://localhost",
 ]);
-
-const STAFF_EMAIL_ALLOWLIST = new Set(["developer@adlrlabs.com"]);
 
 function applyCors(req: Request, res: Response): { ended: boolean } {
   const origin = req.headers.origin as string | undefined;
@@ -52,9 +55,18 @@ async function requireStaff(
   const tokenEmail =
     typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
   if (
-    claims?.staff === true ||
-    claims?.dev === true ||
-    (tokenEmail && STAFF_EMAIL_ALLOWLIST.has(tokenEmail))
+    isPrivilegedIdentity(
+      {
+        uid,
+        email: tokenEmail,
+        emailVerified: claims?.email_verified === true,
+        claims,
+      },
+      {
+        allowedEmails: configuredAdminEmails(),
+        allowedUids: configuredStaffUids(),
+      }
+    )
   ) {
     return { uid, email: tokenEmail };
   }
@@ -62,11 +74,20 @@ async function requireStaff(
   const recordClaims = record.customClaims as
     | Record<string, unknown>
     | undefined;
-  const staffFromRecord = recordClaims?.staff === true;
   const recordEmail = record.email ? record.email.toLowerCase() : tokenEmail;
   if (
-    staffFromRecord ||
-    (recordEmail && STAFF_EMAIL_ALLOWLIST.has(recordEmail))
+    isPrivilegedIdentity(
+      {
+        uid,
+        email: recordEmail,
+        emailVerified: record.emailVerified === true,
+        claims: recordClaims,
+      },
+      {
+        allowedEmails: configuredAdminEmails(),
+        allowedUids: configuredStaffUids(),
+      }
+    )
   ) {
     return { uid, email: recordEmail || null };
   }

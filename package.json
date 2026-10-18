@@ -103,7 +103,8 @@
     "ios:deploy": "npm ci --no-audit --no-fund && npm run build && npm run build:native:ios && npx cap sync ios && npm run ios:open",
     "smoke:ios": "node scripts/smoke-ios.mjs",
     "ios:smoke": "node scripts/ios-smoke.mjs",
-    "smoke:backend": "node scripts/smoke-backend.mjs"
+    "smoke:backend": "node scripts/smoke-backend.mjs",
+    "eval:vision": "npm --prefix functions run build && node scripts/eval-vision-features.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/app-check": "7.5.0",

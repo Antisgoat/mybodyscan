@@ -6,6 +6,11 @@ import { requireAuthWithClaims, verifyAppCheck } from "../http.js";
 import { addCredits } from "../credits.js";
 import { updateUserClaims } from "../claims.js";
 import { runUserOperation } from "../lib/ops.js";
+import {
+  configuredAdminEmails,
+  configuredStaffUids,
+  isPrivilegedIdentity,
+} from "../lib/privilegedAuth.js";
 
 const db = getFirestore();
 const auth = getAuth();
@@ -24,8 +29,6 @@ const ORIGIN_ALLOWLIST = new Set([
   "capacitor://localhost",
   "ionic://localhost",
 ]);
-
-const STAFF_EMAIL_ALLOWLIST = new Set(["developer@adlrlabs.com"]);
 
 function applyCors(req: Request, res: Response): { ended: boolean } {
   const origin = req.headers.origin as string | undefined;
@@ -56,14 +59,38 @@ async function requireStaff(
   const { uid, claims } = await requireAuthWithClaims(req);
   const tokenEmail =
     typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
-  const tokenStaff = claims?.staff === true;
-  if (tokenStaff || (tokenEmail && STAFF_EMAIL_ALLOWLIST.has(tokenEmail))) {
+  if (
+    isPrivilegedIdentity(
+      {
+        uid,
+        email: tokenEmail,
+        emailVerified: claims?.email_verified === true,
+        claims,
+      },
+      {
+        allowedEmails: configuredAdminEmails(),
+        allowedUids: configuredStaffUids(),
+      }
+    )
+  ) {
     return { uid, email: tokenEmail };
   }
   const record = await auth.getUser(uid);
-  const claimStaff = (record.customClaims as any)?.staff === true;
   const userEmail = record.email ? record.email.toLowerCase() : tokenEmail;
-  if (claimStaff || (userEmail && STAFF_EMAIL_ALLOWLIST.has(userEmail))) {
+  if (
+    isPrivilegedIdentity(
+      {
+        uid,
+        email: userEmail,
+        emailVerified: record.emailVerified === true,
+        claims: (record.customClaims as Record<string, unknown>) ?? {},
+      },
+      {
+        allowedEmails: configuredAdminEmails(),
+        allowedUids: configuredStaffUids(),
+      }
+    )
+  ) {
     return { uid, email: userEmail || null };
   }
   throw new Error("not_staff");

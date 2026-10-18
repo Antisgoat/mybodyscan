@@ -6,6 +6,7 @@ import { getStorage } from "firebase-admin/storage";
 import { getAppCheck } from "firebase-admin/app-check";
 import { scanScanIdPrefix } from "../scan/paths.js";
 import { getAppCheckMode } from "../lib/env.js";
+import { readFirebaseAppCheckHeader } from "../lib/appCheckHeader.js";
 
 export const deleteScan = onRequest(
   { cors: true, timeoutSeconds: 540 },
@@ -21,7 +22,7 @@ export const deleteScan = onRequest(
 
     // App Check soft/hard
     const mode = getAppCheckMode();
-    const acToken = String(req.headers["x-firebase-app-check"] || "");
+    const acToken = readFirebaseAppCheckHeader(req.headers);
     if (!acToken) {
       logger.warn(
         mode === "strict" ? "appcheck_missing_strict" : "appcheck_missing_soft"

@@ -3,7 +3,10 @@ import { HttpsError } from "firebase-functions/v2/https";
 
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
-import { enforceMonthlyQuota } from "./middleware/monthlyQuota.js";
+import {
+  enforceMonthlyQuota,
+  refundMonthlyQuota,
+} from "./middleware/monthlyQuota.js";
 import { modelForFeature } from "./openai/models.js";
 import {
   OpenAIClientError,
@@ -12,6 +15,7 @@ import {
 } from "./openai/client.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { onCallWithOptionalAppCheck } from "./util/callable.js";
+import { isSupportedImageDataUrl } from "./lib/imageDataUrl.js";
 import {
   GYM_EQUIPMENT_IDS,
   type GymEquipmentId,
@@ -32,8 +36,6 @@ export type GymEquipmentAnalysis = {
 };
 
 const EQUIPMENT_SET = new Set<string>(GYM_EQUIPMENT_IDS);
-const DATA_URL_PATTERN =
-  /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/;
 const MAX_FRAMES = 6;
 const MAX_FRAME_CHARS = 700_000;
 const MAX_TOTAL_CHARS = 3_000_000;
@@ -102,7 +104,7 @@ export function validateGymFrames(value: unknown): string[] {
       (frame) =>
         !frame ||
         frame.length > MAX_FRAME_CHARS ||
-        !DATA_URL_PATTERN.test(frame)
+        !isSupportedImageDataUrl(frame)
     ) ||
     frames.reduce((sum, frame) => sum + frame.length, 0) > MAX_TOTAL_CHARS
   ) {
@@ -114,7 +116,7 @@ export function validateGymFrames(value: unknown): string[] {
   return frames;
 }
 
-const SYSTEM_PROMPT = [
+export const GYM_ANALYSIS_PROMPT = [
   "You inspect gym photos to draft an equipment inventory for workout planning.",
   "Ignore people, faces, screens, logos, addresses, and all other identifying details.",
   "Only report equipment that is visibly supported by the images. Never assume a full gym.",
@@ -139,7 +141,7 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
       limit: 4,
       windowMs: 60 * 60 * 1000,
     });
-    await enforceMonthlyQuota({ uid, key: "gymScans", limit: 4 });
+    const quota = await enforceMonthlyQuota({ uid, key: "gymScans", limit: 4 });
     const requestId = randomUUID();
     const content: ChatContentPart[] = [
       {
@@ -156,7 +158,7 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
 
     try {
       const { data } = await structuredJsonChat<GymEquipmentAnalysis>({
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: GYM_ANALYSIS_PROMPT,
         userContent: content,
         temperature: 0.1,
         maxTokens: 900,
@@ -169,6 +171,9 @@ export const analyzeGymEquipment = onCallWithOptionalAppCheck(
       });
       return { ...data, reviewRequired: true, requestId };
     } catch (error) {
+      await refundMonthlyQuota(quota).catch(() =>
+        console.warn("gym_quota_refund_failed", { requestId })
+      );
       console.error("gym_equipment_analysis_failed", {
         uid,
         requestId,
