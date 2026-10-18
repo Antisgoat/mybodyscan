@@ -1,6 +1,12 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { FieldValue, getFirestore } from "../firebase.js";
+import {
+  configuredAdminEmails,
+  configuredAdminUids,
+  isPrivilegedIdentity,
+  tokenIdentity,
+} from "../lib/privilegedAuth.js";
 
 export type AdminGrantProEntitlementsRequest = {
   uids: string[];
@@ -18,18 +24,21 @@ function normalizeUid(uid: unknown): string | null {
   return v ? v : null;
 }
 
-function requireDeveloperEmail(req: {
-  auth?: { token?: Record<string, unknown> } | null;
+export function requireAdminGrantAccess(req: {
+  auth?: { uid?: string; token?: Record<string, unknown> } | null;
 }) {
   if (!req.auth) {
     throw new HttpsError("unauthenticated", "Authentication required");
   }
-  const tokenEmail = req.auth?.token?.email;
-  const email = typeof tokenEmail === "string" ? tokenEmail.trim().toLowerCase() : "";
-  if (email !== "developer@adlrlabs.com") {
+  if (
+    !isPrivilegedIdentity(tokenIdentity(req.auth), {
+      allowedEmails: configuredAdminEmails(),
+      allowedUids: configuredAdminUids(),
+    })
+  ) {
     throw new HttpsError(
       "permission-denied",
-      "Admin access required (developer@adlrlabs.com)"
+      "Admin access required"
     );
   }
 }
@@ -58,7 +67,7 @@ async function writeEntitlementsBatch(
 
 export const adminGrantProEntitlements = onCallWithOptionalAppCheck(
   async (req): Promise<AdminGrantProEntitlementsResponse> => {
-    requireDeveloperEmail(req as any);
+    requireAdminGrantAccess(req as any);
 
     const raw = (req.data ?? {}) as any;
     const uidsIn = Array.isArray(raw?.uids) ? raw.uids : null;

@@ -21,6 +21,7 @@ import { hasOpenAI } from "./lib/env.js";
 import { scrubUndefined } from "./lib/scrub.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { enforceRateLimit } from "./middleware/rateLimit.js";
+import { enforceMonthlyQuota } from "./middleware/monthlyQuota.js";
 import { structuredJsonChat } from "./openai/client.js";
 import { modelForFeature } from "./openai/models.js";
 import { openAiSecretParam } from "./openai/keys.js";
@@ -1518,6 +1519,7 @@ async function handleGenerate(req: Request, res: Response) {
     windowMs: 60_000,
   });
   const prefs = sanitizePlanPrefs(req.body?.prefs);
+  await enforceMonthlyQuota({ uid, key: "workoutPlans", limit: 30 });
   const plan = await persistPlan(uid, prefs);
   res.json(plan);
 }
@@ -2178,6 +2180,7 @@ export const adjustWorkout = onRequest(
         return;
       }
       const notes = sanitizeNotes(payload?.notes);
+      await enforceMonthlyQuota({ uid, key: "workoutAdjustments", limit: 120 });
       const plan = await fetchCurrentPlan(uid);
       const targetDay = plan?.days?.find((day) => day.day === dayId) ?? null;
       if (!targetDay) {

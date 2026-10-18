@@ -7,6 +7,10 @@ import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { getEnv } from "../lib/env.js";
 import { ensureAdminGrantedProEntitlement } from "../lib/adminGrantPro.js";
 import {
+  configuredAdminEmails,
+  configuredAdminUids,
+} from "../lib/privilegedAuth.js";
+import {
   grantUnlimitedCreditsHandler,
   type GrantUnlimitedCreditsDeps,
 } from "./grantUnlimitedCreditsHandler.js";
@@ -30,18 +34,20 @@ function readAdminEmailAllowlist(): string {
 export const grantUnlimitedCredits = onCallWithOptionalAppCheck(
   async (req) => {
     const rawAllowlist = readAdminEmailAllowlist();
-    const allowlist = new Set(
-      rawAllowlist
+    const allowlist = new Set([
+      ...configuredAdminEmails(),
+      ...rawAllowlist
         .split(",")
         .map((s) => s.trim().toLowerCase())
-        .filter(Boolean)
-    );
+        .filter(Boolean),
+    ]);
 
     const auth = getAuth();
     const db = getFirestore();
 
     const deps: GrantUnlimitedCreditsDeps = {
       adminEmailAllowlist: allowlist,
+      adminUidAllowlist: configuredAdminUids(),
       nowIso: () => new Date().toISOString(),
       getUserByEmail: async (email: string) => {
         const record = await auth.getUserByEmail(email);

@@ -3,6 +3,11 @@ import type { Request, Response } from "express";
 import { FieldValue, getAuth, getFirestore } from "./firebase.js";
 import { allowCorsAndOptionalAppCheck, requireAuthWithClaims } from "./http.js";
 import { getCreditExpiryMonths } from "./lib/creditPolicy.js";
+import {
+  configuredAdminEmails,
+  configuredAdminUids,
+  isPrivilegedIdentity,
+} from "./lib/privilegedAuth.js";
 
 const ADMIN_BOOTSTRAP_DEFAULT = 50;
 
@@ -16,17 +21,6 @@ function getAdminBootstrapCredits(): number {
     : ADMIN_BOOTSTRAP_DEFAULT;
 }
 
-function parseAdminEmails(): Set<string> {
-  const csv = process.env.ADMIN_EMAILS_CSV || process.env.ADMIN_EMAILS || "";
-  return new Set(
-    csv
-      .split(",")
-      .map((value) => value.trim().toLowerCase())
-      .filter((value) => value.length > 0)
-  );
-}
-
-const adminEmails = parseAdminEmails();
 const express = expressModule as any;
 const db = getFirestore();
 
@@ -45,20 +39,36 @@ systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
     let userRecord: {
       customClaims?: Record<string, unknown>;
       email?: string | null;
+      emailVerified?: boolean;
     } | null = null;
-    if (!email) {
+    let emailVerified = claims?.email_verified === true;
+    if (!email || !emailVerified) {
       try {
         const record = await auth.getUser(uid);
-        email = record.email?.toLowerCase() || undefined;
+        if (record.emailVerified === true) {
+          email = record.email?.toLowerCase() || undefined;
+          emailVerified = true;
+        } else {
+          email = undefined;
+          emailVerified = false;
+        }
         userRecord = record;
       } catch {
         email = undefined;
+        emailVerified = false;
       }
     }
-    const isAdminEmail = email ? adminEmails.has(email) : false;
+    const isAdmin = isPrivilegedIdentity(
+      { uid, email, emailVerified, claims },
+      {
+        allowedEmails: configuredAdminEmails(),
+        allowedUids: configuredAdminUids(),
+        acceptedClaims: ["admin"],
+      }
+    );
 
     let claimsUpdated = false;
-    if (isAdminEmail) {
+    if (isAdmin) {
       const record = userRecord ?? (await auth.getUser(uid));
       userRecord = record;
       const existingClaims = userRecord.customClaims || {};
@@ -82,12 +92,12 @@ systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
       }
 
       if (
-        isAdminEmail &&
+        isAdmin &&
         (storedCredits == null || storedCredits < bootstrapCredits)
       ) {
         updates.credits = bootstrapCredits;
         credits = bootstrapCredits;
-      } else if (!isAdminEmail && storedCredits == null) {
+      } else if (!isAdmin && storedCredits == null) {
         updates.credits = 0;
         credits = 0;
       }
@@ -104,7 +114,7 @@ systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
       if (email) {
         updates.email = email;
       }
-      if (isAdminEmail) {
+      if (isAdmin) {
         updates.credits = bootstrapCredits;
         credits = bootstrapCredits;
       } else {
@@ -117,7 +127,7 @@ systemRouter.post("/bootstrap", async (req: Request, res: Response) => {
       await userRef.set(updates, { merge: true });
     }
 
-    res.json({ ok: true, admin: isAdminEmail, credits, claimsUpdated });
+    res.json({ ok: true, admin: isAdmin, credits, claimsUpdated });
   } catch (error: any) {
     if (error?.code === "unauthenticated") {
       res.status(401).json({ error: "unauthenticated" });
@@ -186,16 +196,35 @@ systemRouter.post(
       return;
     }
 
-    let decoded: { uid: string; email?: string } | null = null;
+    let decoded:
+      | (Record<string, unknown> & { uid: string; email?: string })
+      | null = null;
     try {
-      decoded = await getAuth().verifyIdToken(match[1]);
+      decoded = (await getAuth().verifyIdToken(match[1])) as Record<
+        string,
+        unknown
+      > & { uid: string; email?: string };
     } catch {
       res.status(401).json({ error: "unauthenticated" });
       return;
     }
 
     const email = decoded?.email ? decoded.email.toLowerCase() : "";
-    if (!email || !adminEmails.has(email)) {
+    if (
+      !isPrivilegedIdentity(
+        {
+          uid: decoded?.uid,
+          email,
+          emailVerified: decoded?.email_verified === true,
+          claims: decoded,
+        },
+        {
+          allowedEmails: configuredAdminEmails(),
+          allowedUids: configuredAdminUids(),
+          acceptedClaims: ["admin"],
+        }
+      )
+    ) {
       res.status(403).json({ error: "forbidden" });
       return;
     }

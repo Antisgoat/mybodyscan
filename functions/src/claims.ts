@@ -38,10 +38,13 @@ export async function updateUserClaims(
     ...existingClaims,
     unlimitedCredits: isUnlimitedUser({
       uid,
-      email: (email || user.email || "").toString(),
+      email:
+        user.emailVerified === true
+          ? (email || user.email || "").toString()
+          : null,
     })
       ? true
-      : isWhitelisted(email || user.email),
+      : user.emailVerified === true && isWhitelisted(email || user.email),
   };
 
   await getAuth().setCustomUserClaims(uid, updatedClaims);
@@ -59,7 +62,7 @@ export const refreshClaims = onCall(
       typeof auth.token?.email === "string" ? auth.token.email : undefined;
     const unlimitedFromToken = auth.token?.unlimitedCredits === true;
 
-    if (!isWhitelisted(tokenEmail)) {
+    if (auth.token?.email_verified !== true || !isWhitelisted(tokenEmail)) {
       return { updated: false, unlimitedCredits: unlimitedFromToken === true };
     }
 

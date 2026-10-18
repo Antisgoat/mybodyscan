@@ -3,6 +3,11 @@ import * as logger from "firebase-functions/logger";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { uidFromAuth } from "./util/auth.js";
+import {
+  configuredAdminEmails,
+  configuredAdminUids,
+  isPrivilegedIdentity,
+} from "./lib/privilegedAuth.js";
 import { isUnlimitedUser } from "./lib/unlimitedUsers.js";
 import { ensureUnlimitedEntitlements } from "./lib/unlimitedEntitlements.js";
 import { verifyAppCheck } from "./http.js";
@@ -97,12 +102,11 @@ export const systemBootstrap = https.onRequest(
         return;
       }
 
-      const adminCsv = (process.env.ADMIN_EMAILS_CSV || "").toLowerCase();
-      const emails = adminCsv
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const isAdminEmail = !!auth.email && emails.includes(auth.email!);
+      const isAdmin = isPrivilegedIdentity(auth, {
+        allowedEmails: configuredAdminEmails(),
+        allowedUids: configuredAdminUids(),
+        acceptedClaims: ["admin"],
+      });
 
       let claimsUpdated = false;
       let unlimitedUpdated = false;
@@ -124,7 +128,7 @@ export const systemBootstrap = https.onRequest(
         claimsUpdated = claimsUpdated || ensured.didSetClaims;
       }
 
-      if (isAdminEmail) {
+      if (isAdmin) {
         const user = await getAuth().getUser(auth.uid);
         const claims = user.customClaims || {};
         if (!claims.admin) {
@@ -147,7 +151,7 @@ export const systemBootstrap = https.onRequest(
 
       res.json({
         ok: true,
-        admin: isAdminEmail,
+        admin: isAdmin,
         claimsUpdated,
         unlimitedCredits: shouldUnlimited,
         unlimitedUpdated,

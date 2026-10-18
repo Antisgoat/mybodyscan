@@ -2,7 +2,13 @@ import { getAuth } from "firebase-admin/auth";
 
 export async function uidFromAuth(
   req: any
-): Promise<{ uid: string; email?: string; provider?: string } | null> {
+): Promise<{
+  uid: string;
+  email?: string;
+  emailVerified: boolean;
+  provider?: string;
+  claims: Record<string, unknown>;
+} | null> {
   const h = (req.headers?.authorization || "") as string;
   const m = /^Bearer\s+(.+)$/.exec(h);
   if (!m) return null;
@@ -14,8 +20,13 @@ export async function uidFromAuth(
         : undefined;
     return {
       uid: dec.uid,
-      email: (dec.email || "").toLowerCase(),
+      email:
+        dec.email_verified === true
+          ? (dec.email || "").toLowerCase()
+          : undefined,
+      emailVerified: dec.email_verified === true,
       provider,
+      claims: dec as Record<string, unknown>,
     };
   } catch {
     return null;

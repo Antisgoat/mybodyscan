@@ -1,4 +1,5 @@
 import { HttpsError } from "firebase-functions/v2/https";
+import { isPrivilegedIdentity, tokenIdentity } from "../lib/privilegedAuth.js";
 
 export type GrantUnlimitedCreditsRequest = {
   emails?: unknown;
@@ -36,6 +37,8 @@ export type GrantUnlimitedCreditsDeps = {
    * Server-side enforcement — do not rely on UI gating.
    */
   adminEmailAllowlist: Set<string>;
+  /** Stable admin identities configured server-side. */
+  adminUidAllowlist?: Set<string>;
   nowIso: () => string;
 
   getUserByEmail: (
@@ -122,12 +125,11 @@ export async function grantUnlimitedCreditsHandler(
   const tokenEmailRaw = auth.token?.email;
   const callerEmail =
     typeof tokenEmailRaw === "string" ? tokenEmailRaw.trim().toLowerCase() : "";
-  if (!callerEmail) {
-    // Requirement: if caller email is missing, reject.
-    throw new HttpsError("permission-denied", "Caller email required");
-  }
 
-  const allowlisted = deps.adminEmailAllowlist.has(callerEmail);
+  const allowlisted = isPrivilegedIdentity(tokenIdentity(auth), {
+    allowedEmails: deps.adminEmailAllowlist,
+    allowedUids: deps.adminUidAllowlist,
+  });
   if (!allowlisted) {
     throw new HttpsError("permission-denied", "Admin allowlist required");
   }
@@ -151,7 +153,11 @@ export async function grantUnlimitedCreditsHandler(
 
   // Back-compat: previous implementation granted to the caller with no payload.
   const targets =
-    emails.length || uids.length ? { emails, uids } : { emails: [callerEmail], uids: [] };
+    emails.length || uids.length
+      ? { emails, uids }
+      : callerEmail
+        ? { emails: [callerEmail], uids: [] }
+        : { emails: [], uids: [auth.uid] };
 
   if (!targets.emails.length && !targets.uids.length) {
     throw new HttpsError("invalid-argument", "email(s) or uid(s) is required");
@@ -183,7 +189,7 @@ export async function grantUnlimitedCreditsHandler(
       await deps.writeUnlimitedCreditsMirror({
         uid,
         enabled,
-        grantedByEmail: callerEmail,
+        grantedByEmail: callerEmail || "verified-by-uid-or-claim",
         grantedByUid: auth.uid,
         atIso,
       });
@@ -223,7 +229,7 @@ export async function grantUnlimitedCreditsHandler(
       await deps.writeUnlimitedCreditsMirror({
         uid,
         enabled,
-        grantedByEmail: callerEmail,
+        grantedByEmail: callerEmail || "verified-by-uid-or-claim",
         grantedByUid: auth.uid,
         atIso,
       });

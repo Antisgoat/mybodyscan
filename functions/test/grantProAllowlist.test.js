@@ -74,6 +74,36 @@ test("grantProAllowlist: rejects non-admin callers", async () => {
   );
 });
 
+test("grantProAllowlist: rejects unverified and wildcard-domain callers", async () => {
+  for (const token of [
+    { email: "developer@adlrlabs.com", email_verified: false },
+    { email: "attacker@adlrlabs.com", email_verified: true },
+    { email: "developer@adlerlabs.com", email_verified: true },
+  ]) {
+    await assert.rejects(
+      () =>
+        grantProAllowlistCore(
+          { auth: { uid: "caller", token }, data: { uids: ["target"] } },
+          { db: makeFakeDb({}) }
+        ),
+      (err) => err?.code === "permission-denied"
+    );
+  }
+});
+
+test("grantProAllowlist: accepts a server-issued admin claim without email", async () => {
+  const db = makeFakeDb({});
+  const res = await grantProAllowlistCore(
+    {
+      auth: { uid: "claimed-admin", token: { admin: true } },
+      data: { uids: ["target"] },
+    },
+    { db }
+  );
+  assert.equal(res.ok, true);
+  assert.equal(db.__get("users/target/entitlements/current")?.pro, true);
+});
+
 test("grantProAllowlist: writes users/{uid}/entitlements/current with merge semantics", async () => {
   const uidFromEmail = "u_email";
   const uidDirect = "u_direct";
@@ -101,7 +131,10 @@ test("grantProAllowlist: writes users/{uid}/entitlements/current with merge sema
 
   const res = await grantProAllowlistCore(
     {
-      auth: { uid: "caller", token: { email: "developer@adlrlabs.com" } },
+      auth: {
+        uid: "caller",
+        token: { email: "developer@adlrlabs.com", email_verified: true },
+      },
       data: {
         emails: ["tester@adlrlabs.com", "missing@adlrlabs.com"],
         uids: [uidDirect, paidUid],

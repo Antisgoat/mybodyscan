@@ -107,19 +107,23 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
-Current release snapshot (2026-09-16):
+Current local release snapshot (2026-10-18):
 
-- Build 29 (`1.0.0`) is the current device-acceptance candidate from main
-  commit `8021194`. It includes the latest nutrition serving/search cleanup,
-  Coach fallback reliability fix, onboarding guidance, scan preparation, and
-  native release guards. WHOOP remains deferred and outside the launch path.
-- Build 29 was archived, passed every Xcode/App Store Connect validation check,
-  and uploaded successfully for internal TestFlight on 2026-09-16. After Apple
-  finishes processing, confirm that only build 29 is available to `Internal
-  QA`, retain the saved beta metadata, and select it for App Store version 1.0
-  only after the clean-install physical-device checklist passes.
-- Build 29 has not yet passed that checklist and has not been submitted for
-  review. Builds 2 through 28 are superseded; do not submit any of them.
+- Build 39 (`1.0.0`) is the current device-acceptance candidate. Its archive
+  contains the native bundle tagged from main commit `34cc2e5`; commit
+  `b26bf02` records that same synchronized bundle. Changes through current main
+  after `b26bf02` are backend or release-documentation changes and do not make
+  the build-39 client stale. WHOOP remains deferred and outside the launch path.
+- The local build-39 archive is present and passes the committed iOS release
+  configuration, privacy-manifest, plist, and bundle-integrity checks. This
+  repository does not establish App Store Connect processing, TestFlight-group
+  assignment, or draft-build selection. Confirm in App Store Connect that build
+  39 is processed, assigned to `Internal QA`, and selected for App Store version
+  1.0 only after the clean-install physical-device checklist passes.
+- Build 39 has not yet been recorded here as passing that checklist and has not
+  been recorded here as submitted for review. Build 29 from commit `8021194`
+  remains historical evidence of the 2026-09-16 upload; builds 2 through 38 are
+  superseded and must not be submitted.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are
   wired to the exact products described above.

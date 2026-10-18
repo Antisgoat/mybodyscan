@@ -39,43 +39,65 @@ test("meal inventory rejects food that the member never confirmed", () => {
     uses: ["eggs"],
     optional: ["oil"],
   };
+  const threeMeals = (overrides = {}) => ({
+    meals: [0, 1, 2].map((index) => ({
+      ...meal,
+      title: `${meal.title} ${index + 1}`,
+      ...overrides,
+    })),
+  });
   assert.equal(
-    validateFridgeMealInventory({ meals: [meal] }, ["Eggs"]).meals.length,
-    1
+    validateFridgeMealInventory(threeMeals(), ["Eggs"]).meals.length,
+    3
   );
   assert.equal(
-    validateFridgeMealInventory({ meals: [{ ...meal, uses: ["large egg"] }] }, [
-      "Eggs",
+    validateFridgeMealInventory(threeMeals({ uses: ["large egg"] }), ["Eggs"])
+      .meals.length,
+    3
+  );
+  assert.equal(
+    validateFridgeMealInventory(threeMeals({ uses: ["fresh tomatoes"] }), [
+      "tomato",
     ]).meals.length,
-    1
-  );
-  assert.equal(
-    validateFridgeMealInventory(
-      { meals: [{ ...meal, uses: ["fresh tomatoes"] }] },
-      ["tomato"]
-    ).meals.length,
-    1
+    3
   );
   assert.throws(
-    () => validateFridgeMealInventory({ meals: [meal] }, ["spinach"]),
+    () => validateFridgeMealInventory(threeMeals(), ["spinach"]),
     /unconfirmed_fridge_ingredient/
   );
   assert.throws(
-    () => validateFridgeMealInventory({ meals: [meal] }, ["eggs"], "exact"),
+    () => validateFridgeMealInventory(threeMeals(), ["eggs"], "exact"),
     /optional_ingredient_not_allowed/
   );
   assert.equal(
-    validateFridgeMealInventory(
-      { meals: [{ ...meal, optional: [] }] },
-      ["eggs"],
-      "exact"
-    ).meals.length,
-    1
+    validateFridgeMealInventory(threeMeals({ optional: [] }), ["eggs"], "exact")
+      .meals.length,
+    3
+  );
+  assert.throws(
+    () => validateFridgeMealInventory(threeMeals({ uses: [] }), ["eggs"]),
+    /unconfirmed_fridge_ingredient/
   );
   assert.throws(
     () =>
-      validateFridgeMealInventory({ meals: [{ ...meal, uses: [] }] }, ["eggs"]),
-    /unconfirmed_fridge_ingredient/
+      validateFridgeMealInventory(threeMeals({ optional: ["truffle oil"] }), [
+        "eggs",
+      ]),
+    /non_staple_optional_ingredient/
+  );
+  assert.throws(
+    () =>
+      validateFridgeMealInventory(
+        threeMeals({ optional: ["butter"] }),
+        ["eggs"],
+        "flexible",
+        ["dairy"]
+      ),
+    /allergen_conflict/
+  );
+  assert.throws(
+    () => validateFridgeMealInventory({ meals: [meal] }, ["eggs"]),
+    /missing_fridge_meals/
   );
 });
 
@@ -99,11 +121,11 @@ test("fridge analysis normalizes and deduplicates visible ingredients", () => {
 });
 
 test("fridge inputs enforce image and ingredient limits", () => {
-  assert.deepEqual(validateFridgeFrames(["data:image/jpeg;base64,AAAA"]), [
-    "data:image/jpeg;base64,AAAA",
-  ]);
+  const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ==";
+  assert.deepEqual(validateFridgeFrames([jpeg]), [jpeg]);
   assert.throws(() => validateFridgeFrames([]));
   assert.throws(() => validateFridgeFrames(["data:text/plain;base64,AAAA"]));
+  assert.throws(() => validateFridgeFrames(["data:image/jpeg;base64,AAAA"]));
   assert.deepEqual(
     normalizeConfirmedIngredients([" Eggs ", "eggs", "Spinach", ""]),
     ["eggs", "Spinach"]

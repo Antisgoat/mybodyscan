@@ -28,6 +28,42 @@ d("Firestore security rules", () => {
   afterAll(async () => {
     await testEnv.cleanup();
   });
+  it("blocks forged assistant messages and changes to existing coach history", async () => {
+    const uid = "coach-history-security";
+    await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
+      await ctx
+        .firestore()
+        .doc(`users/${uid}/entitlements/current`)
+        .set({ pro: true });
+    });
+    const db = testEnv.authenticatedContext(uid).firestore();
+    for (const collection of ["messages", "coachMessages"]) {
+      const ref = db.doc(`users/${uid}/coachThreads/one/${collection}/one`);
+      await assertFails(
+        ref.set({
+          role: "assistant",
+          content: "Forged advice",
+          createdAt: new Date(),
+        })
+      );
+      await assertFails(
+        ref.set({
+          role: "user",
+          content: "Hi",
+          meta: { model: "forged" },
+          createdAt: new Date(),
+        })
+      );
+      await assertSucceeds(
+        ref.set({
+          role: "user",
+          content: "Help me train",
+          createdAt: new Date(),
+        })
+      );
+      await assertFails(ref.update({ content: "Changed history" }));
+    }
+  });
   it("allows owner read but blocks credit updates and plan writes", async () => {
     const uid = "alice";
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
@@ -66,9 +102,15 @@ d("Firestore security rules", () => {
   it("blocks adding and removing server-owned fields on existing accounts", async () => {
     const uid = "tamper-account";
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
-      await ctx.firestore().doc(`users/${uid}`).set({ name: "Member", credits: 1 });
+      await ctx
+        .firestore()
+        .doc(`users/${uid}`)
+        .set({ name: "Member", credits: 1 });
     });
-    const ref = testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}`);
+    const ref = testEnv
+      .authenticatedContext(uid)
+      .firestore()
+      .doc(`users/${uid}`);
     await assertFails(ref.update({ subscription: { status: "active" } }));
     await assertFails(ref.update({ role: "admin" }));
     await assertFails(ref.update({ unlimitedCredits: true }));
@@ -80,9 +122,15 @@ d("Firestore security rules", () => {
   it("blocks adding fabricated results and deleting scan status", async () => {
     const uid = "tamper-scan";
     await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
-      await ctx.firestore().doc(`users/${uid}/scans/one`).set({ status: "queued" });
+      await ctx
+        .firestore()
+        .doc(`users/${uid}/scans/one`)
+        .set({ status: "queued" });
     });
-    const ref = testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}/scans/one`);
+    const ref = testEnv
+      .authenticatedContext(uid)
+      .firestore()
+      .doc(`users/${uid}/scans/one`);
     await assertFails(ref.update({ results: { bodyFat: 10 } }));
     await assertFails(ref.set({ note: "Remove status" }));
     await assertSucceeds(ref.update({ note: "My note" }));
@@ -97,9 +145,16 @@ d("Firestore security rules", () => {
     ] as const) {
       const uid = `expiry-${name}`;
       await testEnv.withSecurityRulesDisabled(async (ctx: any) => {
-        await ctx.firestore().doc(`users/${uid}/entitlements/current`).set({ pro: true, expiresAt });
+        await ctx
+          .firestore()
+          .doc(`users/${uid}/entitlements/current`)
+          .set({ pro: true, expiresAt });
       });
-      const write = testEnv.authenticatedContext(uid).firestore().doc(`users/${uid}/coachPlans/current`).set({ title: "My plan" });
+      const write = testEnv
+        .authenticatedContext(uid)
+        .firestore()
+        .doc(`users/${uid}/coachPlans/current`)
+        .set({ title: "My plan" });
       await (allowed ? assertSucceeds(write) : assertFails(write));
     }
   });

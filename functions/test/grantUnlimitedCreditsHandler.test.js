@@ -44,6 +44,42 @@ test("grantUnlimitedCredits: rejects non-admin caller", async () => {
   );
 });
 
+test("grantUnlimitedCredits: rejects an unverified allowlisted email", async () => {
+  const deps = makeDeps({ adminEmailAllowlist: new Set(["admin@example.com"]) });
+  await assert.rejects(
+    () =>
+      grantUnlimitedCreditsHandler(
+        {
+          auth: {
+            uid: "caller",
+            token: { email: "admin@example.com", email_verified: false },
+          },
+          data: { uids: ["target"], enabled: true },
+        },
+        deps
+      ),
+    (err) => err?.code === "permission-denied"
+  );
+});
+
+test("grantUnlimitedCredits: accepts an admin claim without email", async () => {
+  const mirrors = [];
+  const deps = makeDeps({
+    getUserByUid: async (uid) => ({ uid, email: null, customClaims: {} }),
+    writeUnlimitedCreditsMirror: async (params) => mirrors.push(params),
+  });
+  const result = await grantUnlimitedCreditsHandler(
+    {
+      auth: { uid: "caller", token: { admin: true } },
+      data: { uids: ["target"], enabled: true },
+    },
+    deps
+  );
+  assert.equal(result.ok, true);
+  assert.equal(result.updated[0]?.uid, "target");
+  assert.equal(mirrors[0]?.grantedByUid, "caller");
+});
+
 test("grantUnlimitedCredits: user not found returns failed entry", async () => {
   const deps = makeDeps({
     getUserByEmail: async (email) => {
@@ -58,7 +94,7 @@ test("grantUnlimitedCredits: user not found returns failed entry", async () => {
 
   const res = await grantUnlimitedCreditsHandler(
     {
-      auth: { uid: "caller", token: { email: "admin@example.com" } },
+      auth: { uid: "caller", token: { email: "admin@example.com", email_verified: true } },
       data: { emails: ["missing@example.com", "ok@example.com"], enabled: true },
     },
     deps
@@ -90,7 +126,7 @@ test("grantUnlimitedCredits: grant then revoke toggles mirror + claims", async (
 
   const grant = await grantUnlimitedCreditsHandler(
     {
-      auth: { uid: "caller", token: { email: "admin@example.com" } },
+      auth: { uid: "caller", token: { email: "admin@example.com", email_verified: true } },
       data: { emails: ["t@example.com"], enabled: true },
     },
     deps
@@ -101,7 +137,7 @@ test("grantUnlimitedCredits: grant then revoke toggles mirror + claims", async (
 
   const revoke = await grantUnlimitedCreditsHandler(
     {
-      auth: { uid: "caller", token: { email: "admin@example.com" } },
+      auth: { uid: "caller", token: { email: "admin@example.com", email_verified: true } },
       data: { emails: ["t@example.com"], enabled: false },
     },
     deps

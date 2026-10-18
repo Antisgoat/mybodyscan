@@ -1,6 +1,12 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import { onCallWithOptionalAppCheck } from "../util/callable.js";
 import { FieldValue, getAuth, getFirestore } from "../firebase.js";
+import {
+  configuredAdminEmails,
+  configuredAdminUids,
+  isPrivilegedIdentity,
+  tokenIdentity,
+} from "../lib/privilegedAuth.js";
 
 export type GrantProAllowlistRequest = {
   emails?: string[];
@@ -35,14 +41,6 @@ function normalizeUid(uid: unknown): string | null {
   if (typeof uid !== "string") return null;
   const v = uid.trim();
   return v ? v : null;
-}
-
-function isAllowedCallerEmail(email: string | null): boolean {
-  if (!email) return false;
-  const e = email.trim().toLowerCase();
-  if (!e) return false;
-  if (e === "developer@adlrlabs.com") return true;
-  return e.endsWith("@adlrlabs.com");
 }
 
 async function isFirestoreAdminUid(uid: string, deps: Deps): Promise<boolean> {
@@ -107,11 +105,14 @@ export async function grantProAllowlistCore(
   const callerUid = req.auth?.uid ? String(req.auth.uid) : "";
   if (!callerUid) throw new HttpsError("unauthenticated", "Authentication required");
 
-  const tokenEmail = req.auth?.token?.email;
-  const callerEmail = typeof tokenEmail === "string" ? tokenEmail : null;
-  const allowedByEmail = isAllowedCallerEmail(callerEmail);
-  const allowedByAdminsDoc = allowedByEmail ? false : await isFirestoreAdminUid(callerUid, deps);
-  if (!allowedByEmail && !allowedByAdminsDoc) {
+  const allowedByIdentity = isPrivilegedIdentity(tokenIdentity(req.auth ?? {}), {
+    allowedEmails: configuredAdminEmails(),
+    allowedUids: configuredAdminUids(),
+  });
+  const allowedByAdminsDoc = allowedByIdentity
+    ? false
+    : await isFirestoreAdminUid(callerUid, deps);
+  if (!allowedByIdentity && !allowedByAdminsDoc) {
     throw new HttpsError("permission-denied", "Admin access required");
   }
 

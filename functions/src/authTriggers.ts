@@ -19,7 +19,7 @@ function parseFounderEmails(): Set<string> {
 }
 
 export const handleUserCreate = auth.user().onCreate(async (user: any) => {
-  const email = user.email?.toLowerCase();
+  const email = user.emailVerified === true ? user.email?.toLowerCase() : undefined;
   const uid = user.uid;
 
   // Update user claims (including unlimitedCredits for whitelisted users)

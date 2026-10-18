@@ -812,11 +812,12 @@ async function loadThreadHistory(uid: string, threadId: string, limitN = 18) {
     .limit(Math.max(1, Math.min(limitN, 30)));
   const snap = await ref.get();
   const items: ThreadMessage[] = snap.docs
-    .map((doc) => doc.data() as ThreadMessage)
+    .map((doc) => doc.data() as ThreadMessage & { serverAuthored?: boolean })
     .filter(
       (msg) =>
         msg &&
         (msg.role === "user" || msg.role === "assistant") &&
+        (msg.role !== "assistant" || msg.serverAuthored === true) &&
         typeof msg.content === "string" &&
         msg.content.trim().length > 0
     );
@@ -909,6 +910,7 @@ async function writeAssistantMessage(params: {
   await ref.set(
     scrubUndefined({
       role: "assistant",
+      serverAuthored: true,
       content: params.content,
       createdAt: FieldValue.serverTimestamp(),
       suggestions: params.suggestions,
