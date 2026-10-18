@@ -98,6 +98,7 @@ describe("production deployment authentication", () => {
       .sort();
 
     expect(keys).toEqual([
+      "ADMIN_UIDS_CSV",
       "APP_CHECK_MODE",
       "AUTH_APPLE_ENABLED",
       "AUTH_DEMO_ENABLED",
