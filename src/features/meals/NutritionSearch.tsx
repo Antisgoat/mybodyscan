@@ -17,12 +17,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSystemHealth } from "@/hooks/useSystemHealth";
 import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ArrowLeft, Search, ScanBarcode } from "lucide-react";
+import { FoodSearchRow, foodLabel } from "@/components/nutrition/FoodSearchRow";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
 import { toast } from "@/hooks/use-toast";
@@ -38,6 +34,7 @@ type NutritionSearchProps = {
   defaultMealType?: MealEntry["mealType"];
   /** Optional callback with the persisted meal + server totals. */
   onMealAdded?: (payload: { meal: MealEntry; totals: any }) => void;
+  onSavingChange?: (saving: boolean) => void;
 };
 
 const INITIAL_RESULT_COUNT = 8;
@@ -47,6 +44,7 @@ export default function NutritionSearch({
   onMealLogged,
   defaultMealType,
   onMealAdded,
+  onSavingChange,
 }: NutritionSearchProps = {}) {
   const { loading: authLoading, user } = useAuthUser();
   const { health: systemHealth } = useSystemHealth();
@@ -70,13 +68,18 @@ export default function NutritionSearch({
     supported: boolean;
     reason?: "blocked" | "unsupported";
   } | null>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
   const [editorItem, setEditorItem] = useState<RichFoodItem | null>(null);
   const [editorBusy, setEditorBusy] = useState(false);
   const [editorSource, setEditorSource] =
     useState<MealEntry["entrySource"]>("search");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
   const editorMealIdRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
+  useEffect(() => {
+    onSavingChange?.(editorBusy);
+    return () => onSavingChange?.(false);
+  }, [editorBusy, onSavingChange]);
 
   async function onSubmit(e?: FormEvent, query = q) {
     e?.preventDefault();
@@ -180,17 +183,17 @@ export default function NutritionSearch({
       });
       return;
     }
+    setSaveError(null);
     setEditorItem(item);
     setEditorSource(source);
     editorMealIdRef.current =
       typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
         : `meal-${Math.random().toString(36).slice(2, 10)}`;
-    setEditorOpen(true);
   }
 
   const closeEditor = () => {
-    setEditorOpen(false);
+    setSaveError(null);
     setEditorItem(null);
     setEditorBusy(false);
     setEditorSource("search");
@@ -198,7 +201,7 @@ export default function NutritionSearch({
   };
 
   async function handleConfirm({ meal }: { meal: MealEntry }) {
-    if (!editorItem || editorBusy) return;
+    if (!editorItem || savingRef.current) return;
     if (!user) {
       toast({
         title: "Sign in required",
@@ -208,6 +211,8 @@ export default function NutritionSearch({
       closeEditor();
       return;
     }
+    savingRef.current = true;
+    setSaveError(null);
     setEditorBusy(true);
     try {
       // FIX: prior implementation rendered Add buttons with no handler, so nothing was persisted.
@@ -222,26 +227,28 @@ export default function NutritionSearch({
         title: "Meal logged",
         description: `${editorItem.name} added to ${targetDate}.`,
       });
+      const loggedItem = editorItem;
+      closeEditor();
       if (result?.meal && result?.totals) {
         onMealAdded?.({
           meal: result.meal as MealEntry,
           totals: result.totals,
         });
       }
-      // `onMealLogged` expects the lightweight search item; forward the raw snapshot if available.
-      onMealLogged?.((editorItem.raw ?? editorItem) as any);
-      closeEditor();
+      onMealLogged?.(loggedItem);
     } catch (error: any) {
       const description =
         typeof error?.message === "string" && error.message.length
           ? error.message
           : "Unable to log meal. Please try again.";
+      setSaveError(description);
       toast({
         title: "Unable to log meal",
         description,
         variant: "destructive",
       });
     } finally {
+      savingRef.current = false;
       setEditorBusy(false);
     }
   }
@@ -254,256 +261,177 @@ export default function NutritionSearch({
           <AlertDescription>{offlineMessage}</AlertDescription>
         </Alert>
       )}
-      <form
-        onSubmit={onSubmit}
-        className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-      >
-        <input
-          data-testid="nutrition-search-input"
-          aria-label="Search foods or enter a barcode"
-          type="search"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Search foods (e.g., chicken breast, oatmeal or barcode)…"
-          className="col-span-2 h-11 min-w-0 w-full rounded-lg border bg-background px-3 text-base leading-5 outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 sm:col-span-1 sm:text-sm"
-          disabled={authLoading || busy || !nutritionEnabled}
-        />
-        <button
-          data-testid="nutrition-search-button"
-          type="submit"
-          disabled={!q.trim() || busy || !nutritionEnabled}
-          className="h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {busy ? "Searching…" : "Search"}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (!nutritionEnabled || !liveScannerSupported) return;
-            setScanOpen(true);
-          }}
-          className="h-11 rounded-lg border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label="Scan barcode"
-          disabled={
-            busy || authLoading || !nutritionEnabled || !liveScannerSupported
-          }
-          title={
-            !liveScannerSupported ? (scannerWarning ?? undefined) : undefined
-          }
-        >
-          Scan
-        </button>
-      </form>
-      {scannerWarning && (
-        <p className="text-xs leading-5 text-muted-foreground">
-          {scannerWarning}
-        </p>
-      )}
-
-      {busy && (
-        <div className="space-y-2" aria-live="polite">
-          <div role="status" className="text-sm text-muted-foreground">
-            Searching foods…
+      {editorItem ? (
+        <div className="space-y-5">
+          <button
+            type="button"
+            onClick={closeEditor}
+            disabled={editorBusy}
+            className="flex min-h-10 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to results
+          </button>
+          <div>
+            <h3 className="text-xl font-semibold leading-tight">
+              {foodLabel(editorItem.name)}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {editorItem.serving.text || "Choose your portion"}
+              {editorItem.brand ? " · " + foodLabel(editorItem.brand) : ""}
+            </p>
           </div>
-          <div className="space-y-2" aria-hidden>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="animate-pulse rounded-md border p-3">
-                <div className="h-4 w-40 rounded bg-muted" />
-                <div className="mt-2 h-3 w-64 rounded bg-muted" />
-              </div>
-            ))}
-          </div>
+          {saveError && (
+            <Alert variant="destructive">
+              <AlertTitle>Not saved yet</AlertTitle>
+              <AlertDescription>
+                {saveError} Your portion is still here. Try saving again.
+              </AlertDescription>
+            </Alert>
+          )}
+          <ServingEditor
+            item={editorItem}
+            onConfirm={handleConfirm}
+            entrySource={editorSource}
+            busy={editorBusy}
+            readOnly={demo}
+            onDemoAttempt={demoToast}
+          />
         </div>
-      )}
-
-      {error && (
-        <div role="alert" className="text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {hasSearched && results && results.length === 0 && !busy && (
-        <div className="text-sm text-muted-foreground">
-          No foods found for “{q}”.
-        </div>
-      )}
-
-      {results && results.length > 0 && (
-        <ul
-          className="min-w-0 divide-y overflow-hidden rounded-xl border bg-background"
-          data-testid="nutrition-results"
-        >
-          {results.slice(0, visibleResultCount).map((it) => (
-            <li
-              key={it.id ?? it.name}
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3.5 sm:px-4"
+      ) : (
+        <>
+          <form onSubmit={onSubmit} className="flex min-w-0 gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                data-testid="nutrition-search-input"
+                aria-label="Search foods or enter a barcode"
+                type="search"
+                value={q}
+                onChange={(e) => {
+                  requestIdRef.current += 1;
+                  setQ(e.target.value);
+                  setBusy(false);
+                  setResults(null);
+                  setHasSearched(false);
+                  setError(null);
+                }}
+                placeholder="Food, brand, or barcode"
+                className="h-12 w-full min-w-0 rounded-xl border bg-secondary/40 pl-10 pr-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-primary/30"
+                disabled={authLoading || !nutritionEnabled}
+              />
+            </div>
+            <button
+              data-testid="nutrition-search-button"
+              type="submit"
+              disabled={!q.trim() || busy || !nutritionEnabled}
+              className="h-12 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
-              <div className="min-w-0 space-y-1.5">
-                <div className="line-clamp-2 break-words text-[15px] font-semibold leading-5 text-foreground">
-                  {formatFoodName(it.name)}
-                </div>
-                {it.brand ? (
-                  <div className="line-clamp-1 text-xs leading-4 text-muted-foreground">
-                    {formatFoodName(it.brand)}
-                  </div>
-                ) : null}
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs leading-4">
-                  <span className="font-semibold text-foreground">
-                    {fmtCalories(it)}
-                  </span>
-                  <span className="max-w-full truncate text-muted-foreground">
-                    {fmtServing(it)}
-                  </span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {it.source || "Food data"}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  {macroTokens(it).map((macro) => (
-                    <span key={macro.label}>
-                      <strong className="font-semibold text-foreground">
-                        {macro.label}
-                      </strong>{" "}
-                      {macro.value}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <button
-                className="min-h-11 min-w-14 shrink-0 self-center rounded-lg border bg-background px-3 text-sm font-semibold transition-colors hover:bg-secondary disabled:opacity-50"
-                onClick={() => startEdit(it, "search")}
-                disabled={busy || !nutritionEnabled || !user || demo}
-                title={!user ? "Sign in to log meals" : undefined}
-              >
-                Add
-              </button>
-            </li>
-          ))}
-          {results.length > visibleResultCount ? (
-            <li className="p-3">
-              <button
-                type="button"
-                className="min-h-11 w-full rounded-lg border bg-background px-4 text-sm font-semibold transition-colors hover:bg-secondary"
-                onClick={() =>
-                  setVisibleResultCount((count) =>
-                    Math.min(results.length, count + INITIAL_RESULT_COUNT)
-                  )
-                }
-              >
-                Show{" "}
-                {Math.min(
-                  INITIAL_RESULT_COUNT,
-                  results.length - visibleResultCount
-                )}{" "}
-                more
-              </button>
-            </li>
-          ) : null}
-        </ul>
+              {busy ? "Searching…" : "Search"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border hover:bg-secondary disabled:opacity-50"
+              aria-label="Scan barcode"
+              disabled={
+                busy ||
+                authLoading ||
+                !nutritionEnabled ||
+                !liveScannerSupported
+              }
+              title={
+                !liveScannerSupported
+                  ? (scannerWarning ?? undefined)
+                  : "Scan barcode"
+              }
+            >
+              <ScanBarcode className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </form>
+          {scannerWarning && (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {scannerWarning}
+            </p>
+          )}
+          {busy && (
+            <div role="status" className="space-y-3 py-3">
+              <p className="text-sm text-muted-foreground">Searching foods…</p>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-20 animate-pulse rounded-xl bg-secondary/60"
+                  aria-hidden="true"
+                />
+              ))}
+            </div>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {!hasSearched && !busy && (
+            <div className="rounded-2xl bg-secondary/40 px-5 py-7 text-center">
+              <p className="font-medium">What did you eat?</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Search a food, check its portion, then add it to your diary.
+              </p>
+            </div>
+          )}
+          {hasSearched && results?.length === 0 && !busy && (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No foods found for “{q}”. Try a simpler name or scan the barcode.
+            </p>
+          )}
+          {!!results?.length && !busy && (
+            <div>
+              <p className="pb-1 pt-2 text-xs font-medium text-muted-foreground">
+                Choose a food · adjust the portion next
+              </p>
+              <ul className="min-w-0 divide-y" data-testid="nutrition-results">
+                {results.slice(0, visibleResultCount).map((it) => (
+                  <li key={it.id ?? it.name}>
+                    <FoodSearchRow
+                      item={it}
+                      onSelect={() => startEdit(it, "search")}
+                      disabled={!nutritionEnabled || !user || demo}
+                    />
+                  </li>
+                ))}
+                {results.length > visibleResultCount && (
+                  <li className="pt-3">
+                    <button
+                      type="button"
+                      className="min-h-11 w-full rounded-xl border text-sm font-semibold hover:bg-secondary"
+                      onClick={() =>
+                        setVisibleResultCount((count) =>
+                          Math.min(results.length, count + INITIAL_RESULT_COUNT)
+                        )
+                      }
+                    >
+                      Show{" "}
+                      {Math.min(
+                        INITIAL_RESULT_COUNT,
+                        results.length - visibleResultCount
+                      )}{" "}
+                      more
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+        </>
       )}
-
       <BarcodeScannerSheet
         open={scanOpen}
         onClose={() => setScanOpen(false)}
         onDetected={onDetectedFromScanner}
-        onCapabilityChange={(state) => setScannerCapability(state)}
+        onCapabilityChange={setScannerCapability}
       />
-
-      <Dialog
-        open={editorOpen}
-        onOpenChange={(next) => {
-          if (editorBusy) return;
-          if (next) setEditorOpen(true);
-          else closeEditor();
-        }}
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              {editorItem ? `Log ${editorItem.name}` : "Log food"}
-            </DialogTitle>
-          </DialogHeader>
-          {editorItem && (
-            <ServingEditor
-              item={editorItem}
-              onConfirm={handleConfirm}
-              entrySource={editorSource}
-              busy={editorBusy}
-              readOnly={demo}
-              onDemoAttempt={demoToast}
-              onCancel={closeEditor}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
-}
-
-function fmtCal(kcal?: number | null) {
-  return typeof kcal === "number" && Number.isFinite(kcal)
-    ? `${round(kcal)} kcal`
-    : "kcal ?";
-}
-function fmtCalories(it: {
-  per_serving: { kcal: number | null };
-  per_100g?: { kcal: number | null };
-}) {
-  if (
-    typeof it.per_serving.kcal === "number" &&
-    Number.isFinite(it.per_serving.kcal)
-  ) {
-    return fmtCal(it.per_serving.kcal);
-  }
-  if (
-    typeof it.per_100g?.kcal === "number" &&
-    Number.isFinite(it.per_100g.kcal)
-  ) {
-    return `${fmtCal(it.per_100g.kcal)} per 100 g`;
-  }
-  return fmtCal(null);
-}
-function macroTokens(it: {
-  per_serving: {
-    protein_g: number | null;
-    carbs_g: number | null;
-    fat_g: number | null;
-  };
-}) {
-  const p =
-    it.per_serving.protein_g != null
-      ? `${round(it.per_serving.protein_g)}g`
-      : "?";
-  const c =
-    it.per_serving.carbs_g != null ? `${round(it.per_serving.carbs_g)}g` : "?";
-  const f =
-    it.per_serving.fat_g != null ? `${round(it.per_serving.fat_g)}g` : "?";
-  return [
-    { label: "Protein", value: p },
-    { label: "Carbs", value: c },
-    { label: "Fat", value: f },
-  ];
-}
-function fmtServing(it: {
-  serving: { qty: number | null; unit: string | null; text?: string | null };
-}) {
-  if (it.serving.text) return it.serving.text;
-  if (it.serving.qty != null && it.serving.unit)
-    return `${round(it.serving.qty)} ${it.serving.unit}`;
-  return "per serving";
-}
-function formatFoodName(value: string) {
-  const cleaned = value.trim().replace(/\s+/g, " ");
-  if (!cleaned || cleaned !== cleaned.toUpperCase()) return cleaned || "Food";
-  return cleaned
-    .toLowerCase()
-    .replace(
-      /(^|[\s\-/])([a-z])/g,
-      (_, boundary: string, letter: string) =>
-        `${boundary}${letter.toUpperCase()}`
-    );
-}
-function round(n?: number | null) {
-  if (n == null || !isFinite(n)) return "?";
-  return Math.round(n);
 }

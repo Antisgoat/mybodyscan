@@ -14,6 +14,8 @@ import {
   CalendarDays,
   BookOpen,
   Camera,
+  Search,
+  ChevronDown,
 } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { Button } from "@/components/ui/button";
@@ -55,6 +57,10 @@ import {
   buildMealEntry,
   normalizedFromSnapshot,
 } from "@/lib/nutritionMath";
+import {
+  foodLabel,
+  nutritionNumber,
+} from "@/components/nutrition/FoodSearchRow";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import {
   Dialog,
@@ -97,12 +103,21 @@ const MEAL_LABELS: Record<DiaryMealType, string> = {
 
 function readRecents(): RecentItem[] {
   if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(RECENTS_KEY);
-  if (!raw) return [];
   try {
+    const raw = window.localStorage.getItem(RECENTS_KEY);
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.slice(0, MAX_RECENTS);
+      return parsed
+        .filter(
+          (item) =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.name === "string" &&
+            item.serving &&
+            item.per_serving
+        )
+        .slice(0, MAX_RECENTS);
     }
   } catch (error) {
     console.warn("recents_parse_error", error);
@@ -112,10 +127,14 @@ function readRecents(): RecentItem[] {
 
 function storeRecents(items: RecentItem[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    RECENTS_KEY,
-    JSON.stringify(items.slice(0, MAX_RECENTS))
-  );
+  try {
+    window.localStorage.setItem(
+      RECENTS_KEY,
+      JSON.stringify(items.slice(0, MAX_RECENTS))
+    );
+  } catch {
+    /* Recents are optional; a storage quota must not fail a saved meal. */
+  }
 }
 
 function formatServingQuantity(value: number): string {
@@ -185,6 +204,11 @@ export default function Meals() {
   const [editorItem, setEditorItem] = useState<FoodItem | null>(null);
   const [editorUnit, setEditorUnit] = useState<ServingUnit>("serving");
   const [editorQty, setEditorQty] = useState<number>(1);
+  const editorSaveRef = useRef(false);
+  const editorExistingRef = useRef(false);
+  const editorIdRef = useRef<string>();
+  const editorTypeRef = useRef<DiaryMealType>("snacks");
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addMealType, setAddMealType] = useState<DiaryMealType>("snacks");
   const [highlightMealId, setHighlightMealId] = useState<string | null>(null);
@@ -361,8 +385,14 @@ export default function Meals() {
   const openEditor = (
     item: FoodItem,
     qty = 1,
-    unit: ServingUnit = "serving"
+    unit: ServingUnit = "serving",
+    existingId?: string,
+    mealType: DiaryMealType = "snacks"
   ) => {
+    editorIdRef.current = existingId ?? crypto.randomUUID();
+    editorExistingRef.current = Boolean(existingId);
+    editorTypeRef.current = mealType;
+    setEditorError(null);
     setEditorItem(item);
     setEditorQty(qty);
     setEditorUnit(unit);
@@ -370,28 +400,40 @@ export default function Meals() {
   };
 
   const handleEditorConfirm = async ({ qty, unit, meal }: any) => {
-    if (!editorItem) return;
+    if (!editorItem || editorSaveRef.current) return;
     if (demo) {
       demoToast();
       return;
     }
 
+    editorSaveRef.current = true;
+    setEditorError(null);
     setProcessing(true);
     try {
-      const result = await addMeal(dateISO, { ...meal, entrySource: "search" });
-      toast({ title: "Meal logged", description: `${editorItem.name} added` });
+      const result = await addMeal(dateISO, {
+        ...meal,
+        id: editorIdRef.current,
+        mealType: editorTypeRef.current,
+        entrySource: "search",
+      });
+      setEditorOpen(false);
+      toast({
+        title: editorExistingRef.current ? "Portion updated" : "Meal logged",
+        description: editorItem.name,
+      });
       updateRecents(editorItem);
       applyAddResult(result);
       refreshHistory();
     } catch (error: any) {
+      setEditorError(error?.message || "Unable to save. Please try again.");
       toast({
         title: "Unable to log",
         description: error?.message || "Try again",
         variant: "destructive",
       });
     } finally {
+      editorSaveRef.current = false;
       setProcessing(false);
-      setEditorOpen(false);
     }
   };
 
@@ -684,7 +726,7 @@ export default function Meals() {
         title="Meals - MyBodyScan"
         description="Track your daily nutrition"
       />
-      <main className="mx-auto flex max-w-5xl flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-4 sm:py-6">
+      <main className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-5 sm:gap-6 sm:px-6 sm:py-8">
         <section className="space-y-4" aria-labelledby="nutrition-heading">
           <div className="flex items-end justify-between gap-4">
             <div className="min-w-0">
@@ -758,72 +800,40 @@ export default function Meals() {
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex gap-2">
             <Button
-              size="sm"
-              variant="outline"
-              className="col-span-2 h-12 justify-start px-3 text-[13px]"
-              asChild
+              className="h-12 flex-1 justify-start rounded-xl px-4"
+              onClick={() => openAddDialog("snacks")}
+              disabled={processing || demo || nutritionUnavailable}
             >
-              <Link to="/meals/photo">
-                <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
-                Estimate a meal from a photo · Members
-              </Link>
+              <Search className="mr-2 h-4 w-4" aria-hidden="true" /> Search
+              foods
             </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="col-span-2 h-12 justify-start border-primary/30 bg-primary/5 px-3 text-[13px]"
-              asChild
-            >
-              <Link to="/meals/fridge">
-                <Camera className="mr-2 h-4 w-4" aria-hidden="true" />
-                Scan your kitchen for meal ideas
-              </Link>
-            </Button>
-            <Button
-              size="sm"
-              className="h-11 justify-start px-3 text-[13px]"
-              asChild
-            >
-              <Link to="/meals/search">
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Search foods
-              </Link>
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-11 justify-start px-3 text-[13px]"
-              asChild
-            >
+            <Button variant="outline" className="h-12 rounded-xl px-4" asChild>
               <Link to="/barcode">
-                <Barcode className="mr-2 h-4 w-4" aria-hidden="true" />
-                Scan barcode
+                <Barcode className="mr-2 h-4 w-4" aria-hidden="true" /> Barcode
               </Link>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 justify-start px-3 text-[13px]"
-              asChild
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+            <Link
+              to="/meals/photo"
+              className="flex min-h-10 items-center gap-1.5 font-medium text-muted-foreground hover:text-primary"
             >
-              <Link to="/meals/plan">
-                <CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />
-                Meal plan
-              </Link>
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 justify-start px-3 text-[13px]"
-              asChild
+              <Camera className="h-4 w-4" aria-hidden="true" /> Meal photo
+            </Link>
+            <Link
+              to="/meals/fridge"
+              className="flex min-h-10 items-center gap-1.5 font-medium text-muted-foreground hover:text-primary"
             >
-              <Link to="/meals/my-foods">
-                <BookOpen className="mr-2 h-4 w-4" aria-hidden="true" />
-                My foods
-              </Link>
-            </Button>
+              <Utensils className="h-4 w-4" aria-hidden="true" /> Fridge ideas
+            </Link>
+            <Link
+              to="/meals/plan"
+              className="flex min-h-10 items-center gap-1.5 font-medium text-muted-foreground hover:text-primary"
+            >
+              <CalendarDays className="h-4 w-4" aria-hidden="true" /> Meal plan
+            </Link>
           </div>
         </section>
 
@@ -834,211 +844,161 @@ export default function Meals() {
           </Alert>
         )}
 
-        <Card className="overflow-hidden border bg-card shadow-sm">
-          <CardHeader className="space-y-3 px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
-            <div className="flex items-center justify-between gap-3">
+        <Card className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+          <CardContent className="space-y-5 p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
               <div>
-                <CardTitle className="text-lg">Daily summary</CardTitle>
-                <p className="mt-0.5 text-xs leading-4 text-muted-foreground">
-                  Food minus activity against your daily goal
+                <h2 className="text-sm font-medium text-muted-foreground">
+                  Calories remaining
+                </h2>
+                <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums">
+                  {remainingCalories.toLocaleString()}{" "}
+                  <span className="text-sm font-normal tracking-normal text-muted-foreground">
+                    kcal
+                  </span>
                 </p>
               </div>
-              <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">
-                {units === "metric" ? "Metric" : "US units"}
-              </span>
+              <div className="pt-1 text-right text-xs leading-6 text-muted-foreground">
+                <p>
+                  Goal{" "}
+                  <span className="ml-2 font-semibold tabular-nums text-foreground">
+                    {targetCalories.toLocaleString()}
+                  </span>
+                </p>
+                <p>
+                  Food{" "}
+                  <span className="ml-2 font-semibold tabular-nums text-foreground">
+                    {Math.round(consumedCalories).toLocaleString()}
+                  </span>
+                </p>
+                {exerciseCalories > 0 && (
+                  <p>
+                    Activity{" "}
+                    <span className="ml-2 font-semibold tabular-nums text-foreground">
+                      +{exerciseCalories.toLocaleString()}
+                    </span>
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="h-2 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{
+                  width: Math.min(100, Math.max(0, ringProgress * 100)) + "%",
+                }}
+                role="progressbar"
+                aria-label="Daily calorie progress"
+                aria-valuemin={0}
+                aria-valuemax={targetCalories}
+                aria-valuenow={Math.min(
+                  targetCalories,
+                  Math.round(consumedCalories)
+                )}
+                aria-valuetext={
+                  Math.round(consumedCalories) +
+                  " of " +
+                  targetCalories +
+                  " kcal"
+                }
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                {
+                  label: "Protein",
+                  current: consumedProtein,
+                  target: targetProtein,
+                  color: "bg-sky-500",
+                  text: "text-sky-700 dark:text-sky-300",
+                },
+                {
+                  label: "Carbs",
+                  current: consumedCarbs,
+                  target: targetCarbs,
+                  color: "bg-teal-500",
+                  text: "text-teal-700 dark:text-teal-300",
+                },
+                {
+                  label: "Fat",
+                  current: consumedFat,
+                  target: targetFat,
+                  color: "bg-amber-500",
+                  text: "text-amber-700 dark:text-amber-300",
+                },
+              ].map((macro) => (
+                <div key={macro.label} className="min-w-0">
+                  <p className={"text-xs font-semibold " + macro.text}>
+                    {macro.label}
+                  </p>
+                  <p className="mt-1 text-base font-semibold tabular-nums">
+                    {Math.round(macro.current)}
+                    <span className="text-xs font-normal text-muted-foreground">
+                      {" "}
+                      / {Math.round(macro.target)}g
+                    </span>
+                  </p>
+                  <div className="mt-2 h-1 rounded-full bg-secondary">
+                    <div
+                      className={"h-full rounded-full " + macro.color}
+                      style={{
+                        width:
+                          Math.min(
+                            100,
+                            macro.target > 0
+                              ? (macro.current / macro.target) * 100
+                              : 0
+                          ) + "%",
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {weeklyCalorieDelta !== 0 && (
+              <p className="text-xs leading-5 text-muted-foreground">
+                Weekly adjustment: {weeklyCalorieDelta > 0 ? "+" : ""}
+                {weeklyCalorieDelta} kcal/day.{" "}
+                <Link className="text-primary underline" to="/weekly-review">
+                  Review or undo
+                </Link>
+              </p>
+            )}
+            <div className="flex justify-between gap-2 border-t pt-3">
               <Button
                 size="sm"
-                variant="outline"
+                variant="ghost"
                 onClick={() => {
                   setQuickAddOpen(true);
                   setQuickAddType("snacks");
                 }}
                 disabled={processing || demo}
-                title={demo ? "Demo mode: sign in to save" : undefined}
-                className="h-10 px-2 text-xs"
+                className="px-2 text-xs"
               >
-                <Plus className="mr-1 h-4 w-4" /> Quick add
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={copyYesterday}
-                disabled={processing || demo}
-                title={demo ? "Demo mode: sign in to save" : undefined}
-                className="h-10 px-2 text-xs"
-              >
-                <Copy className="mr-1 h-4 w-4" /> Copy day
+                <Plus className="mr-1 h-4 w-4" />
+                Quick add
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-10 px-2 text-xs"
+                onClick={copyYesterday}
+                disabled={processing || demo}
+                className="px-2 text-xs"
+              >
+                <Copy className="mr-1 h-4 w-4" />
+                Copy day
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="px-2 text-xs"
                 asChild
               >
                 <Link to="/meals/history">
-                  <History className="mr-1 h-4 w-4" /> History
+                  <History className="mr-1 h-4 w-4" />
+                  History
                 </Link>
               </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5 px-4 pb-5 sm:px-6 sm:pb-6">
-            <div className="rounded-xl bg-secondary/65 px-4 py-5 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Calories remaining
-              </p>
-              <p className="mt-1 text-4xl font-semibold leading-none tabular-nums text-foreground">
-                {remainingCalories.toLocaleString()}
-              </p>
-              <div className="mt-5 grid grid-cols-3 divide-x divide-border">
-                <div className="px-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    Goal
-                  </p>
-                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                    {targetCalories.toLocaleString()}
-                  </p>
-                </div>
-                <div className="px-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    Food
-                  </p>
-                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                    {Math.round(consumedCalories).toLocaleString()}
-                  </p>
-                </div>
-                <div className="px-1">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    Activity
-                  </p>
-                  <p className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                    {exerciseCalories.toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 h-2.5 w-full overflow-hidden rounded-full bg-background">
-                <div
-                  className="h-full rounded-full bg-primary transition-all"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, ringProgress * 100))}%`,
-                  }}
-                  role="progressbar"
-                  aria-label="Daily calorie progress"
-                  aria-valuemin={0}
-                  aria-valuemax={targetCalories}
-                  aria-valuenow={Math.round(consumedCalories)}
-                />
-              </div>
-              {weeklyCalorieDelta !== 0 ? (
-                <div className="mt-3 rounded-lg bg-background px-3 py-2 text-xs leading-5 text-primary">
-                  Weekly review: {weeklyCalorieDelta > 0 ? "+" : ""}
-                  {weeklyCalorieDelta} kcal/day.{" "}
-                  <Link className="underline" to="/weekly-review">
-                    Review or undo
-                  </Link>
-                </div>
-              ) : null}
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-foreground">
-                  Macros
-                </h2>
-                <p className="text-[11px] text-muted-foreground">
-                  Consumed / goal
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="min-w-0 rounded-xl border bg-background p-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    Protein
-                  </p>
-                  <p className="mt-1 text-base font-semibold leading-none tabular-nums text-foreground">
-                    {Math.round(consumedProtein)}g
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                    of {Math.round(targetProtein)}g goal
-                  </p>
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{
-                        width: `${
-                          targetProtein > 0
-                            ? Math.min(
-                                100,
-                                (consumedProtein / targetProtein) * 100
-                              )
-                            : 0
-                        }%`,
-                      }}
-                      role="progressbar"
-                      aria-label="Protein progress"
-                      aria-valuemin={0}
-                      aria-valuemax={Math.round(targetProtein)}
-                      aria-valuenow={Math.round(consumedProtein)}
-                    />
-                  </div>
-                </div>
-                <div className="min-w-0 rounded-xl border bg-background p-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    Carbs
-                  </p>
-                  <p className="mt-1 text-base font-semibold leading-none tabular-nums text-foreground">
-                    {Math.round(consumedCarbs)}g
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                    of {Math.round(targetCarbs)}g goal
-                  </p>
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{
-                        width: `${
-                          targetCarbs > 0
-                            ? Math.min(100, (consumedCarbs / targetCarbs) * 100)
-                            : 0
-                        }%`,
-                      }}
-                      role="progressbar"
-                      aria-label="Carbohydrate progress"
-                      aria-valuemin={0}
-                      aria-valuemax={Math.round(targetCarbs)}
-                      aria-valuenow={Math.round(consumedCarbs)}
-                    />
-                  </div>
-                </div>
-                <div className="min-w-0 rounded-xl border bg-background p-3">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    Fat
-                  </p>
-                  <p className="mt-1 text-base font-semibold leading-none tabular-nums text-foreground">
-                    {Math.round(consumedFat)}g
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                    of {Math.round(targetFat)}g goal
-                  </p>
-                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{
-                        width: `${
-                          targetFat > 0
-                            ? Math.min(100, (consumedFat / targetFat) * 100)
-                            : 0
-                        }%`,
-                      }}
-                      role="progressbar"
-                      aria-label="Fat progress"
-                      aria-valuemin={0}
-                      aria-valuemax={Math.round(targetFat)}
-                      aria-valuenow={Math.round(consumedFat)}
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -1053,7 +1013,10 @@ export default function Meals() {
               )
             );
             return (
-              <Card key={type} className="border bg-card shadow-sm">
+              <Card
+                key={type}
+                className="overflow-hidden rounded-2xl border bg-card shadow-sm"
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-6">
                   <div className="min-w-0">
                     <CardTitle className="text-[17px] leading-5">
@@ -1075,15 +1038,15 @@ export default function Meals() {
                           ? "Demo mode: sign in to save"
                           : undefined
                     }
-                    className="h-9 shrink-0 px-3 text-[13px]"
+                    className="h-10 shrink-0 rounded-xl border-0 bg-primary/5 px-3 text-[13px] text-primary hover:bg-primary/10"
                   >
                     <Plus className="mr-1 h-4 w-4" /> Add food
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-2 px-4 pb-4 sm:px-6 sm:pb-5">
                   {!items.length && (
-                    <p className="rounded-lg border border-dashed px-3 py-4 text-center text-[13px] leading-5 text-muted-foreground">
-                      No items yet.
+                    <p className="pb-1 text-[13px] leading-5 text-muted-foreground">
+                      Your next meal starts here.
                     </p>
                   )}
                   {items.map((meal, mealIndex) => {
@@ -1113,25 +1076,26 @@ export default function Meals() {
                         : null;
                     const servingText =
                       qtyDisplay && unitLabel
-                        ? `${qtyDisplay} × ${unitLabel}`
+                        ? unitLabel === "serving" && meal.item?.serving?.text
+                          ? `${qtyDisplay} × ${meal.item.serving.text}`
+                          : `${qtyDisplay} ${unitLabel}`
                         : qtyDisplay || unitLabel || "";
                     return (
                       <div
                         key={id}
                         id={meal.id ? `meal-${meal.id}` : undefined}
-                        className={`flex items-start justify-between gap-3 rounded-xl border p-3 ${
+                        className={`flex items-start justify-between gap-3 rounded-xl py-3 ${
                           isHighlighted ? "border-primary bg-primary/5" : ""
                         }`}
                       >
                         <div className="min-w-0">
-                          <div className="truncate text-[15px] font-semibold leading-5 text-foreground">
-                            {meal.name || "Meal"}
+                          <div className="line-clamp-2 text-[15px] font-medium leading-5 text-foreground">
+                            {foodLabel(meal.name || "Meal")}
                           </div>
                           <div className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
-                            {Math.round(safeNumber(meal.calories))} kcal · P{" "}
-                            {Math.round(safeNumber(meal.protein))}g · C{" "}
-                            {Math.round(safeNumber(meal.carbs))}g · F{" "}
-                            {Math.round(safeNumber(meal.fat))}g
+                            Protein {nutritionNumber(meal.protein)}g · Carbs{" "}
+                            {nutritionNumber(meal.carbs)}g · Fat{" "}
+                            {nutritionNumber(meal.fat)}g
                           </div>
                           {(servingText || gramsText) && (
                             <div className="text-xs leading-5 text-muted-foreground">
@@ -1141,40 +1105,52 @@ export default function Meals() {
                             </div>
                           )}
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row">
-                          {item && (
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <p className="text-base font-semibold tabular-nums">
+                            {nutritionNumber(meal.calories, true)}{" "}
+                            <span className="text-[10px] font-normal text-muted-foreground">
+                              kcal
+                            </span>
+                          </p>
+                          <div className="flex">
+                            {item && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2 text-xs"
+                                onClick={() =>
+                                  openEditor(
+                                    item,
+                                    meal.serving?.qty ?? 1,
+                                    (meal.serving?.unit as ServingUnit) ||
+                                      "serving",
+                                    meal.id,
+                                    type
+                                  )
+                                }
+                                disabled={processing || demo}
+                                title={
+                                  demo
+                                    ? "Demo mode: sign in to save"
+                                    : undefined
+                                }
+                              >
+                                Edit
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-8 px-2 text-xs"
-                              onClick={() =>
-                                openEditor(
-                                  item,
-                                  meal.serving?.qty ?? 1,
-                                  (meal.serving?.unit as ServingUnit) ||
-                                    "serving"
-                                )
-                              }
+                              className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
+                              onClick={() => meal.id && handleDelete(meal.id)}
                               disabled={processing || demo}
                               title={
                                 demo ? "Demo mode: sign in to save" : undefined
                               }
                             >
-                              Edit
+                              Remove
                             </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
-                            onClick={() => meal.id && handleDelete(meal.id)}
-                            disabled={processing || demo}
-                            title={
-                              demo ? "Demo mode: sign in to save" : undefined
-                            }
-                          >
-                            Remove
-                          </Button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1185,178 +1161,217 @@ export default function Meals() {
           })}
         </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>7-day chart</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {chartData.length ? (
-              <NutritionMacrosChart data={chartData} />
-            ) : (
-              <p className="text-sm text-muted-foreground">No data yet.</p>
+        <details className="group rounded-2xl border bg-card p-4 sm:p-5">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold">
+            Your library & trends
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Saved foods, favorites, templates, and your weekly picture.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mb-4 rounded-xl"
+            asChild
+          >
+            <Link to="/meals/my-foods">
+              <BookOpen className="mr-2 h-4 w-4" />
+              Manage my foods
+            </Link>
+          </Button>
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>7-day chart</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {chartData.length ? (
+                  <NutritionMacrosChart data={chartData} />
+                ) : (
+                  <p className="text-sm text-muted-foreground">No data yet.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {favorites.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Star className="h-4 w-4 text-yellow-500" /> Favorites
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {favorites.map((fav) => (
+                    <Button
+                      key={fav.id}
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => openEditor(fav.item)}
+                    >
+                      {fav.item.name}
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
 
-        {favorites.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Star className="h-4 w-4 text-yellow-500" /> Favorites
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {favorites.map((fav) => (
-                <Button
-                  key={fav.id}
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => openEditor(fav.item)}
-                >
-                  {fav.item.name}
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {recents.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListPlus className="h-4 w-4" /> Recents
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {recents.slice(0, 8).map((item) => (
-                <Button
-                  key={item.id}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditor(item)}
-                >
-                  {item.name}
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {(customFoods.length > 0 || recipes.length > 0) && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <BookOpen className="h-4 w-4" /> My foods & recipes
-              </CardTitle>
-              <Button size="sm" variant="outline" asChild>
-                <Link to="/meals/my-foods">Manage</Link>
-              </Button>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-              {[...recipes, ...customFoods].map((entry) => (
-                <Button
-                  key={`${entry.item.source}-${entry.id}`}
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => openEditor(entry.item)}
-                >
-                  {entry.item.name}
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-
-        {templates.length > 0 && (
-          <Card>
-            <CardHeader className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <ListPlus className="h-4 w-4" /> Templates
-              </CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={saveTodayAsTemplate}
-                disabled={demo}
-                title={demo ? "Demo mode: sign in to save" : undefined}
-              >
-                Save today
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              {templates.map((template) => (
-                <div
-                  key={template.id}
-                  className="flex items-center justify-between rounded-md border p-3"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">
-                      {template.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {template.items?.length ?? 0} items
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
+            {recents.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ListPlus className="h-4 w-4" /> Recents
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {recents.slice(0, 8).map((item) => (
                     <Button
+                      key={item.id}
+                      variant="outline"
                       size="sm"
-                      onClick={() => applyTemplate(template)}
-                      disabled={processing || demo}
-                      title={demo ? "Demo mode: sign in to save" : undefined}
+                      onClick={() => openEditor(item)}
                     >
-                      Apply
+                      {item.name}
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteTemplate(template.id)}
-                      disabled={demo}
-                      title={demo ? "Demo mode: sign in to save" : undefined}
-                    >
-                      <Trash className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+                  ))}
+                </CardContent>
+              </Card>
+            )}
 
-        {templates.length === 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Templates</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-2 text-sm">
-              <p className="text-muted-foreground">
-                Save recurring meals and apply them in one tap.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={saveTodayAsTemplate}
-                disabled={demo}
-                title={demo ? "Demo mode: sign in to save" : undefined}
-              >
-                Save today as template
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+            {(customFoods.length > 0 || recipes.length > 0) && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <BookOpen className="h-4 w-4" /> My foods & recipes
+                  </CardTitle>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link to="/meals/my-foods">Manage</Link>
+                  </Button>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {[...recipes, ...customFoods].map((entry) => (
+                    <Button
+                      key={`${entry.item.source}-${entry.id}`}
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => openEditor(entry.item)}
+                    >
+                      {entry.item.name}
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {templates.length > 0 && (
+              <Card>
+                <CardHeader className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ListPlus className="h-4 w-4" /> Templates
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={saveTodayAsTemplate}
+                    disabled={demo}
+                    title={demo ? "Demo mode: sign in to save" : undefined}
+                  >
+                    Save today
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  {templates.map((template) => (
+                    <div
+                      key={template.id}
+                      className="flex items-center justify-between rounded-md border p-3"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {template.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {template.items?.length ?? 0} items
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => applyTemplate(template)}
+                          disabled={processing || demo}
+                          title={
+                            demo ? "Demo mode: sign in to save" : undefined
+                          }
+                        >
+                          Apply
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteTemplate(template.id)}
+                          disabled={demo}
+                          title={
+                            demo ? "Demo mode: sign in to save" : undefined
+                          }
+                        >
+                          <Trash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {templates.length === 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Templates</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2 text-sm">
+                  <p className="text-muted-foreground">
+                    Save recurring meals and apply them in one tap.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={saveTodayAsTemplate}
+                    disabled={demo}
+                    title={demo ? "Demo mode: sign in to save" : undefined}
+                  >
+                    Save today as template
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </details>
       </main>
 
-      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-xl sm:px-6">
+      <Dialog
+        open={editorOpen}
+        onOpenChange={(open) => {
+          if (!processing) setEditorOpen(open);
+        }}
+      >
+        <DialogContent className="max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] rounded-2xl sm:max-w-xl sm:px-6">
           <DialogHeader>
             <DialogTitle>
-              {editorItem ? `Log ${editorItem.name}` : "Log food"}
+              {editorItem ? foodLabel(editorItem.name) : "Log food"}
             </DialogTitle>
           </DialogHeader>
+          {editorError && (
+            <p role="alert" className="text-sm text-destructive">
+              {editorError} Your portion is still here; try again.
+            </p>
+          )}
           {editorItem && (
             <ServingEditor
               item={editorItem}
               defaultQty={editorQty}
               defaultUnit={editorUnit}
+              confirmLabel={
+                editorExistingRef.current ? "Save changes" : "Add to diary"
+              }
               onConfirm={handleEditorConfirm}
               busy={processing}
               entrySource="manual"
@@ -1367,14 +1382,20 @@ export default function Meals() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-3xl sm:px-6">
+      <Dialog
+        open={addDialogOpen}
+        onOpenChange={(open) => {
+          if (!processing) setAddDialogOpen(open);
+        }}
+      >
+        <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] overflow-x-hidden max-h-[85dvh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] rounded-2xl sm:max-w-xl sm:px-6">
           <DialogHeader>
             <DialogTitle>Add to {MEAL_LABELS[addMealType]}</DialogTitle>
           </DialogHeader>
           <NutritionSearch
             dateISO={dateISO}
             defaultMealType={addMealType}
+            onSavingChange={setProcessing}
             onMealLogged={handleSearchLogged}
             onMealAdded={(payload) => {
               applyAddResult(payload);
