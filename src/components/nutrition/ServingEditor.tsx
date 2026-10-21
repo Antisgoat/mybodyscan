@@ -146,6 +146,21 @@ export function ServingEditor({
         Nutrition is for the selected portion. Match raw or cooked preparation
         to what you weigh.
       </p>
+      <p className="text-xs text-muted-foreground">
+        Data:{" "}
+        {item.source === "Open Food Facts" ? (
+          <a
+            href="https://world.openfoodfacts.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            Open Food Facts
+          </a>
+        ) : (
+          item.source
+        )}
+      </p>
       {!hasNutrition && (
         <p role="alert" className="text-sm text-destructive">
           Nutrition is unavailable for this portion. Choose another unit or
