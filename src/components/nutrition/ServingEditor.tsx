@@ -1,13 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { FoodItem } from "@/lib/nutrition/types";
@@ -17,9 +11,9 @@ import {
   calculateSelection,
   gramsToOunces,
   buildMealEntry,
-  estimateServingWeight,
 } from "@/lib/nutritionMath";
 import type { MealEntry } from "@/lib/nutritionBackend";
+import { FoodMacroSummary, nutritionNumber } from "./FoodSearchRow";
 
 interface ServingEditorProps {
   item: FoodItem;
@@ -39,11 +33,21 @@ interface ServingEditorProps {
   onDemoAttempt?: () => void;
 }
 
+const UNIT_LABELS: Record<ServingUnit, string> = {
+  serving: "Serving",
+  g: "Grams (g)",
+  oz: "Ounces (oz)",
+  ml: "Milliliters (ml)",
+  cups: "Cups",
+  slices: "Slices",
+  pieces: "Pieces",
+};
+
 export function ServingEditor({
   item,
   defaultQty = 1,
   defaultUnit = "serving",
-  confirmLabel = "Add",
+  confirmLabel = "Add to diary",
   onConfirm,
   onCancel,
   busy,
@@ -51,19 +55,21 @@ export function ServingEditor({
   readOnly = false,
   onDemoAttempt,
 }: ServingEditorProps) {
-  const [quantity, setQuantity] = useState<number>(defaultQty);
+  const fieldId = useId();
+  const [quantityDraft, setQuantityDraft] = useState(String(defaultQty));
+  const quantity = Number(quantityDraft);
   const [unit, setUnit] = useState<ServingUnit>(defaultUnit);
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    setQuantity(defaultQty);
-    const nextUnits = availableServingUnits(item);
+    setQuantityDraft(String(defaultQty));
+    const units = availableServingUnits(item);
     setUnit(
-      nextUnits.includes(defaultUnit)
+      units.includes(defaultUnit)
         ? defaultUnit
-        : nextUnits.includes("serving")
+        : units.includes("serving")
           ? "serving"
-          : nextUnits[0] ?? "g"
+          : (units[0] ?? "g")
     );
     setNotes("");
   }, [item, defaultQty, defaultUnit]);
@@ -72,110 +78,118 @@ export function ServingEditor({
     () => calculateSelection(item, quantity, unit),
     [item, quantity, unit]
   );
-  const availableUnits = useMemo(
-    () => availableServingUnits(item),
-    [item]
-  );
-  const servingWeight = useMemo(() => estimateServingWeight(item), [item]);
+  const availableUnits = useMemo(() => availableServingUnits(item), [item]);
+  const validQuantity =
+    quantityDraft.trim() !== "" && Number.isFinite(quantity) && quantity > 0;
+  const hasNutrition = [
+    result.calories,
+    result.protein,
+    result.carbs,
+    result.fat,
+  ].some((value) => value != null && Number.isFinite(value));
 
   const submit = () => {
+    if (busy || !validQuantity || !hasNutrition) return;
     if (readOnly) {
       onDemoAttempt?.();
       return;
     }
     const meal = buildMealEntry(item, quantity, unit, result, entrySource);
-    if (notes.trim()) {
-      meal.notes = notes.trim();
-    }
+    if (notes.trim()) meal.notes = notes.trim();
     onConfirm({ qty: quantity, unit, result, meal });
   };
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="serving-qty">Quantity</Label>
+    <div className="space-y-5" aria-busy={busy || undefined}>
+      <FoodMacroSummary {...result} />
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-3">
+        <div className="space-y-2">
+          <Label htmlFor={fieldId + "-qty"}>Quantity</Label>
           <Input
-            id="serving-qty"
+            id={fieldId + "-qty"}
             type="number"
             min="0"
-            step="0.1"
-            value={quantity}
-            onChange={(event) => setQuantity(Number(event.target.value) || 0)}
+            step="any"
+            inputMode="decimal"
+            value={quantityDraft}
+            onChange={(event) => setQuantityDraft(event.target.value)}
+            disabled={busy}
+            className="h-12 rounded-xl text-base"
           />
         </div>
-        <div>
-          <Label htmlFor="serving-unit">Unit</Label>
-          <Select
+        <div className="space-y-2">
+          <Label htmlFor={fieldId + "-unit"}>Portion</Label>
+          <select
+            id={fieldId + "-unit"}
             value={unit}
-            onValueChange={(value) => setUnit(value as ServingUnit)}
+            onChange={(event) => setUnit(event.target.value as ServingUnit)}
+            disabled={busy}
+            className="h-12 w-full min-w-0 rounded-xl border border-input bg-background px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            <SelectTrigger id="serving-unit">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableUnits.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option === "serving" && item.serving.text
-                    ? `serving (${item.serving.text})`
-                    : option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {availableUnits.map((option) => (
+              <option key={option} value={option}>
+                {option === "serving" && item.serving.text
+                  ? item.serving.text
+                  : UNIT_LABELS[option]}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label>Calories</Label>
-          <div className="text-lg font-semibold">
-            {result.calories ?? "—"} kcal
-          </div>
-        </div>
-        <div>
-          <Label>Macros</Label>
-          <div className="text-sm text-muted-foreground">
-            {result.protein ?? "—"}g P • {result.carbs ?? "—"}g C •{" "}
-            {result.fat ?? "—"}g F
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {result.grams ? `${result.grams} g` : ""}
-            {result.grams
-              ? ` (${gramsToOunces(result.grams) ?? "?"} oz)`
-              : ""}
-            {!result.grams && unit === "ml" ? `${quantity} ml` : ""}
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="serving-notes">Notes (optional)</Label>
+      <p className="text-xs leading-5 text-muted-foreground">
+        {result.grams
+          ? nutritionNumber(result.grams) +
+            " g (" +
+            nutritionNumber(gramsToOunces(result.grams)) +
+            " oz) · "
+          : ""}
+        Nutrition is for the selected portion. Match raw or cooked preparation
+        to what you weigh.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Data:{" "}
+        {item.source === "Open Food Facts" ? (
+          <a
+            href="https://world.openfoodfacts.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            Open Food Facts
+          </a>
+        ) : (
+          item.source
+        )}
+      </p>
+      {!hasNutrition && (
+        <p role="alert" className="text-sm text-destructive">
+          Nutrition is unavailable for this portion. Choose another unit or
+          food.
+        </p>
+      )}
+      <details className="text-sm">
+        <summary className="min-h-9 cursor-pointer text-muted-foreground">
+          Add a note
+        </summary>
         <Textarea
-          id="serving-notes"
+          aria-label="Preparation notes"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           placeholder="Add preparation notes"
           rows={2}
+          disabled={busy}
+          className="rounded-xl"
+          maxLength={1000}
         />
-        <p className="text-xs text-muted-foreground">
-          Database serving:{" "}
-          {item.serving.text ||
-            `${item.serving.qty ?? "?"} ${item.serving.unit ?? "unit"}`}{" "}
-          · approx{" "}
-          {servingWeight
-            ? `${servingWeight} g / ${gramsToOunces(servingWeight) ?? "?"} oz`
-            : "weight unknown"}
-        </p>
-      </div>
-
-      <div className="flex justify-end gap-2">
+      </details>
+      <div className="flex gap-2 border-t pt-4">
         {onCancel && (
           <Button
             type="button"
             variant="ghost"
             onClick={onCancel}
             disabled={busy}
+            className="h-12 rounded-xl"
           >
             Cancel
           </Button>
@@ -183,10 +197,14 @@ export function ServingEditor({
         <Button
           type="button"
           onClick={submit}
-          disabled={busy || quantity <= 0 || readOnly}
+          disabled={busy || !validQuantity || !hasNutrition || readOnly}
           title={readOnly ? "Demo mode: sign in to save" : undefined}
+          className="h-12 flex-1 rounded-xl text-sm font-semibold"
         >
-          {readOnly ? "Demo only" : busy ? "Adding…" : confirmLabel}
+          {busy && (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+          )}
+          {readOnly ? "Demo only" : busy ? "Saving to diary…" : confirmLabel}
         </Button>
       </div>
     </div>

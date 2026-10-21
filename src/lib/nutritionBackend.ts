@@ -87,12 +87,29 @@ export function computeCalories({
   fat = 0,
   alcohol = 0,
   calories,
+  item,
 }: MealEntry) {
   const kcal = round(kcalFromMacros({ protein, carbs, fat, alcohol }), 0);
-  const macrosEnergy = Number(protein || 0) * 4 +
+  const macrosEnergy =
+    Number(protein || 0) * 4 +
     Number(carbs || 0) * 4 +
     Number(fat || 0) * 9 +
     Number(alcohol || 0) * 7;
+  // Food databases use specific energy factors and fiber adjustments. Preserve
+  // the selected food's source calories instead of forcing rounded 4/4/9 math.
+  if (
+    item &&
+    typeof calories === "number" &&
+    Number.isFinite(calories) &&
+    calories >= 0
+  ) {
+    return {
+      calories,
+      reconciled: false,
+      caloriesFromMacros: kcal,
+      caloriesInput: calories,
+    };
+  }
   // Quick add / calories-only entries: if macros are empty, trust the explicit calories.
   if (typeof calories === "number" && macrosEnergy <= 0.1 && calories > 0) {
     return {
@@ -118,13 +135,18 @@ export function computeCalories({
   };
 }
 
-async function callFn(path: string, body?: any, method: "GET" | "POST" = "POST") {
+async function callFn(
+  path: string,
+  body?: any,
+  method: "GET" | "POST" = "POST"
+) {
   const tzOffsetMins =
     typeof Intl !== "undefined" ? new Date().getTimezoneOffset() : 0;
   const name = path.replace(/^\/+/, "");
   return callRequestFunction(name, body || {}, {
     method,
     headers: { "x-tz-offset-mins": String(tzOffsetMins) },
+    preparationTimeoutMs: name === "addMeal" ? 10000 : undefined,
   });
 }
 

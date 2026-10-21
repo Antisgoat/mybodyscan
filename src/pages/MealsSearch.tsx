@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Search, Plus, Barcode, Loader2, Star, StarOff } from "lucide-react";
+import { Search, Barcode, Loader2, Star, StarOff } from "lucide-react";
 import { Seo } from "@/components/Seo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { FoodSearchRow, foodLabel } from "@/components/nutrition/FoodSearchRow";
+import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import {
   Dialog,
@@ -26,12 +28,7 @@ import { useDemoMode } from "@/components/DemoModeProvider";
 import { addMeal } from "@/lib/nutritionBackend";
 import { useAuthUser } from "@/auth/mbs-auth";
 import {
-  availableServingUnits,
   buildMealEntry,
-  calculateSelection,
-  gramsToOunces,
-  roundGrams,
-  roundKcal,
   type SelectionResult,
   type ServingUnit,
 } from "@/lib/nutritionMath";
@@ -59,12 +56,21 @@ function currentLocalDate(): string {
 
 function readRecents(): FoodItem[] {
   if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(RECENTS_KEY);
-  if (!raw) return [];
   try {
+    const raw = window.localStorage.getItem(RECENTS_KEY);
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.slice(0, MAX_RECENTS);
+      return parsed
+        .filter(
+          (item) =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.name === "string" &&
+            item.serving &&
+            item.per_serving
+        )
+        .slice(0, MAX_RECENTS);
     }
   } catch (error) {
     console.warn("recents_parse_error", error);
@@ -74,10 +80,14 @@ function readRecents(): FoodItem[] {
 
 function storeRecents(items: FoodItem[]) {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(
-    RECENTS_KEY,
-    JSON.stringify(items.slice(0, MAX_RECENTS))
-  );
+  try {
+    window.localStorage.setItem(
+      RECENTS_KEY,
+      JSON.stringify(items.slice(0, MAX_RECENTS))
+    );
+  } catch {
+    /* Optional cache must not turn a successful save into an error. */
+  }
 }
 
 function adaptSearchItem(raw: any): FoodItem {
@@ -169,12 +179,14 @@ interface ServingModalProps {
   item: FoodItem;
   open: boolean;
   busy: boolean;
+  error: string | null;
   onClose: () => void;
   onConfirm: (payload: {
     quantity: number;
     unit: ServingUnit;
     result: SelectionResult;
     mealType: MealType;
+    notes?: string;
   }) => void;
 }
 
@@ -191,152 +203,69 @@ function ServingModal({
   item,
   open,
   busy,
+  error,
   onClose,
   onConfirm,
 }: ServingModalProps) {
-  const [quantity, setQuantity] = useState<number>(1);
-  const units = useMemo(() => availableServingUnits(item), [item]);
-  const [unit, setUnit] = useState<ServingUnit>(
-    units.includes("serving") ? "serving" : (units[0] ?? "g")
-  );
+  const demo = useDemoMode();
   const [mealType, setMealType] = useState<MealType>("snacks");
-
-  useEffect(() => {
-    setQuantity(1);
-    const nextUnits = availableServingUnits(item);
-    setUnit(nextUnits.includes("serving") ? "serving" : (nextUnits[0] ?? "g"));
-    setMealType("snacks");
-  }, [item]);
-
-  const result = useMemo(
-    () => calculateSelection(item, quantity, unit),
-    [item, quantity, unit]
-  );
-  const disableAdd =
-    !quantity ||
-    quantity <= 0 ||
-    (result.calories == null &&
-      result.protein == null &&
-      result.carbs == null &&
-      result.fat == null);
-
+  useEffect(() => setMealType("snacks"), [item]);
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) onClose();
+        if (!next && !busy) onClose();
       }}
     >
-      <DialogContent className="max-w-xl">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto rounded-2xl sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex flex-col gap-1">
-            <span>{item.name}</span>
-            <span className="text-sm font-normal text-muted-foreground">
-              {item.brand || item.source}
-            </span>
+          <DialogTitle className="pr-5 text-xl leading-tight">
+            {foodLabel(item.name)}
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {item.serving.text || "Choose your portion"}
+            {item.brand ? " · " + foodLabel(item.brand) : ""}
+          </p>
         </DialogHeader>
-
-        <div className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="serving-quantity">Amount</Label>
-              <Input
-                id="serving-quantity"
-                type="number"
-                min="0"
-                step="0.1"
-                value={quantity}
-                onChange={(event) => {
-                  const value = Number(event.target.value);
-                  setQuantity(Number.isFinite(value) ? Math.max(0, value) : 0);
-                }}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="serving-unit">Unit</Label>
-              <select
-                id="serving-unit"
-                className="min-h-10 w-full rounded-md border bg-background px-3 py-2 text-sm"
-                value={unit}
-                onChange={(event) => setUnit(event.target.value as ServingUnit)}
-                disabled={busy}
-              >
-                {units.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "serving" && item.serving.text
-                      ? `serving (${item.serving.text})`
-                      : option}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="serving-mealType">Log to</Label>
-            <select
-              id="serving-mealType"
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-              value={mealType}
-              onChange={(event) => setMealType(event.target.value as MealType)}
-              disabled={busy}
-            >
-              {MEAL_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {MEAL_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="rounded-md bg-muted/60 p-4 text-sm">
-            <div className="font-medium text-foreground">Total</div>
-            <div className="mt-1 text-muted-foreground">
-              {result.grams
-                ? `${roundGrams(result.grams)} g · ${gramsToOunces(result.grams) ?? "—"} oz`
-                : `${quantity} ${unit}`}
-            </div>
-            <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
-              <span>
-                {result.calories == null ? "—" : roundKcal(result.calories)}{" "}
-                kcal
-              </span>
-              <span>
-                {result.protein == null ? "—" : roundGrams(result.protein)}g P
-              </span>
-              <span>
-                {result.carbs == null ? "—" : roundGrams(result.carbs)}g C
-              </span>
-              <span>
-                {result.fat == null ? "—" : roundGrams(result.fat)}g F
-              </span>
-            </div>
-            {unit === "ml" ? (
-              <p className="mt-2 text-xs text-muted-foreground">
-                mL calculations use the product’s labeled volume serving; no
-                density is guessed.
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onClose}
-              disabled={busy}
-            >
-              Cancel
-            </Button>
-            <DemoWriteButton
-              type="button"
-              onClick={() => onConfirm({ quantity, unit, result, mealType })}
-              disabled={busy || disableAdd}
-            >
-              {busy ? "Adding…" : "Add"}
-            </DemoWriteButton>
-          </div>
+        {error && (
+          <Alert variant="destructive">
+            <AlertTitle>Not saved yet</AlertTitle>
+            <AlertDescription>
+              {error} Your portion is still here. Try saving again.
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor="serving-mealType">Add to</Label>
+          <select
+            id="serving-mealType"
+            className="h-11 w-full rounded-xl border bg-background px-3 text-sm"
+            value={mealType}
+            onChange={(event) => setMealType(event.target.value as MealType)}
+            disabled={busy}
+          >
+            {MEAL_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {MEAL_LABELS[type]}
+              </option>
+            ))}
+          </select>
         </div>
+        <ServingEditor
+          item={item}
+          busy={busy}
+          readOnly={demo}
+          onCancel={onClose}
+          onConfirm={({ qty, unit, result, meal }) =>
+            onConfirm({
+              quantity: qty,
+              unit,
+              result,
+              mealType,
+              notes: meal.notes,
+            })
+          }
+        />
       </DialogContent>
     </Dialog>
   );
@@ -362,6 +291,13 @@ export default function MealsSearch() {
   const [favorites, setFavorites] = useState<FavoriteDocWithId[]>([]);
   const [selectedItem, setSelectedItem] = useState<FoodItem | null>(null);
   const [logging, setLogging] = useState(false);
+  const loggingRef = useRef(false);
+  const selectedMealIdRef = useRef<string>();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  useEffect(() => {
+    selectedMealIdRef.current = selectedItem ? crypto.randomUUID() : undefined;
+    setSaveError(null);
+  }, [selectedItem]);
   const [searchWarning, setSearchWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -611,8 +547,10 @@ export default function MealsSearch() {
     quantity: number,
     unit: ServingUnit,
     result: SelectionResult,
-    mealType: MealType
+    mealType: MealType,
+    notes?: string
   ) => {
+    if (loggingRef.current) return;
     if (demo) {
       toast({ title: "Demo mode: sign in to save" });
       return;
@@ -629,17 +567,26 @@ export default function MealsSearch() {
 
     const today = currentLocalDate();
     const meal = buildMealEntry(item, quantity, unit, result, "search");
+    if (notes) meal.notes = notes;
 
+    loggingRef.current = true;
     setLogging(true);
+    setSaveError(null);
     try {
       await addMeal(today, {
         ...meal,
+        id: selectedMealIdRef.current,
         mealType,
       });
       toast({ title: "Food logged", description: item.name });
       updateRecents(item);
       setSelectedItem(null);
     } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save. Please try again."
+      );
       toast(
         buildErrorToast(error, {
           fallback: {
@@ -650,19 +597,17 @@ export default function MealsSearch() {
         })
       );
     } finally {
+      loggingRef.current = false;
       setLogging(false);
     }
   };
 
-  const primaryCaption = primarySource
-    ? `USDA + Open Food Facts · first match: ${primarySource}`
-    : "USDA + Open Food Facts";
+  const primaryCaption = "Check the portion and preparation before adding.";
 
   const favoritesMap = useMemo(
     () => new Map(favorites.map((fav) => [fav.id, fav])),
     [favorites]
   );
-  const searchNotice = null;
 
   return (
     <div
@@ -689,14 +634,16 @@ export default function MealsSearch() {
           </Alert>
         </div>
       )}
-      <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
-        <div className="space-y-2 text-center">
-          <Search className="mx-auto h-10 w-10 text-primary" />
+      <main className="mx-auto flex max-w-3xl flex-col gap-5 px-4 py-6 sm:px-6">
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            Your food, simply tracked
+          </p>
           <h1 className="text-2xl font-semibold text-foreground">
             Search Foods
           </h1>
           <p className="text-sm text-muted-foreground">
-            Tap a result to adjust servings and log it to your meals.
+            Find a food. Check your portion. You’re done.
           </p>
         </div>
 
@@ -714,8 +661,9 @@ export default function MealsSearch() {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search chicken breast, oatmeal, whey…"
-            className="flex-1"
+            aria-label="Search foods"
+            placeholder="Food, brand, or barcode"
+            className="h-12 min-w-0 flex-1 rounded-xl bg-secondary/40 text-base"
             data-testid="nutrition-search"
             disabled={searchDisabled}
             title={searchDisabled ? searchBlockReason : undefined}
@@ -723,6 +671,7 @@ export default function MealsSearch() {
           <Button
             type="button"
             variant="outline"
+            className="h-12 rounded-xl"
             onClick={() => setScannerOpen(true)}
             disabled={searchDisabled || loading}
             title={searchDisabled ? searchBlockReason : undefined}
@@ -749,7 +698,7 @@ export default function MealsSearch() {
           </DialogContent>
         </Dialog>
 
-        {favorites.length > 0 && (
+        {!query.trim() && favorites.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -771,7 +720,7 @@ export default function MealsSearch() {
           </Card>
         )}
 
-        {recents.length > 0 && (
+        {!query.trim() && recents.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -793,148 +742,112 @@ export default function MealsSearch() {
           </Card>
         )}
 
-        <Card>
-          <CardHeader className="flex items-center justify-between">
-            <CardTitle>Results</CardTitle>
-            <div className="text-xs text-muted-foreground">
+        <section
+          aria-label="Food search results"
+          className="rounded-2xl border bg-card p-4 sm:p-5"
+        >
+          <div className="mb-2">
+            <h2 className="font-semibold">
+              {query.trim() ? "Search results" : "Find your next meal"}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
               {primaryCaption}
+            </p>
+          </div>
+          {status && (
+            <p
+              className="py-2 text-xs text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              {status}
+            </p>
+          )}
+          {loading && (
+            <div role="status" className="space-y-3 py-3">
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Searching foods…
+              </p>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-20 animate-pulse rounded-xl bg-secondary/60"
+                  aria-hidden="true"
+                />
+              ))}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {status && (
-              <p
-                className="text-xs text-muted-foreground"
-                role="status"
-                aria-live="polite"
-              >
-                {status}
-              </p>
-            )}
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" /> Searching
-                databases…
-              </div>
-            )}
-            {loading && searchNotice && (
-              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                {searchNotice}
-              </p>
-            )}
-
-            {loading &&
-              !searchNotice &&
-              results?.length === 0 &&
-              query.trim().length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No matches. Try ‘chicken breast’, ‘rice’, or scan a barcode.
-                </p>
-              )}
-            {!loading && !query.trim() && (
-              <p className="text-sm text-muted-foreground">
-                Enter a food name to begin.
-              </p>
-            )}
-            {!loading && searchWarning && (
-              <p className="text-sm text-muted-foreground">{searchWarning}</p>
-            )}
-            {results.slice(0, visibleResultCount).map((item) => {
-              const favorite = favoritesMap.get(item.id);
-              const subtitle = item.brand || item.source;
-              const serving = calculateSelection(item, 1, "serving");
-              const hasServingPreview =
-                serving.calories != null ||
-                serving.protein != null ||
-                serving.carbs != null ||
-                serving.fat != null;
-              const preview = hasServingPreview
-                ? serving
-                : {
-                    calories: item.basePer100g.kcal,
-                    protein: item.basePer100g.protein,
-                    carbs: item.basePer100g.carbs,
-                    fat: item.basePer100g.fat,
-                  };
-              const previewLabel = hasServingPreview
-                ? item.serving.text ||
-                  item.servings.find((option) => option.isDefault)?.label ||
-                  "1 serving"
-                : "100 g";
-              return (
-                <Card key={item.id} className="border">
-                  <CardContent className="flex flex-col gap-3 py-4 text-sm md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-1">
-                      <p className="font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                        {subtitle}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {preview.calories == null
-                          ? "—"
-                          : roundKcal(preview.calories)}{" "}
-                        kcal ·{" "}
-                        {preview.protein == null
-                          ? "—"
-                          : roundGrams(preview.protein)}
-                        g P ·{" "}
-                        {preview.carbs == null
-                          ? "—"
-                          : roundGrams(preview.carbs)}
-                        g C ·{" "}
-                        {preview.fat == null ? "—" : roundGrams(preview.fat)}g F
-                        &nbsp;
-                        <span className="text-[10px] text-muted-foreground">
-                          per {previewLabel}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <DemoWriteButton
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => toggleFavorite(item)}
-                        aria-label={
-                          favorite
-                            ? `Remove ${item.name} from favorites`
-                            : `Add ${item.name} to favorites`
-                        }
-                        aria-pressed={Boolean(favorite)}
-                      >
-                        {favorite ? (
-                          <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                        ) : (
-                          <StarOff className="h-4 w-4" />
-                        )}
-                      </DemoWriteButton>
-                      <Button size="sm" onClick={() => setSelectedItem(item)}>
-                        <Plus className="mr-1 h-4 w-4" /> Add
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-            {results.length > visibleResultCount ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={() =>
-                  setVisibleResultCount((count) =>
-                    Math.min(results.length, count + INITIAL_RESULT_COUNT)
-                  )
-                }
-              >
-                Show{" "}
-                {Math.min(
-                  INITIAL_RESULT_COUNT,
-                  results.length - visibleResultCount
-                )}{" "}
-                more
-              </Button>
-            ) : null}
-          </CardContent>
-        </Card>
+          )}
+          {!loading && !query.trim() && (
+            <p className="py-5 text-sm text-muted-foreground">
+              Search for something simple, like eggs, beef, or cooked rice.
+            </p>
+          )}
+          {!loading && searchWarning && (
+            <p className="py-3 text-sm text-muted-foreground">
+              {searchWarning}
+            </p>
+          )}
+          {!loading && !!query.trim() && !results.length && !searchWarning && (
+            <p className="py-5 text-sm text-muted-foreground">
+              No matches. Try a simpler name or scan the barcode.
+            </p>
+          )}
+          {!loading && (
+            <ul className="divide-y">
+              {results.slice(0, visibleResultCount).map((item) => {
+                const favorite = favoritesMap.get(item.id);
+                return (
+                  <li key={item.id}>
+                    <FoodSearchRow
+                      item={item}
+                      onSelect={() => setSelectedItem(item)}
+                      favoriteAction={
+                        <DemoWriteButton
+                          size="icon"
+                          variant="ghost"
+                          className="h-10 w-8 shrink-0 text-muted-foreground"
+                          onClick={() => toggleFavorite(item)}
+                          aria-label={
+                            favorite
+                              ? `Remove ${item.name} from favorites`
+                              : `Save ${item.name} to favorites`
+                          }
+                          aria-pressed={Boolean(favorite)}
+                        >
+                          {favorite ? (
+                            <Star className="h-4 w-4 fill-amber-400 text-amber-600" />
+                          ) : (
+                            <StarOff className="h-4 w-4" />
+                          )}
+                        </DemoWriteButton>
+                      }
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {!loading && results.length > visibleResultCount && (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3 w-full rounded-xl"
+              onClick={() =>
+                setVisibleResultCount((count) =>
+                  Math.min(results.length, count + INITIAL_RESULT_COUNT)
+                )
+              }
+            >
+              Show{" "}
+              {Math.min(
+                INITIAL_RESULT_COUNT,
+                results.length - visibleResultCount
+              )}{" "}
+              more
+            </Button>
+          )}
+        </section>
       </main>
 
       {selectedItem && (
@@ -942,9 +855,10 @@ export default function MealsSearch() {
           item={selectedItem}
           open={Boolean(selectedItem)}
           busy={logging}
+          error={saveError}
           onClose={() => (!logging ? setSelectedItem(null) : undefined)}
-          onConfirm={({ quantity, unit, result, mealType }) =>
-            handleLogFood(selectedItem, quantity, unit, result, mealType)
+          onConfirm={({ quantity, unit, result, mealType, notes }) =>
+            handleLogFood(selectedItem, quantity, unit, result, mealType, notes)
           }
         />
       )}

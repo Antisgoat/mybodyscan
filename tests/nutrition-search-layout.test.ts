@@ -10,13 +10,16 @@ const mealsSource = readFileSync(
   resolve(process.cwd(), "src/pages/Meals.tsx"),
   "utf8"
 );
+const rowSource = readFileSync(
+  resolve(process.cwd(), "src/components/nutrition/FoodSearchRow.tsx"),
+  "utf8"
+);
 
 describe("nutrition search mobile layout", () => {
-  it("contains results inside a shrinking grid with full-size Add targets", () => {
-    expect(searchSource).toContain(
-      "grid-cols-[minmax(0,1fr)_auto] items-center"
-    );
-    expect(searchSource).toContain("min-h-11 min-w-14");
+  it("contains results inside shrinking rows with full-size Add targets", () => {
+    expect(rowSource).toContain("flex min-w-0 items-center");
+    expect(rowSource).toContain("h-11 w-11 shrink-0");
+    expect(rowSource).toContain("line-clamp-2 break-words");
     expect(searchSource).toContain("overflow-x-hidden");
   });
 

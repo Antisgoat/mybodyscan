@@ -49,6 +49,18 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
     await expect(page.getByText("We hit a snag.", { exact: true })).toHaveCount(
       0
     );
+    if (route === "/meals") {
+      await expect(
+        page.getByText("Calories remaining", { exact: true })
+      ).toBeVisible();
+      await expect(
+        page.getByRole("group").filter({ hasText: "Your library & trends" })
+      ).toHaveCount(1);
+      await page.screenshot({
+        path: testInfo.outputPath("food-diary.png"),
+        fullPage: true,
+      });
+    }
     if (route === "/home") {
       await expect(
         page.getByRole("navigation", { name: "Personalized photo tools" })
@@ -65,10 +77,17 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
       });
     }
     if (route === "/meals/photo") {
-      await expect(page.getByRole("button", { name: "Take photo", exact: true })).toBeDisabled();
-      await expect(page.getByRole("button", { name: "Choose photo", exact: true })).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: "Take photo", exact: true })
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: "Choose photo", exact: true })
+      ).toBeDisabled();
       await expect(page.getByRole("checkbox")).toBeDisabled();
-      await page.screenshot({ path: testInfo.outputPath("meal-photo.png"), fullPage: true });
+      await page.screenshot({
+        path: testInfo.outputPath("meal-photo.png"),
+        fullPage: true,
+      });
     }
   }
   await expect(

@@ -27,6 +27,7 @@ import type {
 } from "./types.js";
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { normalizeNutritionDate as normalizeDate } from "./lib/nutritionDate.js";
+import { computeCalories } from "./lib/nutritionCalories.js";
 
 const express = expressModule as any;
 const db = getFirestore();
@@ -44,48 +45,6 @@ function round(value: number, decimals = 0) {
 
 function defaultTotals(): DailyLogDocument["totals"] {
   return { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 };
-}
-
-function computeCalories(meal: MealRecord) {
-  const protein = round(meal.protein || 0, 1);
-  const carbs = round(meal.carbs || 0, 1);
-  const fat = round(meal.fat || 0, 1);
-  const alcohol = round(meal.alcohol || 0, 1);
-  const macrosEnergy = protein * 4 + carbs * 4 + fat * 9 + alcohol * 7;
-  const caloriesFromMacros = round(
-    macrosEnergy,
-    0
-  );
-  let calories = caloriesFromMacros;
-  let caloriesInput: number | undefined;
-  if (typeof meal.calories === "number") {
-    caloriesInput = meal.calories;
-    // Quick add / calories-only entries: if macros are empty, trust the explicit calories.
-    if (macrosEnergy <= 0.1 && meal.calories > 0) {
-      calories = round(meal.calories, 0);
-      return {
-        protein,
-        carbs,
-        fat,
-        alcohol,
-        calories,
-        caloriesFromMacros,
-        caloriesInput,
-      };
-    }
-    if (Math.abs(meal.calories - caloriesFromMacros) <= 5) {
-      calories = round(meal.calories, 0);
-    }
-  }
-  return {
-    protein,
-    carbs,
-    fat,
-    alcohol,
-    calories,
-    caloriesFromMacros,
-    caloriesInput,
-  };
 }
 
 function validateMeal(meal: MealRecord) {

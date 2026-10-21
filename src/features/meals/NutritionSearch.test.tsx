@@ -83,7 +83,10 @@ async function search() {
     target: { value: "chicken" },
   });
   fireEvent.click(screen.getByTestId("nutrition-search-button"));
-  await screen.findByRole("button", { name: "Add", exact: true });
+  await screen.findByRole("button", {
+    name: "Add Chicken breast",
+    exact: true,
+  });
 }
 
 it("searches the detected barcode instead of the previous text", async () => {
@@ -122,14 +125,18 @@ it("clearing a pending search releases loading and ignores its stale response", 
       .disabled
   ).toBe(false);
   await act(async () => resolve({ status: "ok", results: [food] }));
-  expect(screen.queryByRole("button", { name: "Add", exact: true })).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Add Chicken breast", exact: true })
+  ).toBeNull();
 });
 
 it("logs to the selected diary date and meal bucket, keeping retry identity", async () => {
   mocks.add.mockRejectedValueOnce(new Error("temporary"));
   render(<NutritionSearch dateISO="2026-08-31" defaultMealType="breakfast" />);
   await search();
-  fireEvent.click(screen.getByRole("button", { name: "Add", exact: true }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add Chicken breast", exact: true })
+  );
   fireEvent.click(screen.getByRole("button", { name: "Confirm serving" }));
   await waitFor(() =>
     expect(
@@ -140,6 +147,8 @@ it("logs to the selected diary date and meal bucket, keeping retry identity", as
       ).disabled
     ).toBe(false)
   );
+  expect(screen.getByRole("alert").textContent).toContain("Not saved yet");
+  expect(screen.queryByRole("dialog")).toBeNull(); // Portion editing stays in the parent search surface.
   const first = mocks.add.mock.calls[0];
   expect(first[0]).toBe("2026-08-31");
   expect(first[1]).toMatchObject({
@@ -168,11 +177,26 @@ it("shows eight results at a time and reveals more only on request", async () =>
     });
     fireEvent.click(screen.getByTestId("nutrition-search-button"));
   });
-  expect(
-    screen.getAllByRole("button", { name: "Add", exact: true })
-  ).toHaveLength(8);
+  expect(screen.getAllByRole("button", { name: /^Add Food / })).toHaveLength(8);
   fireEvent.click(screen.getByRole("button", { name: "Show 8 more" }));
+  expect(screen.getAllByRole("button", { name: /^Add Food / })).toHaveLength(
+    16
+  );
+});
+
+it("releases the portion editor after success and restores usable results", async () => {
+  const onMealAdded = vi.fn();
+  render(<NutritionSearch onMealAdded={onMealAdded} />);
+  await search();
+  fireEvent.click(screen.getByRole("button", { name: "Add Chicken breast" }));
+  expect(screen.queryByTestId("nutrition-search-input")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm serving" }));
+  await waitFor(() => expect(onMealAdded).toHaveBeenCalledTimes(1));
+  expect(screen.queryByRole("button", { name: "Confirm serving" })).toBeNull();
   expect(
-    screen.getAllByRole("button", { name: "Add", exact: true })
-  ).toHaveLength(16);
+    screen.getByRole("button", { name: "Add Chicken breast" })
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Add Chicken breast" }));
+  fireEvent.click(screen.getByRole("button", { name: "Back to results" }));
+  expect(screen.getByTestId("nutrition-search-input")).toBeTruthy();
 });
