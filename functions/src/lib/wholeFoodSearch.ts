@@ -66,6 +66,22 @@ export function curatedWholeFoods(query: string): FoodItem[] | null {
   )
     return null;
   if (tokens.includes("beef") && tokens.includes("chicken")) return null;
+  // Skin by itself and beef fat/tallow are different foods, not meat with skin
+  // or a ground-beef blend. Require an explicit skin modifier.
+  if (
+    tokens.includes("skin") &&
+    !tokens.some((token) =>
+      ["with", "without", "on", "off", "and"].includes(token)
+    )
+  )
+    return null;
+  if (
+    family === "beef" &&
+    tokens.includes("fat") &&
+    !tokens.some((token) => /^\d+$/.test(token)) &&
+    !tokens.some((token) => ["ground", "minced", "mince"].includes(token))
+  )
+    return null;
   if (
     family === "chicken" &&
     tokens.some((token) =>

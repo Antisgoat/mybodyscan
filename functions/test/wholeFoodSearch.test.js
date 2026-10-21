@@ -81,6 +81,9 @@ test("prepared dishes, unsupported cuts/methods, and brand searches are never si
     "beef ribeye",
     "grilled chicken breast",
     "beef and chicken",
+    "chicken skin",
+    "chicken breast skin",
+    "beef fat",
   ]) {
     assert.equal(curatedWholeFoods(query), null, query);
   }
