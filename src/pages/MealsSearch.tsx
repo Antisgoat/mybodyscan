@@ -7,6 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FoodSearchRow, foodLabel } from "@/components/nutrition/FoodSearchRow";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
+import {
+  useWholeFoodChoices,
+  WholeFoodWeightFilter,
+} from "@/components/nutrition/WholeFoodChoices";
 import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import {
   Dialog,
@@ -282,6 +286,8 @@ export default function MealsSearch() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<FoodItem[]>([]);
+  const { visibleFoods, weightFilter, isWholeFoodList } =
+    useWholeFoodChoices(results);
   const [visibleResultCount, setVisibleResultCount] =
     useState(INITIAL_RESULT_COUNT);
   const [primarySource, setPrimarySource] = useState<
@@ -751,9 +757,14 @@ export default function MealsSearch() {
               {query.trim() ? "Search results" : "Find your next meal"}
             </h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {primaryCaption}
+              {isWholeFoodList
+                ? "Whole-food basics · no brand duplicates"
+                : primaryCaption}
             </p>
           </div>
+          {!loading && weightFilter && (
+            <WholeFoodWeightFilter {...weightFilter} />
+          )}
           {status && (
             <p
               className="py-2 text-xs text-muted-foreground"
@@ -795,7 +806,7 @@ export default function MealsSearch() {
           )}
           {!loading && (
             <ul className="divide-y">
-              {results.slice(0, visibleResultCount).map((item) => {
+              {visibleFoods.slice(0, visibleResultCount).map((item) => {
                 const favorite = favoritesMap.get(item.id);
                 return (
                   <li key={item.id}>
@@ -828,21 +839,21 @@ export default function MealsSearch() {
               })}
             </ul>
           )}
-          {!loading && results.length > visibleResultCount && (
+          {!loading && visibleFoods.length > visibleResultCount && (
             <Button
               type="button"
               variant="outline"
               className="mt-3 w-full rounded-xl"
               onClick={() =>
                 setVisibleResultCount((count) =>
-                  Math.min(results.length, count + INITIAL_RESULT_COUNT)
+                  Math.min(visibleFoods.length, count + INITIAL_RESULT_COUNT)
                 )
               }
             >
               Show{" "}
               {Math.min(
                 INITIAL_RESULT_COUNT,
-                results.length - visibleResultCount
+                visibleFoods.length - visibleResultCount
               )}{" "}
               more
             </Button>

@@ -20,6 +20,11 @@ import {
   requireProEntitlement,
 } from "./lib/proEntitlements.js";
 import { getEnvInt } from "./lib/env.js";
+import {
+  curatedWholeFoods,
+  preferWholeFoodMatches,
+  isPlainWholeFoodQuery,
+} from "./lib/wholeFoodSearch.js";
 
 export type MacroBreakdown = {
   kcal: number;
@@ -64,6 +69,13 @@ export interface FoodItem {
   fdcId?: number;
   gtin?: string;
   raw?: unknown;
+  wholeFood?: {
+    category: "beef" | "chicken";
+    preparation: "raw" | "cooked";
+    leanPercent?: number;
+    sourceDescription: string;
+    reviewedAt: string;
+  };
 }
 
 export type NutritionSearchRequest = {
@@ -96,6 +108,11 @@ const USDA_DATA_TYPES = [
   "SR Legacy",
   "Foundation",
 ];
+export function usdaDataTypesForQuery(query: string): string[] {
+  return isPlainWholeFoodQuery(query)
+    ? USDA_DATA_TYPES.filter((type) => type !== "Branded")
+    : [...USDA_DATA_TYPES];
+}
 
 const usdaApiKeyParam = defineSecret("USDA_FDC_API_KEY");
 
@@ -155,7 +172,7 @@ function ensureMacroBreakdown(input: Partial<MacroBreakdown>): MacroBreakdown {
         : 0,
     carbs:
       input.carbs != null && Number.isFinite(input.carbs)
-        ? round(input.carbs, 1)
+        ? Math.max(0, round(input.carbs, 1))
         : 0,
     fat:
       input.fat != null && Number.isFinite(input.fat) ? round(input.fat, 1) : 0,
@@ -335,9 +352,16 @@ export function fromUsdaFood(food: any): FoodItem | null {
   }
 
   const labelCalories = toNumber(food?.labelNutrients?.calories?.value);
-  const nutrientCalories = toNumber(
-    food?.foodNutrients?.find((n: any) => n?.nutrientId === 1008)?.value
-  );
+  // Newer Foundation foods use specific/general Atwater energy IDs rather
+  // than the legacy 1008 energy field. Never normalize those foods to 0 kcal.
+  const nutrientCalories =
+    [2048, 1008, 2047]
+      .map((id) =>
+        toNumber(
+          food?.foodNutrients?.find((n: any) => n?.nutrientId === id)?.value
+        )
+      )
+      .find((value) => value !== null) ?? null;
   const labelProtein = toNumber(food?.labelNutrients?.protein?.value);
   const nutrientProtein = toNumber(
     food?.foodNutrients?.find((n: any) => n?.nutrientId === 1003)?.value
@@ -682,8 +706,8 @@ async function searchUsda(
       },
       body: JSON.stringify({
         query,
-        pageSize: 20,
-        dataType: USDA_DATA_TYPES,
+        pageSize: isPlainWholeFoodQuery(query) ? 32 : 20,
+        dataType: usdaDataTypesForQuery(query),
       }),
     },
     "usda"
@@ -904,16 +928,33 @@ export function curateNutritionResults(
   items: FoodItem[],
   query: string
 ): FoodItem[] {
+  const wholeFoods = curatedWholeFoods(query);
+  if (wholeFoods) return wholeFoods;
   const normalizedQuery = normalizeSearchText(query);
   const eggTokens = normalizedQuery.split(" ").filter(Boolean);
   const isGenericEggSearch =
     eggTokens.length > 0 &&
     eggTokens.some((token) => token === "egg" || token === "eggs") &&
     eggTokens.every((token) =>
-      ["egg", "eggs", "large", "whole", "white", "yolk"].includes(token)
+      [
+        "egg",
+        "eggs",
+        "large",
+        "whole",
+        "white",
+        "whites",
+        "yolk",
+        "yolks",
+      ].includes(token)
     );
   if (isGenericEggSearch) {
-    return canonicalEggs();
+    const choices = canonicalEggs();
+    if (eggTokens.some((token) => ["white", "whites"].includes(token)))
+      return [choices[1]!];
+    if (eggTokens.some((token) => ["yolk", "yolks"].includes(token)))
+      return [choices[2]!];
+    if (eggTokens.includes("whole")) return [choices[0]!];
+    return choices;
   }
   const riceTokens = normalizedQuery.split(" ").filter(Boolean);
   const isGenericJasmineRiceSearch =
@@ -933,7 +974,7 @@ export function curateNutritionResults(
     if (riceTokens.includes("cooked")) return [choices[0]!];
     return choices;
   }
-  return rankNutritionResults(items, query);
+  return preferWholeFoodMatches(rankNutritionResults(items, query), query);
 }
 
 function extractBearerToken(req: Request): string | null {
@@ -1130,14 +1171,17 @@ async function runNutritionSearchCore(
 
   if (usdaResult.error) errors.push(usdaResult.error);
 
-  const offResult = await runSafe(
-    "Open Food Facts",
-    () => searchOpenFoodFacts(input.query),
-    {
-      requestId: context.requestId,
-      uid: context.uid,
-    }
-  );
+  const offResult =
+    isPlainWholeFoodQuery(input.query) && usdaResult.items.length
+      ? { items: [] as FoodItem[], error: null as HttpError | null }
+      : await runSafe(
+          "Open Food Facts",
+          () => searchOpenFoodFacts(input.query),
+          {
+            requestId: context.requestId,
+            uid: context.uid,
+          }
+        );
   if (offResult.error) errors.push(offResult.error);
 
   let items: FoodItem[] =

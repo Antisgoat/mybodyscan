@@ -242,7 +242,7 @@ test("USDA search filters are sent as JSON arrays for search and barcode fallbac
   );
   assert.match(
     searchSource,
-    /method:\s*"POST"[\s\S]*dataType:\s*USDA_DATA_TYPES/
+    /method:\s*"POST"[\s\S]*dataType:\s*usdaDataTypesForQuery\(query\)/
   );
   assert.doesNotMatch(searchSource, /searchParams\.set\("dataType"/);
 

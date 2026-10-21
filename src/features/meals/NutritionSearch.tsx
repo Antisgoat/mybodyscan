@@ -19,6 +19,10 @@ import { computeFeatureStatuses } from "@/lib/envStatus";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { ArrowLeft, Search, ScanBarcode } from "lucide-react";
 import { FoodSearchRow, foodLabel } from "@/components/nutrition/FoodSearchRow";
+import {
+  useWholeFoodChoices,
+  WholeFoodWeightFilter,
+} from "@/components/nutrition/WholeFoodChoices";
 import { ServingEditor } from "@/components/nutrition/ServingEditor";
 import { addMeal, type MealEntry } from "@/lib/nutritionBackend";
 import { toast } from "@/hooks/use-toast";
@@ -76,6 +80,9 @@ export default function NutritionSearch({
   const savingRef = useRef(false);
   const editorMealIdRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
+  const { visibleFoods, weightFilter, isWholeFoodList } = useWholeFoodChoices(
+    results ?? []
+  );
   useEffect(() => {
     onSavingChange?.(editorBusy);
     return () => onSavingChange?.(false);
@@ -388,11 +395,14 @@ export default function NutritionSearch({
           )}
           {!!results?.length && !busy && (
             <div>
+              {weightFilter && <WholeFoodWeightFilter {...weightFilter} />}
               <p className="pb-1 pt-2 text-xs font-medium text-muted-foreground">
-                Choose a food · adjust the portion next
+                {isWholeFoodList
+                  ? "Whole-food basics · choose your cut or lean %"
+                  : "Choose a food · adjust the portion next"}
               </p>
               <ul className="min-w-0 divide-y" data-testid="nutrition-results">
-                {results.slice(0, visibleResultCount).map((it) => (
+                {visibleFoods.slice(0, visibleResultCount).map((it) => (
                   <li key={it.id ?? it.name}>
                     <FoodSearchRow
                       item={it}
@@ -401,21 +411,24 @@ export default function NutritionSearch({
                     />
                   </li>
                 ))}
-                {results.length > visibleResultCount && (
+                {visibleFoods.length > visibleResultCount && (
                   <li className="pt-3">
                     <button
                       type="button"
                       className="min-h-11 w-full rounded-xl border text-sm font-semibold hover:bg-secondary"
                       onClick={() =>
                         setVisibleResultCount((count) =>
-                          Math.min(results.length, count + INITIAL_RESULT_COUNT)
+                          Math.min(
+                            visibleFoods.length,
+                            count + INITIAL_RESULT_COUNT
+                          )
                         )
                       }
                     >
                       Show{" "}
                       {Math.min(
                         INITIAL_RESULT_COUNT,
-                        results.length - visibleResultCount
+                        visibleFoods.length - visibleResultCount
                       )}{" "}
                       more
                     </button>
