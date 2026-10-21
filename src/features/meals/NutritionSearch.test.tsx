@@ -184,6 +184,54 @@ it("shows eight results at a time and reveals more only on request", async () =>
   );
 });
 
+it("switches whole-food weight states locally and keeps each lean blend distinct", async () => {
+  mocks.search.mockResolvedValue({
+    status: "ok",
+    results: [
+      {
+        ...food,
+        id: "raw93",
+        name: "Ground beef, 93% lean / 7% fat, raw",
+        wholeFood: { category: "beef", preparation: "raw" },
+      },
+      {
+        ...food,
+        id: "cooked93",
+        name: "Ground beef, 93% lean / 7% fat, cooked",
+        wholeFood: { category: "beef", preparation: "cooked" },
+      },
+      {
+        ...food,
+        id: "raw90",
+        name: "Ground beef, 90% lean / 10% fat, raw",
+        wholeFood: { category: "beef", preparation: "raw" },
+      },
+    ],
+  });
+  render(<NutritionSearch />);
+  fireEvent.change(screen.getByLabelText("Search foods or enter a barcode"), {
+    target: { value: "ground beef" },
+  });
+  fireEvent.click(screen.getByTestId("nutrition-search-button"));
+  await screen.findByRole("button", {
+    name: "Add Ground beef, 93% lean / 7% fat, raw",
+  });
+  expect(screen.getAllByTestId("food-search-row")).toHaveLength(2);
+  fireEvent.click(screen.getByRole("button", { name: "Cooked weight" }));
+  expect(screen.getAllByTestId("food-search-row")).toHaveLength(1);
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Add Ground beef, 93% lean / 7% fat, cooked",
+    })
+  );
+  expect(
+    screen.getByRole("heading", {
+      name: "Ground beef, 93% lean / 7% fat, cooked",
+    })
+  ).toBeTruthy();
+  expect(mocks.search).toHaveBeenCalledTimes(1);
+});
+
 it("releases the portion editor after success and restores usable results", async () => {
   const onMealAdded = vi.fn();
   render(<NutritionSearch onMealAdded={onMealAdded} />);

@@ -45,8 +45,8 @@ const UNIT_LABELS: Record<ServingUnit, string> = {
 
 export function ServingEditor({
   item,
-  defaultQty = 1,
-  defaultUnit = "serving",
+  defaultQty,
+  defaultUnit,
   confirmLabel = "Add to diary",
   onConfirm,
   onCancel,
@@ -55,24 +55,27 @@ export function ServingEditor({
   readOnly = false,
   onDemoAttempt,
 }: ServingEditorProps) {
+  // Plain foods are weighed directly. Explicit saved-entry defaults still win.
+  const initialQty = defaultQty ?? (item.wholeFood ? 100 : 1);
+  const initialUnit = defaultUnit ?? (item.wholeFood ? "g" : "serving");
   const fieldId = useId();
-  const [quantityDraft, setQuantityDraft] = useState(String(defaultQty));
+  const [quantityDraft, setQuantityDraft] = useState(String(initialQty));
   const quantity = Number(quantityDraft);
-  const [unit, setUnit] = useState<ServingUnit>(defaultUnit);
+  const [unit, setUnit] = useState<ServingUnit>(initialUnit);
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    setQuantityDraft(String(defaultQty));
+    setQuantityDraft(String(initialQty));
     const units = availableServingUnits(item);
     setUnit(
-      units.includes(defaultUnit)
-        ? defaultUnit
+      units.includes(initialUnit)
+        ? initialUnit
         : units.includes("serving")
           ? "serving"
           : (units[0] ?? "g")
     );
     setNotes("");
-  }, [item, defaultQty, defaultUnit]);
+  }, [item, initialQty, initialUnit]);
 
   const result = useMemo(
     () => calculateSelection(item, quantity, unit),
@@ -161,6 +164,29 @@ export function ServingEditor({
           item.source
         )}
       </p>
+      {item.wholeFood && (
+        <details className="text-xs leading-5 text-muted-foreground">
+          <summary className="min-h-8 cursor-pointer">
+            About these USDA values
+          </summary>
+          <p>
+            Typical values for plain food, not a guarantee for every package.
+            Weigh the edible portion without bones. Log added oil, sauce, and
+            breading separately.
+          </p>
+          <p className="mt-2">{item.wholeFood.sourceDescription}</p>
+          {item.fdcId && (
+            <a
+              href={`https://fdc.nal.usda.gov/food-details/${item.fdcId}/nutrients`}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              View USDA reference
+            </a>
+          )}
+        </details>
+      )}
       {!hasNutrition && (
         <p role="alert" className="text-sm text-destructive">
           Nutrition is unavailable for this portion. Choose another unit or

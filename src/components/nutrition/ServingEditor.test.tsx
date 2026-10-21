@@ -17,6 +17,40 @@ const beef: FoodItem = {
   per_100g: { kcal: 230, protein_g: 28, carbs_g: 0, fat_g: 12 },
 };
 afterEach(cleanup);
+it("opens plain whole foods directly in grams, preserving explicit saved-entry defaults", () => {
+  const item = {
+    ...beef,
+    wholeFood: {
+      category: "beef",
+      preparation: "raw",
+      sourceDescription: "USDA plain beef",
+      reviewedAt: "2026-10-21",
+    },
+  } as FoodItem;
+  const { rerender } = render(
+    <ServingEditor item={item} onConfirm={vi.fn()} />
+  );
+  expect((screen.getByLabelText("Quantity") as HTMLInputElement).value).toBe(
+    "100"
+  );
+  expect((screen.getByLabelText("Portion") as HTMLSelectElement).value).toBe(
+    "g"
+  );
+  rerender(
+    <ServingEditor
+      item={item}
+      defaultQty={2}
+      defaultUnit="serving"
+      onConfirm={vi.fn()}
+    />
+  );
+  expect((screen.getByLabelText("Quantity") as HTMLInputElement).value).toBe(
+    "2"
+  );
+  expect((screen.getByLabelText("Portion") as HTMLSelectElement).value).toBe(
+    "serving"
+  );
+});
 
 it("shows source calories and explicit macro names beside the correct portion", () => {
   render(<FoodSearchRow item={beef} onSelect={vi.fn()} />);

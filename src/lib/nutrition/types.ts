@@ -1,8 +1,5 @@
 export type NutritionSource =
-  | "USDA"
-  | "Open Food Facts"
-  | "User label"
-  | "User recipe";
+  "USDA" | "Open Food Facts" | "User label" | "User recipe";
 
 export interface MacroBreakdown {
   kcal: number;
@@ -44,4 +41,11 @@ export interface FoodItem {
   fdcId?: number;
   gtin?: string;
   raw?: unknown;
+  wholeFood?: {
+    category: "beef" | "chicken";
+    preparation: "raw" | "cooked";
+    leanPercent?: number;
+    sourceDescription: string;
+    reviewedAt: string;
+  };
 }
