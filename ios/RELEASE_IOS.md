@@ -107,22 +107,26 @@ enabled on the device.
 5. Distribute first through internal TestFlight. Do not submit for review
    until the device and purchase checklist below passes.
 
-Current local release snapshot (2026-10-18):
+Current local release snapshot (2026-10-21):
 
-- Build 39 (`1.0.0`) is the current device-acceptance candidate. Its archive
-  contains the native bundle tagged from main commit `34cc2e5`; commit
-  `b26bf02` records that same synchronized bundle. Changes through current main
-  after `b26bf02` are backend or release-documentation changes and do not make
-  the build-39 client stale. WHOOP remains deferred and outside the launch path.
-- The local build-39 archive is present and passes the committed iOS release
-  configuration, privacy-manifest, plist, and bundle-integrity checks. This
-  repository does not establish App Store Connect processing, TestFlight-group
-  assignment, or draft-build selection. Confirm in App Store Connect that build
-  39 is processed, assigned to `Internal QA`, and selected for App Store version
-  1.0 only after the clean-install physical-device checklist passes.
-- Build 39 has not yet been recorded here as passing that checklist and has not
-  been recorded here as submitted for review. Build 29 from commit `8021194`
-  remains historical evidence of the 2026-09-16 upload; builds 2 through 38 are
+- Build 40 (`1.0.0`) is the next device-acceptance candidate, with the native
+  release bundle tagged from reviewed main commit `5bf2add`. It includes the
+  cleaner food diary, resilient inline serving editor, raw/cooked whole-food
+  choices, distinct ground-beef lean percentages, and gram-based portions.
+  WHOOP remains deferred and outside the launch path.
+- Build 39 contains the older `34cc2e5` client bundle and does not include these
+  food-search UI changes. Do not use it to accept the new interface. The shared
+  production backend and website have already deployed `5bf2add` successfully.
+- Build 40 passes native configuration, release-key guard, native Auth/App
+  Check boundary, static asset-integrity, native smoke, and plist checks. Its
+  archive is prepared separately at `ios/build/MyBodyScan-build40.xcarchive` so
+  the previous archive is preserved. Local checks do not establish upload,
+  Apple processing, TestFlight-group assignment, or draft-build selection.
+  Confirm those externally before telling testers it is available.
+- Build 40 must be processed and assigned to `Internal QA` before testing.
+  Select it for App Store version 1.0 only after the clean-install physical-device
+  checklist below passes. No build is recorded here as having passed the full
+  device/purchase checklist or as submitted for review. Earlier builds are
   superseded and must not be submitted.
 - The monthly, yearly, and single-scan App Store products exist at the approved
   prices. RevenueCat's `pro` entitlement and current/default offering are

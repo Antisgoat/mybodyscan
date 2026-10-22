@@ -16,7 +16,7 @@ export const APP_CONFIG = {
 export const BUILD_META = {
   "mode": "production",
   "isNative": true,
-  "commit": "34cc2e5",
+  "commit": "5bf2add",
   "branch": "main",
   "timestamp": null
 } as const;
