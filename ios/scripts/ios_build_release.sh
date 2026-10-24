@@ -17,7 +17,12 @@ fi
 node scripts/assert-ios-public-bundle.mjs
 
 log_path="/tmp/mbs-release.log"
-if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build | tee "$log_path"; then
+signing_options=()
+if [[ "${MBS_IOS_COMPILE_ONLY:-0}" == "1" ]]; then
+  echo "Compile-only check: this does not verify App Store signing."
+  signing_options+=(CODE_SIGNING_ALLOWED=NO)
+fi
+if ! xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -destination 'generic/platform=iOS' "${signing_options[@]}" build | tee "$log_path"; then
   echo "error: xcodebuild Release failed. Showing the first error lines:" >&2
   grep -n "error:" "$log_path" | head -n 120 >&2 || true
   exit 1

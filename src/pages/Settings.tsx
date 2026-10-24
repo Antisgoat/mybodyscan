@@ -457,9 +457,17 @@ const Settings = () => {
       navigate("/auth");
       return;
     }
-    await releasePushSession();
-    await signOut();
-    navigate("/auth");
+    try {
+      await releasePushSession().catch(() => undefined);
+      await signOut();
+      navigate("/auth");
+    } catch {
+      toast({
+        title: "Could not sign out",
+        description: "Please try again. Your session is still active.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleExportData = async () => {

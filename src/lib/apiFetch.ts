@@ -6,7 +6,8 @@ import { resolveEndpoint } from "@/lib/backend/resolveEndpoint";
 function normalizeUrl(input: RequestInfo): RequestInfo {
   if (typeof input !== "string") return input;
   if (input.startsWith("http://") || input.startsWith("https://")) return input;
-  if (input.startsWith("/")) return resolveEndpoint(input.startsWith("/api") ? input : `/api${input}`);
+  if (input.startsWith("/"))
+    return resolveEndpoint(input.startsWith("/api") ? input : `/api${input}`);
   return resolveEndpoint(`/api/${input}`);
 }
 
@@ -71,13 +72,31 @@ export async function apiFetchJson<T = any>(
 ): Promise<T> {
   const response = await apiFetch(input, init);
   const contentType = response.headers.get("Content-Type") || "";
-  const payload = contentType.includes("application/json")
-    ? await response.json().catch(() => ({}))
+  const isJson = /application\/(?:[\w.+-]+\+)?json/i.test(contentType);
+  if (response.ok && !isJson) {
+    const error = new Error(
+      "The server returned an unexpected response. Please try again."
+    ) as Error & { code: string; status: number };
+    error.code = "non_json_response";
+    error.status = response.status;
+    throw error;
+  }
+  const payload = isJson
+    ? await response.json().catch(() => {
+        const error = new Error(
+          "The server returned invalid JSON. Please try again."
+        ) as Error & { code: string; status: number };
+        error.code = "invalid_json_response";
+        error.status = response.status;
+        throw error;
+      })
     : await response.text().catch(() => "");
 
   if (!response.ok) {
     const htmlString = typeof payload === "string" ? payload : "";
-    const cannotPostMatch = htmlString.match(/Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+([^<\n]+)/i);
+    const cannotPostMatch = htmlString.match(
+      /Cannot\s+(GET|POST|PUT|PATCH|DELETE)\s+([^<\n]+)/i
+    );
     const message =
       typeof payload === "string"
         ? cannotPostMatch
