@@ -24,13 +24,22 @@ service firebase.storage {
         || fileName == "right.jpg";
     }
 
+    function hasUploadSession(uid, scanId) {
+      let scan = firestore.get(/databases/(default)/documents/users/$(uid)/scans/$(scanId)).data;
+      return scan.uid == uid
+        && scan.status == "uploading"
+        && scan.uploadAuthorizedUntil is timestamp
+        && scan.uploadAuthorizedUntil > request.time;
+    }
+
     // IMPORTANT: Storage Rules do not support wildcard segments like `{pose}.jpg`.
     // We must match the full object name as a segment, then validate allowed names.
     match /scans/{uid}/{scanId}/{fileName} {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid)
         && isAllowedScanFileName(fileName)
-        && validImageUpload();
+        && validImageUpload()
+        && hasUploadSession(uid, scanId);
       allow delete: if isOwner(uid);
     }
 
@@ -38,7 +47,10 @@ service firebase.storage {
     // NOTE: This is intentionally scoped to the owning user and a dedicated subpath.
     match /user_uploads/{uid}/debug/{filename} {
       allow read: if isOwner(uid);
-      allow create, update: if isOwner(uid) && request.resource.size < 256 * 1024;
+      allow create, update: if isOwner(uid)
+        && (request.auth.token.get('admin', false) == true
+          || request.auth.token.get('staff', false) == true)
+        && request.resource.size < 256 * 1024;
       allow delete: if isOwner(uid);
     }
 

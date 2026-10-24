@@ -12,6 +12,12 @@ import { createRequire } from "node:module";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { initializeApp } from "firebase/app";
+import {
+  connectStorageEmulator,
+  getStorage,
+  ref,
+  uploadBytes,
+} from "firebase/storage";
 
 function readDefaultProjectId() {
   try {
@@ -118,6 +124,8 @@ async function main() {
 
   const auth = initializeAuth(app, { persistence: inMemoryPersistence });
   connectAuthEmulator(auth, `http://${authHost}`, { disableWarnings: true });
+  const clientStorage = getStorage(app);
+  connectStorageEmulator(clientStorage, storageHost, storagePort);
 
   await waitForHttpReady(`http://${storageHost}:${storagePort}/`, 10_000);
 
@@ -144,6 +152,20 @@ async function main() {
   const adminBucket = getAdminStorage(adminApp).bucket(bucket);
   const creditRef = adminDb.doc(`users/${uid}/private/credits`);
   const initialCreditTime = AdminTimestamp.now();
+  const startUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/startScanSession`;
+  try {
+    await httpJson(startUrl, {
+      idToken,
+      body: { currentWeightKg: 80, goalWeightKg: 75 },
+    });
+    throw new Error("A member without credits received an upload session");
+  } catch (error) {
+    if (
+      ![400, 412].includes(error.status) ||
+      error.data?.reason !== "no_credits"
+    )
+      throw error;
+  }
   await creditRef.set({
     creditBuckets: [
       {
@@ -160,7 +182,6 @@ async function main() {
     },
   });
 
-  const startUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/startScanSession`;
   const uploadUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/scanUpload`;
   const bytes = tinyJpegBytes();
 
@@ -221,6 +242,11 @@ async function main() {
       throw new Error("startScanSession returned an invalid payload");
     }
     const session = { scanId, storagePaths, correlationId };
+    // Exercise the actual client SDK/rules boundary before the fallback upload.
+    await uploadBytes(ref(clientStorage, storagePaths.front), bytes, {
+      contentType: "image/jpeg",
+      cacheControl: "private, no-store, max-age=0",
+    });
     const upload = await uploadThroughFunction(session);
     return { ...session, upload };
   }
@@ -331,9 +357,7 @@ async function main() {
   await adminDb
     .doc(`users/${uid}/notificationTokens/verification-token`)
     .set({ token: "verification-token-value", active: true });
-  await adminDb
-    .doc("pushTokenOwners/verification-token")
-    .set({ uid });
+  await adminDb.doc("pushTokenOwners/verification-token").set({ uid });
 
   const deleteUrl = `http://${functionsHost}:${functionsPort}/${projectId}/${region}/deleteMyAccount`;
   const deleteResponse = await fetch(deleteUrl, {

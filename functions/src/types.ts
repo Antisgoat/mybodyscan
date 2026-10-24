@@ -120,6 +120,8 @@ export interface ScanDocument {
     stack?: string;
   } | null;
   lastStep?: string | null;
+  /** Server-issued upload lease; clients cannot create or extend this field. */
+  uploadAuthorizedUntil?: Timestamp | null;
   lastStepAt?: Timestamp | null;
   progress?: number | null;
   correlationId?: string | null;
