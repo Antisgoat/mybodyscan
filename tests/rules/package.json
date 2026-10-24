@@ -6,7 +6,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^4.0.1",
+    "@firebase/rules-unit-testing": "^6.0.0",
     "firebase": "^11.10.0",
     "typescript": "^5.8.3",
     "vitest": "^4.1.11"
