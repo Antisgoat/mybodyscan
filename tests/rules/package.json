@@ -6,9 +6,12 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^3.0.0",
-    "firebase": "^10.13.0",
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0",
     "typescript": "^5.8.3",
-    "vitest": "^2.1.1"
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "1.14.5"
   }
 }

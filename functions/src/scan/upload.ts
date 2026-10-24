@@ -166,7 +166,7 @@ async function savePhoto(params: {
     contentType,
     resumable: false,
     metadata: {
-      cacheControl: "public,max-age=31536000",
+      cacheControl: "private, no-store, max-age=0",
       metadata: {
         scanId: params.scanId,
         pose: params.pose,

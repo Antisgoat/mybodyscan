@@ -51,7 +51,7 @@ function applyCors(req: Request, res: Response): { ended: boolean } {
 async function requireStaff(
   req: Request
 ): Promise<{ uid: string; email: string | null }> {
-  const { uid, claims } = await requireAuthWithClaims(req);
+  const { uid, claims } = await requireAuthWithClaims(req, { checkRevoked: true });
   const tokenEmail =
     typeof claims?.email === "string" ? claims.email.toLowerCase() : null;
   if (

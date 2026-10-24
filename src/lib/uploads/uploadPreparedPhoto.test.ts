@@ -204,6 +204,9 @@ describe("uploadPreparedPhoto", () => {
     expect(uploadBytesResumableMock).toHaveBeenCalled();
     const refArg = refMock.mock.calls[0]?.[1];
     expect(refArg).toBe("scans/u/s/front.jpg");
+    expect(uploadBytesResumableMock.mock.calls[0]?.[2]).toMatchObject({
+      cacheControl: "private, no-store, max-age=0",
+    });
     const forbidden = Buffer.from("L3YwL2Iv", "base64").toString("utf8");
     expect(String(refArg)).not.toContain(forbidden);
   });
