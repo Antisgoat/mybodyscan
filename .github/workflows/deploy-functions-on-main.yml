@@ -39,10 +39,10 @@ jobs:
 
       - name: Audit production web dependencies
         run: npx --yes npm@11 audit --omit=dev --audit-level=high
-      - name: Check credentials and critical development advisories
+      - name: Check credentials and development dependency advisories
         run: |
           npm run check:secrets
-          npm audit --audit-level=critical
+          npm audit --audit-level=moderate
 
       - name: Verify production public configuration
         run: npm run check:production-config

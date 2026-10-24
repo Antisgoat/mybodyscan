@@ -1,7 +1,8 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense, useRef } from "react";
 import type { ReactNode } from "react";
@@ -123,7 +124,6 @@ const AdminQuick = lazy(() => import("./pages/AdminQuick"));
 const ScanDiagnostics = lazy(() => import("./pages/ScanDiagnostics"));
 const LiveFlowsQA = lazy(() => import("./pages/LiveFlowsQA"));
 
-const queryClient = new QueryClient();
 const allowInternalTools =
   import.meta.env.DEV ||
   ((import.meta as any)?.env?.VITE_INTERNAL_TOOLS === "1" &&
@@ -214,7 +214,9 @@ export const AppProviders = ({ children }: { children: ReactNode }) => {
       <GlobalA11yStyles />
       <SkipLink />
       <PolicyGate />
-      <QueryClientProvider client={queryClient}>
+      {/* Remount member screens when identity changes so local component state
+          cannot briefly show the previous member's private report or photos. */}
+      <QueryClientProvider key={user?.uid ?? "signed-out"} client={queryClient}>
         <TooltipProvider>
           <AppCheckProvider>
             <SetupBanner />

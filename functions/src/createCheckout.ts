@@ -5,32 +5,37 @@ import {
   getStripe,
 } from "./stripe/common.js";
 import * as logger from "firebase-functions/logger";
+import {
+  legacyCheckoutBaseUrl,
+  legacyCheckoutQuantity,
+} from "./stripe/legacyCheckoutPolicy.js";
+import { enforceRateLimit } from "./middleware/rateLimit.js";
 
 export const legacyCreateCheckout = appJson(async (req, res) => {
-  requireStripe();
   if (req.method !== "POST")
     return res
       .status(405)
       .send(JSON.stringify({ error: "method_not_allowed" }));
 
-  const origin =
-    req.get("origin") ||
-    req.headers["x-forwarded-origin"] ||
-    req.headers["x-forwarded-host"] ||
-    "";
-  let base = "https://mybodyscan-f3daf.web.app";
-  if (typeof origin === "string" && origin.length) {
-    base = origin.startsWith("http") ? origin : `https://${origin}`;
-  } else if (Array.isArray(origin) && origin[0]) {
-    const value = origin[0];
-    base = value.startsWith("http") ? value : `https://${value}`;
-  }
-
   const uid = await requireUidFromAuthHeader(req);
+  await enforceRateLimit({
+    uid,
+    key: "legacy_checkout",
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+  });
+  requireStripe();
+  // Never construct payment return URLs from caller-controlled origin/host headers.
+  const base = legacyCheckoutBaseUrl(process.env.HOST_BASE_URL);
   const { kind, credits = 1 } = (req.body || {}) as {
     kind: "scan" | "sub_monthly" | "sub_annual";
     credits?: number;
   };
+  if (!["scan", "sub_monthly", "sub_annual"].includes(kind)) {
+    res.status(400).json({ error: "bad_kind" });
+    return;
+  }
+  const quantity = kind === "scan" ? legacyCheckoutQuantity(credits) : 1;
 
   const stripe = getStripe();
   const search = await stripe.customers.search({
@@ -62,10 +67,8 @@ export const legacyCreateCheckout = appJson(async (req, res) => {
         .status(501)
         .send(JSON.stringify({ error: "price_scan_unset" }));
     mode = "payment";
-    line_items = [
-      { price: priceScan, quantity: Math.max(1, Number(credits) || 1) },
-    ];
-    metadata.credits = String(Math.max(1, Number(credits) || 1));
+    line_items = [{ price: priceScan, quantity }];
+    metadata.credits = String(quantity);
   } else if (kind === "sub_monthly") {
     if (!priceMonthly)
       return res
@@ -90,6 +93,9 @@ export const legacyCreateCheckout = appJson(async (req, res) => {
     success_url: `${base}/billing?status=success`,
     cancel_url: `${base}/billing?status=cancel`,
     metadata,
+    ...(mode === "subscription"
+      ? { subscription_data: { metadata: { uid } } }
+      : {}),
     client_reference_id: uid,
     allow_promotion_codes: true,
     customer: customer.id,

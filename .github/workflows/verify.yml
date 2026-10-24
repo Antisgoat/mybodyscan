@@ -34,8 +34,8 @@ jobs:
         run: npx --yes npm@11 audit --omit=dev --audit-level=high
       - name: Check tracked files for accidental credentials
         run: npm run check:secrets
-      - name: Reject critical development dependency advisories
-        run: npm audit --audit-level=critical
+      - name: Reject known development dependency advisories
+        run: npm audit --audit-level=moderate
       - name: Lint
         run: npm run lint
       - name: Typecheck

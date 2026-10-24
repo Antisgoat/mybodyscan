@@ -1,7 +1,11 @@
 import { getDownloadURL, ref, type FirebaseStorage } from "firebase/storage";
 
 type OkEntry = { kind: "ok"; promise: Promise<string>; expiresAt: number };
-type PendingEntry = { kind: "pending"; promise: Promise<string>; startedAt: number };
+type PendingEntry = {
+  kind: "pending";
+  promise: Promise<string>;
+  startedAt: number;
+};
 type MissEntry = {
   kind: "miss";
   nextRetryAt: number;
@@ -16,6 +20,7 @@ const TTL_MS = 30 * 60 * 1000;
 const MISS_BASE_DELAY_MS = 1_250;
 const MISS_MAX_DELAY_MS = 20_000;
 const photoUrlCache = new Map<string, CacheEntry>();
+let cacheGeneration = 0;
 
 export type CachedPhotoUrlOutcome = {
   url: string | null;
@@ -66,7 +71,10 @@ function normalizeErrorCode(err: any): string | undefined {
 function computeBackoffMs(attempt: number): number {
   const n = Math.max(1, Math.floor(attempt || 1));
   const pow = Math.min(6, n - 1);
-  const base = Math.min(MISS_MAX_DELAY_MS, MISS_BASE_DELAY_MS * Math.pow(2, pow));
+  const base = Math.min(
+    MISS_MAX_DELAY_MS,
+    MISS_BASE_DELAY_MS * Math.pow(2, pow)
+  );
   const jitter = 0.75 + Math.random() * 0.5; // 0.75–1.25
   return Math.max(750, Math.round(base * jitter));
 }
@@ -80,6 +88,8 @@ export async function getCachedScanPhotoUrlMaybe(
     nowMs?: number;
   }
 ): Promise<CachedPhotoUrlOutcome> {
+  const generation = cacheGeneration;
+  const sessionChanged = () => generation !== cacheGeneration;
   const key = cacheKey || path;
   const now =
     typeof options?.nowMs === "number" && Number.isFinite(options.nowMs)
@@ -87,12 +97,15 @@ export async function getCachedScanPhotoUrlMaybe(
       : Date.now();
   const existing = photoUrlCache.get(key);
   if (existing?.kind === "ok" && existing.expiresAt > now) {
-    return { url: await existing.promise };
+    const url = await existing.promise;
+    return sessionChanged() ? { url: null } : { url };
   }
   if (existing?.kind === "pending") {
     try {
-      return { url: await existing.promise };
+      const url = await existing.promise;
+      return sessionChanged() ? { url: null } : { url };
     } catch (err: any) {
+      if (sessionChanged()) return { url: null };
       const errorCode = normalizeErrorCode(err);
       const httpStatus = parseHttpStatusFromStorageError(err);
       // If a pending entry failed, fall through and compute miss/backoff below.
@@ -121,9 +134,14 @@ export async function getCachedScanPhotoUrlMaybe(
   const okTtlMs = Math.max(1_000, options?.okTtlMs ?? TTL_MS);
   const startedAt = now;
   const downloadPromise = getDownloadURL(ref(storage, path));
-  photoUrlCache.set(key, { kind: "pending", promise: downloadPromise, startedAt });
+  photoUrlCache.set(key, {
+    kind: "pending",
+    promise: downloadPromise,
+    startedAt,
+  });
   try {
     const url = await downloadPromise;
+    if (sessionChanged()) return { url: null };
     // Store a resolved promise so callers can await consistently.
     photoUrlCache.set(key, {
       kind: "ok",
@@ -132,6 +150,7 @@ export async function getCachedScanPhotoUrlMaybe(
     });
     return { url };
   } catch (err: any) {
+    if (sessionChanged()) return { url: null };
     const errorCode = normalizeErrorCode(err);
     const httpStatus = parseHttpStatusFromStorageError(err);
     const prevAttempts = existing?.kind === "miss" ? existing.attempts : 0;
@@ -167,9 +186,11 @@ export async function getCachedScanPhotoUrl(
 }
 
 export function clearCachedScanPhotoUrl(cacheKey: string): void {
+  cacheGeneration++;
   photoUrlCache.delete(cacheKey);
 }
 
 export function resetScanPhotoUrlCache(): void {
+  cacheGeneration++;
   photoUrlCache.clear();
 }

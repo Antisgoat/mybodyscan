@@ -4,6 +4,7 @@ import { isNative } from "@/lib/platform";
 import { smokeFirestoreRead } from "@/lib/firebase/smokeRead";
 import * as impl from "@mbs-auth-impl";
 import type { MbsUser, Unsubscribe } from "./mbs-auth.types";
+import { clearPrivateSessionCaches } from "@/lib/privateSession";
 
 export * from "./mbs-auth.types";
 export * from "@mbs-auth-impl";
@@ -67,6 +68,13 @@ export async function sendReset(email: string) {
   await impl.sendPasswordResetEmail(email);
 }
 
+export async function signOut(): Promise<void> {
+  // Do not claim that sign-out succeeded if Firebase kept the session alive.
+  await impl.signOut();
+  clearPrivateSessionCaches();
+  emit(null);
+}
+
 export async function signOutToAuth(): Promise<void> {
   try {
     const { releasePushSession } = await import("@/lib/pushNotifications");
@@ -74,7 +82,7 @@ export async function signOutToAuth(): Promise<void> {
   } catch {
     // Sign-out must still complete if notification cleanup is unavailable.
   }
-  await impl.signOut().catch(() => undefined);
+  await signOut();
   navigateToAuthRoute();
 }
 
@@ -95,6 +103,7 @@ let firstAuthEventPromise: Promise<void> | null = null;
 const NATIVE_AUTH_READY_TIMEOUT_MS = 1200;
 
 function emit(nextUser: MbsUser | null) {
+  if (cachedUser?.uid !== nextUser?.uid) clearPrivateSessionCaches();
   cachedUser = nextUser;
   authReadyFlag = true;
   cachedSnapshot = { user: cachedUser, authReady: authReadyFlag };
@@ -142,7 +151,9 @@ export async function startAuthListener(): Promise<void> {
     waitForFirstEvent,
     new Promise<void>((resolve) => {
       const schedule =
-        typeof window === "undefined" ? globalThis.setTimeout : window.setTimeout;
+        typeof window === "undefined"
+          ? globalThis.setTimeout
+          : window.setTimeout;
       schedule(() => {
         if (!authReadyFlag) {
           if (typeof console !== "undefined") {
@@ -194,7 +205,11 @@ function getServerSnapshot(): AuthSnapshot {
 }
 
 export function useAuthUser() {
-  const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const snapshot = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot
+  );
   return {
     user: snapshot.authReady ? snapshot.user : null,
     loading: !snapshot.authReady,
@@ -238,6 +253,7 @@ export const __authTestInternals = {
   },
   emit(user: any, options?: { authReady?: boolean }) {
     try {
+      if (cachedUser?.uid !== user?.uid) clearPrivateSessionCaches();
       if (options && typeof options.authReady === "boolean") {
         authReadyFlag = options.authReady;
       } else {

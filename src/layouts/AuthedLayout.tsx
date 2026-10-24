@@ -22,6 +22,7 @@ import {
   SubscriberFeatureGate,
 } from "@/components/SubscriberFeatureGate";
 import { useLocation } from "react-router-dom";
+import { toast } from "sonner";
 
 interface AuthedLayoutProps {
   children: ReactNode;
@@ -192,7 +193,13 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                   <DropdownMenuItem onClick={exitDemo}>
                     Exit demo
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={signOutToAuth}>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      void signOutToAuth().catch(() =>
+                        toast.error("Could not sign out. Please try again.")
+                      );
+                    }}
+                  >
                     Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -240,7 +247,9 @@ export default function AuthedLayout({ children }: AuthedLayoutProps) {
                       <button
                         className="text-left py-2 opacity-80 hover:opacity-100 transition-opacity"
                         onClick={() => {
-                          signOutToAuth();
+                          void signOutToAuth().catch(() =>
+                            toast.error("Could not sign out. Please try again.")
+                          );
                           setMobileMenuOpen(false);
                         }}
                       >
