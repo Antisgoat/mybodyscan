@@ -103,6 +103,9 @@ jobs:
           workload_identity_provider: projects/157018993008/locations/global/workloadIdentityPools/github-actions/providers/mybodyscan
           service_account: github-mybodyscan-deploy@mybodyscan-f3daf.iam.gserviceaccount.com
 
+      - name: Verify Storage cross-service authorization permissions
+        run: node scripts/check-storage-rules-access.mjs
+
       - name: Deploy production in dependency order
         run: |
           rollback_channel="rollback-${GITHUB_SHA:0:7}"

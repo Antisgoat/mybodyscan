@@ -15,6 +15,8 @@ import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { openAiSecretParam } from "../openai/keys.js";
 import { buildScanPhotoPath, type ScanPose } from "./paths.js";
 import { buildScanInput } from "./input.js";
+import { resolveScanCreditAccess } from "./creditAuthorization.js";
+import { reserveUploadSession } from "./uploadAuthorization.js";
 
 const db = getFirestore();
 type Pose = ScanPose;
@@ -84,6 +86,8 @@ async function handleStart(req: Request, res: any) {
       );
     }
 
+    const access = await resolveScanCreditAccess(uid, authContext.claims);
+    const uploadAuthorizedUntil = await reserveUploadSession(uid, access);
     const scanId = randomUUID();
     const now = Timestamp.now() as FirebaseFirestore.Timestamp;
     const storagePaths: Record<Pose, string> = {
@@ -100,6 +104,7 @@ async function handleStart(req: Request, res: any) {
       updatedAt: now,
       completedAt: null,
       status: "uploading",
+      uploadAuthorizedUntil,
       lastStep: "uploading",
       lastStepAt: now,
       photoPaths: storagePaths,

@@ -19,6 +19,11 @@ import { getEngineConfigOrThrow } from "./engineConfig.js";
 import { buildScanPhotoPath, SCAN_POSES, type ScanPose } from "./paths.js";
 import { buildScanInput } from "./input.js";
 import {
+  requireUploadCredit,
+  reserveUploadSession,
+} from "./uploadAuthorization.js";
+import { enforceRateLimit } from "../middleware/rateLimit.js";
+import {
   authorizeScanCredit,
   isScanCreditAuthorized,
   resolveScanCreditAccess,
@@ -253,6 +258,12 @@ export const scanUpload = onRequest(
         uid,
         authContext.claims
       );
+      await enforceRateLimit({
+        uid,
+        key: "scan_multipart_upload",
+        limit: 12,
+        windowMs: 60 * 60 * 1000,
+      });
 
       const { fields, files } = await parseMultipart(req as Request);
       if (!correlationHeader && typeof fields.correlationId === "string") {
@@ -367,6 +378,16 @@ export const scanUpload = onRequest(
         (typeof fields.scanId === "string" && fields.scanId.trim().length
           ? fields.scanId.trim()
           : null) || randomUUID();
+      if (
+        scanId.length > 128 ||
+        [...scanId].some(
+          (char) => char === "/" || char === "\\" || char.charCodeAt(0) < 32
+        ) ||
+        scanId === "." ||
+        scanId === ".."
+      ) {
+        throw new HttpsError("invalid-argument", "Invalid scan session.");
+      }
       const docRef = db.doc(
         `users/${uid}/scans/${scanId}`
       ) as FirebaseFirestore.DocumentReference<ScanDocument>;
@@ -397,6 +418,16 @@ export const scanUpload = onRequest(
           creditsRemaining: (existing as any).creditsRemaining ?? null,
         });
         return;
+      }
+      // Admin Storage writes bypass rules, so enforce the same credit and
+      // session budget here before writing any bytes. Completed retries above
+      // remain idempotent even after the last credit has been consumed.
+      if (!isScanCreditAuthorized(existing, scanId)) {
+        await requireUploadCredit(uid, creditAccess);
+      }
+      const lease = existing?.uploadAuthorizedUntil;
+      if (!lease || lease.toMillis() <= Date.now()) {
+        await reserveUploadSession(uid, creditAccess);
       }
       const paths: Record<Pose, string> = {
         front: buildScanPhotoPath({ uid, scanId, pose: "front" }),

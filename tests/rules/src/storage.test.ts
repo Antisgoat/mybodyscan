@@ -20,6 +20,12 @@ suite("Storage security boundaries", () => {
   beforeAll(async () => {
     env = await initializeTestEnvironment({
       projectId: "demo-mbs",
+      firestore: {
+        rules: readFileSync(
+          new URL("../../../firestore.rules", import.meta.url),
+          "utf8"
+        ),
+      },
       storage: {
         rules: readFileSync(
           new URL("../../../storage.rules", import.meta.url),
@@ -28,6 +34,30 @@ suite("Storage security boundaries", () => {
       },
     });
     await env.withSecurityRulesDisabled(async (ctx) => {
+      await ctx
+        .firestore()
+        .doc("users/owner/scans/one")
+        .set({
+          uid: "owner",
+          status: "uploading",
+          uploadAuthorizedUntil: new Date(Date.now() + 60 * 60 * 1000),
+        });
+      for (const [id, extra] of Object.entries({
+        expired: { uploadAuthorizedUntil: new Date(0) },
+        completed: { status: "complete" },
+        unleased: { uploadAuthorizedUntil: null },
+        wrongOwner: { uid: "other" },
+      })) {
+        await ctx
+          .firestore()
+          .doc(`users/owner/scans/${id}`)
+          .set({
+            uid: "owner",
+            status: "uploading",
+            uploadAuthorizedUntil: new Date(Date.now() + 60 * 60 * 1000),
+            ...extra,
+          });
+      }
       await ctx.storage().ref("scans/owner/one/front.jpg").put(image, metadata);
       await ctx
         .storage()
@@ -55,6 +85,53 @@ suite("Storage security boundaries", () => {
     await assertFails(ref.getMetadata());
     await assertFails(ref.put(image, metadata));
     await assertFails(ref.delete());
+  });
+  it("requires a live server-issued upload session", async () => {
+    const storage = env.authenticatedContext("owner").storage();
+    for (const id of [
+      "missing",
+      "expired",
+      "completed",
+      "unleased",
+      "wrongOwner",
+    ]) {
+      await assertFails(
+        storage.ref(`scans/owner/${id}/front.jpg`).put(image, metadata)
+      );
+    }
+  });
+  it("does not let a client forge or extend an upload lease", async () => {
+    await assertFails(
+      env
+        .authenticatedContext("owner")
+        .firestore()
+        .doc("users/owner/scans/forged")
+        .set({
+          uid: "owner",
+          status: "uploading",
+          uploadAuthorizedUntil: new Date(Date.now() + 3600000),
+        })
+    );
+    await assertFails(
+      env
+        .authenticatedContext("owner")
+        .firestore()
+        .doc("users/owner/scans/one")
+        .update({ uploadAuthorizedUntil: new Date(Date.now() + 7200000) })
+    );
+  });
+  it("limits diagnostic writes to privileged accounts", async () => {
+    const path = "user_uploads/owner/debug/test.txt";
+    await assertFails(
+      env.authenticatedContext("owner").storage().ref(path).put(image)
+    );
+    await assertSucceeds(
+      env
+        .authenticatedContext("owner", { admin: true })
+        .storage()
+        .ref(path)
+        .put(image)
+    );
   });
   it("denies anonymous reads and writes", async () => {
     const ref = env
