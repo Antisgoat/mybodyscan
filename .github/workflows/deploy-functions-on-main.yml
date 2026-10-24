@@ -39,6 +39,10 @@ jobs:
 
       - name: Audit production web dependencies
         run: npx --yes npm@11 audit --omit=dev --audit-level=high
+      - name: Check credentials and critical development advisories
+        run: |
+          npm run check:secrets
+          npm audit --audit-level=critical
 
       - name: Verify production public configuration
         run: npm run check:production-config
@@ -59,9 +63,11 @@ jobs:
 
       - name: Install Firestore rules test dependencies
         run: npm ci --prefix tests/rules --no-audit --no-fund
+      - name: Audit security-rules test dependencies
+        run: npm audit --prefix tests/rules --audit-level=high
 
-      - name: Verify Firestore rules in emulator
-        run: npx firebase emulators:exec --only firestore --project demo-mbs "npm run test:rules"
+      - name: Verify Firestore and Storage rules in emulator
+        run: npx firebase emulators:exec --only firestore,storage --project demo-mbs "npm run test:rules"
 
       - uses: actions/setup-node@v7
         with:

@@ -32,6 +32,10 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Audit production web dependencies
         run: npx --yes npm@11 audit --omit=dev --audit-level=high
+      - name: Check tracked files for accidental credentials
+        run: npm run check:secrets
+      - name: Reject critical development dependency advisories
+        run: npm audit --audit-level=critical
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -57,8 +61,10 @@ jobs:
         run: npx playwright test --config playwright.local.config.ts
       - name: Install Firestore rules test dependencies
         run: npm ci --prefix tests/rules --no-audit --no-fund
-      - name: Firestore rules emulator tests
-        run: npx firebase emulators:exec --only firestore --project demo-mbs "npm run test:rules"
+      - name: Audit security-rules test dependencies
+        run: npm audit --prefix tests/rules --audit-level=high
+      - name: Firestore and Storage rules emulator tests
+        run: npx firebase emulators:exec --only firestore,storage --project demo-mbs "npm run test:rules"
 
   functions-build:
     name: Functions build

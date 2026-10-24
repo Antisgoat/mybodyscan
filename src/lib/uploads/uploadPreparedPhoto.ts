@@ -92,7 +92,7 @@ export async function uploadPreparedPhoto(params: UploadPreparedPhotoParams): Pr
 
   const metadata = {
     contentType: params.contentType,
-    cacheControl: "public,max-age=31536000",
+    cacheControl: "private, no-store, max-age=0",
     customMetadata: customMetadata as Record<string, string>,
   };
 

@@ -125,7 +125,7 @@ describe("production deployment authentication", () => {
   });
 
   it("uses the current Firebase CLI toolchain", () => {
-    expect(PACKAGE_JSON.devDependencies["firebase-tools"]).toBe("15.27.0");
+    expect(PACKAGE_JSON.devDependencies["firebase-tools"]).toBe("15.34.1");
     expect(PACKAGE_JSON.devDependencies.picomatch).toBe("4.0.5");
   });
 

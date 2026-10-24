@@ -36,6 +36,7 @@ export const allowCorsAndOptionalAppCheck: RequestHandler = async (
   res: Response,
   next: NextFunction
 ) => {
+  res.setHeader("Cache-Control", "private, no-store, max-age=0");
   const origin = req.get("Origin");
   if (origin && ALLOW.includes(origin))
     res.set("Access-Control-Allow-Origin", origin);
@@ -86,7 +87,8 @@ export async function requireAuth(req: Request): Promise<string> {
 }
 
 export async function requireAuthWithClaims(
-  req: Request
+  req: Request,
+  options: { checkRevoked?: boolean } = {}
 ): Promise<{ uid: string; claims?: any }> {
   const header = getAuthHeader(req);
   if (!header) {
@@ -99,7 +101,7 @@ export async function requireAuthWithClaims(
     throw new HttpsError("unauthenticated", "Authentication required");
   }
   try {
-    const decoded = await getAuth().verifyIdToken(match[1]);
+    const decoded = await getAuth().verifyIdToken(match[1], options.checkRevoked === true);
     // `verifyIdToken()` returns a DecodedIdToken where custom claims live as top-level
     // properties (there is no nested `claims` field). Return the decoded token so
     // callers can read `unlimitedCredits`, `admin`, etc.

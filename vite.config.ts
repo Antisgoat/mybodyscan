@@ -105,7 +105,7 @@ export default defineConfig(({ mode }) => {
   //   credentials are synchronized into it so Firestore/Storage are signed in.
   base: isNative ? "./" : "/",
   server: {
-    host: "::",
+    host: "127.0.0.1",
     port: 8080,
   },
   plugins: [
