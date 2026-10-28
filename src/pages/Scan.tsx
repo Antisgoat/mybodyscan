@@ -38,6 +38,7 @@ import {
   type ScanPipelineState,
 } from "@/lib/scanPipeline";
 import { transitionState, type ScanFlowState } from "@/lib/scan/stateMachine";
+import { ScanPhotoReview } from "@/features/scan/ScanPhotoReview";
 
 interface PhotoInputs {
   front: File | null;
@@ -1307,8 +1308,8 @@ export default function ScanPage() {
     <div className="mx-auto max-w-2xl space-y-6 p-4">
       <h1 className="text-xl font-semibold">Body Scan</h1>
       <p className="text-sm text-muted-foreground">
-        Upload four photos and your current/goal weight. We&apos;ll analyze your
-        body composition and build a personalized workout and nutrition plan.
+        Four angles. One clear starting point. Add your photos and weights for
+        body-composition estimates and a personalized workout and nutrition plan.
       </p>
       <p className="text-sm text-muted-foreground">
         For each angle, keep your full body visible from head to feet. Stand
@@ -1316,7 +1317,8 @@ export default function ScanPage() {
         plain background, no mirror obstruction, and fitted clothing where
         comfortable. Keep your arms relaxed slightly away from your torso and
         use the same posture, distance, and framing for all four photos. These
-        details improve the shape of your personalized 3D profile.
+        details support more consistent comparisons. Photo estimates and the 3D
+        illustration are not medical measurements or a replacement for a DEXA scan.
       </p>
 
       {persistedScan &&
@@ -1392,6 +1394,18 @@ export default function ScanPage() {
           </p>
         ) : null}
 
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">Review your four angles</h2>
+            <span role="status" className="text-sm text-muted-foreground">
+              {Object.values(photos).filter(Boolean).length} of 4 added
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Check that your head and feet are visible in every photo. Previews
+            stay on this device until you submit your scan.
+          </p>
+        </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(["front", "back", "left", "right"] as Array<keyof PhotoInputs>).map(
             (pose) => (
@@ -1400,6 +1414,7 @@ export default function ScanPage() {
                 className="flex flex-col gap-2 rounded border p-3 text-sm font-medium capitalize"
               >
                 {pose}
+                <ScanPhotoReview file={photos[pose]} pose={pose} />
                 <input
                   type="file"
                   accept="image/*"
@@ -1407,7 +1422,7 @@ export default function ScanPage() {
                   data-testid="scan-photo-input"
                   className="text-xs"
                 />
-                {photos[pose] ? (
+                {photos[pose] && showDebug ? (
                   <span className="text-xs text-muted-foreground">
                     <span className="block">
                       Original: {photos[pose]?.name} ·{" "}
@@ -1426,11 +1441,11 @@ export default function ScanPage() {
                       </span>
                     ) : null}
                   </span>
-                ) : (
+                ) : !photos[pose] ? (
                   <span className="text-xs text-muted-foreground">
                     Upload a clear {pose} photo
                   </span>
-                )}
+                ) : null}
               </label>
             )
           )}
