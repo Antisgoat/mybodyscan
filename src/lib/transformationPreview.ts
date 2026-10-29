@@ -18,7 +18,7 @@ export type TransformationPreviewGoal =
   | "performance";
 
 export const TRANSFORMATION_PREVIEW_PROMPT_VERSION =
-  "2026-07-31-goal-definition-v2";
+  "2026-09-17-sunburst-scan-context-v3";
 
 export type TransformationPreviewDocument = {
   scanId: string;

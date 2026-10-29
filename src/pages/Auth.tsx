@@ -182,16 +182,21 @@ const Auth = () => {
   useEffect(() => {
     if (user) {
       if (!native) {
-        void import("@/lib/auth/oauth").then(({ clearPendingOAuth }) => {
-          clearPendingOAuth();
-        });
+        void import("@/lib/auth/oauth")
+          .then(({ clearPendingOAuth }) => {
+            clearPendingOAuth();
+          })
+          .catch(() => {
+            /* Optional marker cleanup must not break an authenticated session. */
+          });
       }
       return;
     }
     if (native) return;
     let cancelled = false;
-    void import("@/lib/auth/oauth").then(
-      ({ peekPendingOAuth, clearPendingOAuth }) => {
+    let timer: number | undefined;
+    void import("@/lib/auth/oauth")
+      .then(({ peekPendingOAuth, clearPendingOAuth }) => {
         if (cancelled) return;
         const pending = peekPendingOAuth();
         if (!pending) return;
@@ -207,7 +212,8 @@ const Auth = () => {
           return;
         }
         setLoadingSafe(true);
-        const timer = window.setTimeout(() => {
+        timer = window.setTimeout(() => {
+          if (cancelled) return;
           clearPendingOAuth();
           setLoadingSafe(false);
           const message =
@@ -215,13 +221,18 @@ const Auth = () => {
           setAuthErrorSafe(message);
           toast(message, "error");
         }, remaining);
-        return () => window.clearTimeout(timer);
-      }
-    );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setAuthErrorSafe(
+          "Could not restore the previous social sign-in. Reload this page or sign in with email."
+        );
+      });
     return () => {
       cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [native, user]);
+  }, [native, user, setAuthErrorSafe, setLastOAuthProviderSafe, setLoadingSafe]);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,11 +251,16 @@ const Auth = () => {
       const message = formatError(fallbackMessage, friendlyCode);
       setAuthErrorSafe(message);
       toast(message, "error");
-    })();
+    })().catch(() => {
+      if (cancelled) return;
+      setAuthErrorSafe(
+        "Could not check the previous sign-in. Please try signing in again."
+      );
+    });
     return () => {
       cancelled = true;
     };
-  }, [native, toast]);
+  }, [native, setAuthErrorSafe]);
 
   useEffect(() => {
     warnIfDomainUnauthorized();

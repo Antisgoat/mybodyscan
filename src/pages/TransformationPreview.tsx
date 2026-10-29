@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Clock, Lock, Sparkles, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,16 +13,18 @@ import { useEntitlements } from "@/lib/entitlements/store";
 import { hasPro } from "@/lib/entitlements/pro";
 import { useLatestScanForUser } from "@/hooks/useLatestScanForUser";
 import {
-  loadTransformationPreviewBlob,
   requestTransformationPreview,
   subscribeTransformationPreview,
   TRANSFORMATION_PREVIEW_PROMPT_VERSION,
   type TransformationPreviewGoal,
+  type TransformationPreviewDocument,
 } from "@/lib/transformationPreview";
 import { buildScanResultViewModel } from "@/lib/scanResultViewModel";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { TRANSFORMATION_PREVIEW_ENTRY_ENABLED } from "@/lib/flags";
 import { toast } from "@/hooks/use-toast";
+import { useTransformationPreviewImage } from "@/hooks/useTransformationPreviewImage";
+import { isTransformationPreviewStale } from "@/lib/transformationPreviewState";
 
 export default function TransformationPreviewPage() {
   const { scanId = "" } = useParams();
@@ -42,61 +44,65 @@ export default function TransformationPreviewPage() {
     (claims as any)?.unlimitedCredits
   );
   const canAccessPreview = pro;
-  const [state, setState] = useState<any>(null);
+  const previewScope = `${user?.uid ?? ""}/${scanId}`;
+  const [document, setDocument] = useState<{
+    scope: string;
+    value: TransformationPreviewDocument | null;
+  } | null>(null);
+  const state = document?.scope === previewScope ? document.value : null;
   const [loadingState, setLoadingState] = useState(true);
   const [consent, setConsent] = useState(false);
   const [goal, setGoal] = useState<TransformationPreviewGoal>("recomp");
   const [timelineWeeks, setTimelineWeeks] = useState(12);
   const [requesting, setRequesting] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [clock, setClock] = useState(Date.now);
+  const previewInProgress =
+    state?.status === "processing" || state?.status === "queued";
+  const generationStale = isTransformationPreviewStale(state, clock);
+  useEffect(() => {
+    if (!previewInProgress) return;
+    setClock(Date.now());
+    const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [previewInProgress, previewScope]);
+  const {
+    url: previewUrl,
+    status: previewImageStatus,
+    retry: retryPreviewImage,
+    onImageError,
+  } = useTransformationPreviewImage(
+    canAccessPreview ? (state?.storagePath ?? null) : null
+  );
 
   useEffect(() => {
     if (!user?.uid || !scanId || !canAccessPreview) {
-      setState(null);
+      setDocument(null);
       setLoadingState(false);
       return;
     }
     setLoadingState(true);
+    let active = true;
     const unsub = subscribeTransformationPreview(
       user.uid,
       scanId,
       (next) => {
-        setState(next);
+        if (!active) return;
+        setDocument({ scope: previewScope, value: next });
         setLoadingState(false);
       },
-      () => setLoadingState(false)
+      () => {
+        if (active) setLoadingState(false);
+      }
     );
-    return () => unsub();
-  }, [user?.uid, scanId, canAccessPreview]);
-
-  useEffect(() => {
-    let active = true;
-    let objectUrl: string | null = null;
-    setPreviewUrl(null);
-    // Keep the last completed image visible while a replacement is processing
-    // or if a refresh attempt fails.
-    if (!state?.storagePath) return;
-    void loadTransformationPreviewBlob(state.storagePath)
-      .then((blob) => {
-        if (!active) return;
-        objectUrl = URL.createObjectURL(blob);
-        setPreviewUrl(objectUrl);
-      })
-      .catch(() => {
-        if (active) {
-          toast({
-            title: "Preview unavailable",
-            description:
-              "We could not securely load this image. Please try again.",
-            variant: "destructive",
-          });
-        }
-      });
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      unsub();
     };
-  }, [state?.storagePath]);
+  }, [user?.uid, scanId, canAccessPreview, previewScope]);
+
+  useEffect(() => {
+    setConsent(false);
+  }, [previewScope]);
 
   useEffect(() => {
     if (!state) return;
@@ -165,7 +171,9 @@ export default function TransformationPreviewPage() {
       return {
         label:
           state?.status === "processing" || state?.status === "queued"
-            ? "Updating"
+            ? generationStale
+              ? "Update interrupted"
+              : "Updating"
             : state?.status === "failed"
               ? "Previous preview"
               : "Ready",
@@ -175,7 +183,13 @@ export default function TransformationPreviewPage() {
             : "Your Transformation Preview is ready.",
       };
     }
-    if (state?.status === "processing" || state?.status === "queued") {
+    if (generationStale) {
+      return {
+        label: "Creation interrupted",
+        copy: "This attempt is taking longer than expected. You can explicitly retry below; your server-side limits still apply.",
+      };
+    }
+    if (previewInProgress) {
       return {
         label: "Creating",
         copy: "Your private preview is being created. This can take a couple of minutes.",
@@ -201,12 +215,15 @@ export default function TransformationPreviewPage() {
     adult &&
     consent &&
     !requesting &&
-    state?.status !== "processing" &&
-    state?.status !== "queued";
+    (!previewInProgress || generationStale);
   const improvedPreviewAvailable =
     Boolean(state?.storagePath) &&
     (state?.promptVersion !== TRANSFORMATION_PREVIEW_PROMPT_VERSION ||
       state?.status === "failed");
+  const canRetryGeneration = state?.status === "failed" || generationStale;
+  const showGenerationUpdate =
+    improvedPreviewAvailable ||
+    (Boolean(state?.storagePath) && generationStale);
 
   const handleRequest = async () => {
     if (!canRequest) return;
@@ -238,7 +255,7 @@ export default function TransformationPreviewPage() {
     <main className="min-h-screen p-4 md:p-6 max-w-3xl mx-auto space-y-4">
       <Seo
         title="Transformation Preview – MyBodyScan"
-        description="Premium transformation projection status"
+        description="Private motivational fitness illustration"
         canonical={window.location.href}
       />
       <Card className="bg-gradient-to-b from-zinc-900 to-black border-zinc-800 text-zinc-100">
@@ -265,6 +282,7 @@ export default function TransformationPreviewPage() {
               <div className="space-y-3">
                 <img
                   src={previewUrl}
+                  onError={onImageError}
                   alt="Illustrative future-goal fitness visualization"
                   className="aspect-[2/3] w-full rounded-xl border border-zinc-700 bg-zinc-950 object-cover object-center"
                 />
@@ -275,8 +293,9 @@ export default function TransformationPreviewPage() {
                 {state?.status === "processing" ||
                 state?.status === "queued" ? (
                   <p className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 p-3 text-xs text-cyan-100">
-                    Creating your update. Your previous image remains available
-                    while it finishes.
+                    {generationStale
+                      ? "The update appears interrupted. Your previous image is still available; you can choose to retry below."
+                      : "Creating your update. Your previous image remains available while it finishes."}
                   </p>
                 ) : state?.status === "failed" ? (
                   <p className="rounded-lg border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">
@@ -284,16 +303,18 @@ export default function TransformationPreviewPage() {
                     preview. You can retry without losing it.
                   </p>
                 ) : null}
-                {improvedPreviewAvailable ? (
+                {showGenerationUpdate ? (
                   <div className="space-y-3 rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-4">
                     <div className="space-y-1">
                       <p className="font-semibold text-cyan-50">
-                        A clearer goal visualization is available
+                        {canRetryGeneration
+                          ? "Your update did not finish"
+                          : "A clearer goal visualization is available"}
                       </p>
                       <p className="text-xs leading-5 text-cyan-100/80">
-                        The updated version keeps your identity and natural
-                        proportions while making the selected fitness direction
-                        easier to see. It also corrects sideways image output.
+                        {canRetryGeneration
+                          ? "Your last completed image is safe. Retrying creation uses a generation allowance if it succeeds; retrying an image download does not."
+                          : "The updated version keeps your identity and natural proportions while making the selected fitness direction easier to see. It also corrects sideways image output."}
                       </p>
                     </div>
                     <div className="flex items-start gap-3">
@@ -325,13 +346,33 @@ export default function TransformationPreviewPage() {
                         </>
                       ) : (
                         <>
-                          <Sparkles className="mr-2 h-4 w-4" /> Create updated
-                          preview
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          {canRetryGeneration
+                            ? "Retry preview creation"
+                            : "Create updated preview"}
                         </>
                       )}
                     </Button>
                   </div>
                 ) : null}
+              </div>
+            ) : previewImageStatus === "error" ? (
+              <div className="space-y-3 rounded-xl border border-zinc-700 p-4">
+                <p role="alert" className="text-sm text-zinc-200">
+                  Your preview could not be loaded. The saved image has not been
+                  lost.
+                </p>
+                <p className="text-xs text-zinc-400">
+                  Retry the image download without creating a new preview or
+                  using a generation allowance.
+                </p>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={retryPreviewImage}
+                >
+                  Retry image download
+                </Button>
               </div>
             ) : (
               <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-zinc-400">
@@ -374,8 +415,7 @@ export default function TransformationPreviewPage() {
                 {canAccessPreview &&
                   vm?.isValidResult &&
                   adult &&
-                  state?.status !== "processing" &&
-                  state?.status !== "queued" && (
+                  (!previewInProgress || generationStale) && (
                     <div className="space-y-4 rounded-xl border border-zinc-700 bg-black/20 p-4">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
