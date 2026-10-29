@@ -6,6 +6,7 @@ import {
   exerciseAllowedByGymInventory,
   gymProfileEquipment,
   normalizeGymEquipment,
+  resolveWorkoutInventory,
 } from "@/lib/gymEquipment";
 import { generateCustomPlanDaysFromLibrary } from "@/lib/workoutsCustomGenerator";
 import type { CustomPlanPrefs } from "@/lib/workouts";
@@ -24,6 +25,40 @@ const BASE_PREFS: CustomPlanPrefs = {
 };
 
 describe("confirmed gym inventory", () => {
+  it("does not invent support equipment for manual minimal selections", () => {
+    const inventory = resolveWorkoutInventory(["bodyweight", "dumbbells"], []);
+    expect(inventory).toEqual(["open_floor", "dumbbells"]);
+    for (let variant = 0; variant < 8; variant++) {
+      const days = generateCustomPlanDaysFromLibrary(
+        {
+          ...BASE_PREFS,
+          equipment: ["bodyweight", "dumbbells"],
+          daysPerWeek: 7,
+          preferredDays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        },
+        { variant }
+      );
+      expect(days).toHaveLength(7);
+      for (const day of days)
+        for (const item of day.exercises) {
+          const exercise = getExerciseByExactName(item.name);
+          // Recovery activities are deliberately outside the strength catalog.
+          if (exercise)
+            expect(
+              exerciseAllowedByGymInventory(exercise, inventory),
+              item.name
+            ).toBe(true);
+        }
+    }
+  });
+
+  it("preserves confirmed inventories and explicit full-gym choices", () => {
+    expect(
+      resolveWorkoutInventory(["dumbbells"], ["dumbbells", "flat_bench"])
+    ).toEqual(["dumbbells", "flat_bench"]);
+    expect(resolveWorkoutInventory(["gym"], [])).toEqual([]);
+    expect(resolveWorkoutInventory(["bodyweight"], [])).toEqual(["open_floor"]);
+  });
   it("keeps the client checklist and server detector taxonomy identical", () => {
     expect(GYM_EQUIPMENT.map((item) => item.id)).toEqual(
       SERVER_GYM_EQUIPMENT_IDS
