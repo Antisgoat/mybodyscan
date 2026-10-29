@@ -184,7 +184,7 @@ export function exerciseAllowedByGymInventory(
     exercise.equipment.some((item) =>
       ["barbell", "dumbbell", "smith"].includes(item)
     ) &&
-    /bench|incline|decline|seated|fly|chest supported|seal row|hip thrust/.test(
+    /bench|incline|decline|seated|fly|chest supported|seal row|hip thrust|bulgarian|step up/.test(
       name
     );
   if (

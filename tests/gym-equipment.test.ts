@@ -66,6 +66,8 @@ describe("confirmed gym inventory", () => {
       "Dumbbell Fly (Incline)",
       "Seated Dumbbell Shoulder Press",
       "Incline Dumbbell Curl",
+      "Dumbbell Bulgarian Split Squat",
+      "Dumbbell Step-Up",
     ]) {
       const exercise = getExerciseByExactName(name);
       expect(exercise, name).not.toBeNull();
