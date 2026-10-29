@@ -18,7 +18,7 @@ import {
 } from "@/lib/exercises/library";
 import {
   exerciseAllowedByGymInventory,
-  normalizeGymEquipment,
+  resolveWorkoutInventory,
   workoutEquipmentSet,
   type GymEquipmentId,
 } from "@/lib/gymEquipment";
@@ -1177,7 +1177,10 @@ export function generateCustomPlanDaysFromLibrary(
   const experience = (prefs.experience ?? "beginner") as Experience;
   const focus = recommendCustomPlanFocus(prefs);
   const { mode, allowed } = allowedEquipFromPrefs(prefs);
-  const equipmentInventory = normalizeGymEquipment(prefs.equipmentInventory);
+  const equipmentInventory = resolveWorkoutInventory(
+    prefs.equipment ?? [],
+    prefs.equipmentInventory
+  );
   const maxMoves = maxMovesForTime(prefs.timePerWorkout);
   const targets = volumeTargets({ goal, experience, daysPerWeek, focus });
 

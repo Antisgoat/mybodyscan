@@ -36,6 +36,7 @@ import {
   deriveExerciseEquipment,
   exerciseAllowedByGymInventory,
   normalizeGymEquipment,
+  resolveWorkoutInventory,
   workoutEquipmentSet,
   type GymEquipmentId,
 } from "@/lib/gymEquipment";
@@ -156,6 +157,11 @@ export default function CustomizeProgram() {
   } | null>(null);
   const [swapQuery, setSwapQuery] = useState<string>("");
 
+  const resolvedEquipmentInventory = useMemo(
+    () => resolveWorkoutInventory(equipment, equipmentInventory),
+    [equipment, equipmentInventory]
+  );
+
   const prefs: CustomPlanPrefs = useMemo(
     () => ({
       goal,
@@ -166,7 +172,7 @@ export default function CustomizeProgram() {
       preferredDays: preferredDays.slice(0, daysPerWeek),
       timePerWorkout,
       equipment,
-      equipmentInventory,
+      equipmentInventory: resolvedEquipmentInventory,
       emphasis,
       injuries: injuries.trim() ? injuries.trim() : null,
       avoidExercises: avoidExercises.trim() ? avoidExercises.trim() : null,
@@ -184,7 +190,7 @@ export default function CustomizeProgram() {
       preferredDays,
       timePerWorkout,
       equipment,
-      equipmentInventory,
+      resolvedEquipmentInventory,
       emphasis,
       injuries,
       avoidExercises,
@@ -286,7 +292,7 @@ export default function CustomizeProgram() {
       excludeIds,
       limit: 80,
     }).filter((exercise) =>
-      exerciseAllowedByGymInventory(exercise, equipmentInventory)
+      exerciseAllowedByGymInventory(exercise, resolvedEquipmentInventory)
     );
 
     // Keep a stable order when query is empty to feel deterministic.
@@ -301,7 +307,7 @@ export default function CustomizeProgram() {
         .slice(0, 30);
     }
     return candidates.slice(0, 30);
-  }, [equipmentInventory, swapContext, swapQuery]);
+  }, [resolvedEquipmentInventory, swapContext, swapQuery]);
 
   const preferredDaySet = useMemo(
     () => new Set(preferredDays),
@@ -454,14 +460,14 @@ export default function CustomizeProgram() {
       });
       return;
     }
-    if (equipmentInventory.length) {
+    if (resolvedEquipmentInventory.length) {
       const incompatible = generatedDays
         .flatMap((day) => day.exercises)
         .find((item) => {
           const exercise = getExerciseByExactName(item.name);
           return (
             exercise &&
-            !exerciseAllowedByGymInventory(exercise, equipmentInventory)
+            !exerciseAllowedByGymInventory(exercise, resolvedEquipmentInventory)
           );
         });
       if (incompatible) {

@@ -124,6 +124,27 @@ export function workoutEquipmentSet(values: readonly string[]): Set<Equipment> {
   return result;
 }
 
+/** Minimal manual choices do not imply a bench, hanging bar, or machines. */
+export function resolveWorkoutInventory(
+  equipment: readonly string[],
+  inventory: unknown
+): GymEquipmentId[] {
+  const confirmed = normalizeGymEquipment(inventory);
+  if (confirmed.length) return confirmed;
+  const allowed = workoutEquipmentSet(equipment);
+  if (
+    ["barbell", "machine", "cables", "smith"].some((item) =>
+      allowed.has(item as Equipment)
+    )
+  )
+    return [];
+  const minimal: GymEquipmentId[] = ["open_floor"];
+  if (allowed.has("dumbbell")) minimal.push("dumbbells");
+  if (allowed.has("kettlebell")) minimal.push("kettlebells");
+  if (allowed.has("bands")) minimal.push("resistance_bands");
+  return minimal;
+}
+
 export function toWorkoutPreferenceEquipment(
   inventory: readonly GymEquipmentId[]
 ): string[] {
