@@ -232,7 +232,7 @@ const Auth = () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [native, user]);
+  }, [native, user, setAuthErrorSafe, setLastOAuthProviderSafe, setLoadingSafe]);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,7 +260,7 @@ const Auth = () => {
     return () => {
       cancelled = true;
     };
-  }, [native, toast]);
+  }, [native, setAuthErrorSafe]);
 
   useEffect(() => {
     warnIfDomainUnauthorized();
