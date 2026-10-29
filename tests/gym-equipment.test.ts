@@ -59,6 +59,33 @@ describe("confirmed gym inventory", () => {
     expect(resolveWorkoutInventory(["gym"], [])).toEqual([]);
     expect(resolveWorkoutInventory(["bodyweight"], [])).toEqual(["open_floor"]);
   });
+
+  it("requires support for flies, seated presses, and incline curls", () => {
+    for (const name of [
+      "Dumbbell Fly (Flat)",
+      "Dumbbell Fly (Incline)",
+      "Seated Dumbbell Shoulder Press",
+      "Incline Dumbbell Curl",
+    ]) {
+      const exercise = getExerciseByExactName(name);
+      expect(exercise, name).not.toBeNull();
+      expect(
+        exerciseAllowedByGymInventory(exercise!, ["dumbbells"]),
+        name
+      ).toBe(false);
+      expect(
+        exerciseAllowedByGymInventory(exercise!, [
+          "dumbbells",
+          "adjustable_bench",
+        ]),
+        name
+      ).toBe(true);
+    }
+    const incline = getExerciseByExactName("Incline Dumbbell Curl")!;
+    expect(
+      exerciseAllowedByGymInventory(incline, ["dumbbells", "flat_bench"])
+    ).toBe(false);
+  });
   it("keeps the client checklist and server detector taxonomy identical", () => {
     expect(GYM_EQUIPMENT.map((item) => item.id)).toEqual(
       SERVER_GYM_EQUIPMENT_IDS

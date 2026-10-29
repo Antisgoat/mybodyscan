@@ -183,12 +183,18 @@ export function exerciseAllowedByGymInventory(
   const needsBench =
     exercise.equipment.some((item) =>
       ["barbell", "dumbbell", "smith"].includes(item)
-    ) && /bench|incline press|chest supported|seal row|hip thrust/.test(name);
+    ) &&
+    /bench|incline|decline|seated|fly|chest supported|seal row|hip thrust/.test(
+      name
+    );
   if (
     needsBench &&
     !items.has("adjustable_bench") &&
     !items.has("flat_bench")
   ) {
+    return false;
+  }
+  if (needsBench && /incline/.test(name) && !items.has("adjustable_bench")) {
     return false;
   }
 
