@@ -149,6 +149,7 @@ it("shows a local photo preview and requires matching-food review before logging
 it("logs half a meal with scaled macros and no new AI request", async () => {
   const { container } = open();
   await upload(container);
+  expect(screen.getByText(/Review the totals for the entire photo below/)).toBeTruthy();
   fireEvent.change(
     screen.getByLabelText("How much of the pictured meal did you eat?"),
     { target: { value: "50" } }

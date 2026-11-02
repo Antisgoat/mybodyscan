@@ -35,6 +35,8 @@ supported. Security findings are time-bound and testing is not a guarantee that
 all attacks or device-specific bugs are impossible. No Firebase permissions,
 API-key restrictions, subscriptions, AI models, or paid services are changed.
 
-Build 49 is reserved for these improvements. Full tests, browser checks, CI,
+Build 50 includes the final copy clarification: edit the entire pictured meal,
+then scale the amount eaten. Build 49 was uploaded but superseded before tester
+assignment. Full tests, browser checks, CI,
 production deployment, and TestFlight assignment are required before handoff.
 Public App Store submission still requires the owner's physical-iPhone acceptance.

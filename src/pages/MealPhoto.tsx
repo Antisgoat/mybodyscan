@@ -287,9 +287,9 @@ export default function MealPhoto() {
         <section className="space-y-4 rounded-3xl border bg-card p-5">
           <h2 className="text-lg font-semibold">Review your estimate</h2>
           <p className="text-sm text-muted-foreground">
-            Estimated portion: {Math.round(estimate.grams)} g. Oils, sauces, and
-            portion size can change the result substantially. Correct the totals
-            below for what you actually ate.
+            Estimated food pictured: {Math.round(estimate.grams)} g. Review the
+            totals for the entire photo below, then choose how much you ate.
+            Oils, sauces, and portion size can change the result substantially.
           </p>
           <p className="text-xs font-medium text-muted-foreground">
             {estimate.confidence < 0.78
