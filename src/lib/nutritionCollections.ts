@@ -11,6 +11,7 @@ import { db } from "@/lib/firebase";
 import type { FoodItem } from "@/lib/nutrition/types";
 import { getCachedUser } from "@/auth/mbs-auth";
 import { calculateSelection, type ServingUnit } from "@/lib/nutritionMath";
+import { calculateRecipeTotals } from "@/lib/nutrition/recipeTotals";
 import {
   normalizeAllergens,
   type MajorAllergen,
@@ -356,39 +357,14 @@ export function buildRecipeItem(input: {
 }): FoodItem {
   const name = input.name.trim().slice(0, 140);
   if (!name) throw new Error("Recipe name is required.");
-  const servings = Math.round(Number(input.servings));
+  const servings = Number(input.servings);
   if (!Number.isFinite(servings) || servings < 1 || servings > 100) {
     throw new Error("Recipe servings must be between 1 and 100.");
   }
   if (!Array.isArray(input.ingredients) || !input.ingredients.length) {
     throw new Error("Add at least one recipe ingredient.");
   }
-  const totals = input.ingredients.reduce(
-    (sum, ingredient) => {
-      const result = calculateSelection(
-        ingredient.item,
-        ingredient.qty,
-        ingredient.unit
-      );
-      if (
-        result.calories == null ||
-        result.protein == null ||
-        result.carbs == null ||
-        result.fat == null
-      ) {
-        throw new Error(
-          `${ingredient.item.name} is missing nutrients for that serving.`
-        );
-      }
-      return {
-        calories: sum.calories + result.calories,
-        protein: sum.protein + result.protein,
-        carbs: sum.carbs + result.carbs,
-        fat: sum.fat + result.fat,
-      };
-    },
-    { calories: 0, protein: 0, carbs: 0, fat: 0 }
-  );
+  const { total: totals } = calculateRecipeTotals(input.ingredients, servings);
   return {
     id: input.id ?? createId("recipe"),
     name,
