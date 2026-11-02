@@ -4,7 +4,11 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { getAppCheck } from "firebase-admin/app-check";
-import { scanScanIdPrefix } from "../scan/paths.js";
+import {
+  scanMediaPrefixes,
+  deleteScanMediaAndRecords,
+  previewBlocksDeletion,
+} from "../lib/scanMediaDeletion.js";
 import { getAppCheckMode } from "../lib/env.js";
 import { readFirebaseAppCheckHeader } from "../lib/appCheckHeader.js";
 
@@ -59,8 +63,13 @@ export const deleteScan = onRequest(
     try {
       const decoded = await getAuth().verifyIdToken(idToken, true);
       const uid = decoded.uid;
-      const scanId = String((req.body?.scanId ?? "").trim());
-      if (!scanId) return jsonError(res, 400, "bad_request", "Missing scanId");
+      const scanId =
+        typeof req.body?.scanId === "string" ? req.body.scanId.trim() : "";
+      try {
+        scanMediaPrefixes(uid, scanId);
+      } catch {
+        return jsonError(res, 400, "bad_request", "Invalid scan identifier");
+      }
 
       const db = getFirestore();
       const docRef = db.doc(`users/${uid}/scans/${scanId}`);
@@ -68,18 +77,41 @@ export const deleteScan = onRequest(
       if (!snap.exists)
         return jsonError(res, 404, "not_found", "Scan not found");
 
-      // Delete storage files under both legacy and current prefixes
-      const bucket = getStorage().bucket();
-      await Promise.all([
-        bucket
-          .deleteFiles({ prefix: scanScanIdPrefix({ uid, scanId }) })
-          .catch(() => {}),
-        bucket
-          .deleteFiles({ prefix: `scans/${uid}/${scanId}/` })
-          .catch(() => {}),
-      ]);
+      const previewRef = db.doc(
+        `users/${uid}/transformationPreviews/${scanId}`
+      );
+      const canDelete = await db.runTransaction(async (tx) => {
+        const [current, preview] = await Promise.all([
+          tx.get(docRef),
+          tx.get(previewRef),
+        ]);
+        if (!current.exists) return false;
+        if (
+          ["uploading", "queued", "processing", "running"].includes(
+            current.data()?.status
+          ) ||
+          previewBlocksDeletion(preview.data())
+        )
+          return false;
+        tx.update(docRef, { deletionRequestedAt: new Date() });
+        return true;
+      });
+      if (!canDelete)
+        return jsonError(
+          res,
+          409,
+          "scan_busy",
+          "Wait for the scan or preview to finish, then retry deletion."
+        );
 
-      await docRef.delete();
+      const bucket = getStorage().bucket();
+      await deleteScanMediaAndRecords(uid, scanId, {
+        deletePrefix: (prefix) => bucket.deleteFiles({ prefix }),
+        deleteRecords: async () => {
+          await db.recursiveDelete(previewRef);
+          await db.recursiveDelete(docRef);
+        },
+      });
       logger.info("deleteScan_ok", { uid, scanId });
       return jsonOk(res, { scanId });
     } catch (err: any) {

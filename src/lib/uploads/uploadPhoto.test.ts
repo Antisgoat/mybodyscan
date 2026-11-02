@@ -38,7 +38,7 @@ describe("uploadPhoto", () => {
     expect(result.method).toBe("storage");
     expect(uploadViaStorage).toHaveBeenCalledTimes(1);
     expect(uploadViaStorage).toHaveBeenLastCalledWith(
-      expect.objectContaining({ includeDownloadURL: true, maxRetries: 3 })
+      expect.objectContaining({ includeDownloadURL: false, maxRetries: 3 })
     );
   });
 });

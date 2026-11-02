@@ -1,4 +1,4 @@
-import { getDownloadURL, ref, type FirebaseStorage } from "firebase/storage";
+import { getBlob, ref, type FirebaseStorage } from "firebase/storage";
 
 type OkEntry = { kind: "ok"; promise: Promise<string>; expiresAt: number };
 type PendingEntry = {
@@ -133,7 +133,13 @@ export async function getCachedScanPhotoUrlMaybe(
 
   const okTtlMs = Math.max(1_000, options?.okTtlMs ?? TTL_MS);
   const startedAt = now;
-  const downloadPromise = getDownloadURL(ref(storage, path));
+  if (existing?.kind === "ok")
+    void existing.promise.then((url) => URL.revokeObjectURL(url));
+  // Authenticated SDK reads enforce Storage rules; no reusable bearer download
+  // link is exposed to the DOM, cache, diagnostics, or clipboard.
+  const downloadPromise = getBlob(ref(storage, path), 15 * 1024 * 1024).then(
+    (blob) => (sessionChanged() ? "" : URL.createObjectURL(blob))
+  );
   photoUrlCache.set(key, {
     kind: "pending",
     promise: downloadPromise,
@@ -141,7 +147,10 @@ export async function getCachedScanPhotoUrlMaybe(
   });
   try {
     const url = await downloadPromise;
-    if (sessionChanged()) return { url: null };
+    if (sessionChanged()) {
+      if (url) URL.revokeObjectURL(url);
+      return { url: null };
+    }
     // Store a resolved promise so callers can await consistently.
     photoUrlCache.set(key, {
       kind: "ok",
@@ -187,10 +196,27 @@ export async function getCachedScanPhotoUrl(
 
 export function clearCachedScanPhotoUrl(cacheKey: string): void {
   cacheGeneration++;
+  const entry = photoUrlCache.get(cacheKey);
+  if (entry && entry.kind !== "miss")
+    void entry.promise.then(
+      (url) => {
+        if (url) URL.revokeObjectURL(url);
+      },
+      () => {}
+    );
   photoUrlCache.delete(cacheKey);
 }
 
 export function resetScanPhotoUrlCache(): void {
   cacheGeneration++;
+  for (const entry of photoUrlCache.values()) {
+    if (entry.kind !== "miss")
+      void entry.promise.then(
+        (url) => {
+          if (url) URL.revokeObjectURL(url);
+        },
+        () => {}
+      );
+  }
   photoUrlCache.clear();
 }

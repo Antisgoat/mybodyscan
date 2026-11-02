@@ -167,7 +167,7 @@ export async function uploadPhoto(params: {
       storage: params.storage,
       path: params.path,
       file: params.file,
-      includeDownloadURL: params.includeDownloadURL ?? true,
+      includeDownloadURL: params.includeDownloadURL ?? false,
       customMetadata: params.customMetadata,
       stallTimeoutMs: params.stallTimeoutMs,
       overallTimeoutMs: params.storageTimeoutMs,

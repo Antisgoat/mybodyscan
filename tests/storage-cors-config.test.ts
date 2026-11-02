@@ -32,6 +32,8 @@ describe("Storage CORS configuration", () => {
         "https://www.mybodyscan.app",
         "https://mybodyscan-f3daf.web.app",
         "https://mybodyscan-f3daf.firebaseapp.com",
+        "capacitor://localhost",
+        "https://localhost",
       ])
     );
   });

@@ -343,6 +343,49 @@ async function main() {
   }
   const finalCredits = await creditBalance();
 
+  // Local fixtures only: verify individual scan deletion covers derived media
+  // and does not race an active preview. No production data is used here.
+  const privatePreviewRef = adminDb.doc(
+    `users/${uid}/transformationPreviews/${successSession.scanId}`
+  );
+  await privatePreviewRef.set({ status: "processing", updatedAt: new Date() });
+  const removeScan = () =>
+    fetch(
+      `http://${functionsHost}:${functionsPort}/${projectId}/${region}/deleteScan`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ scanId: successSession.scanId }),
+      }
+    );
+  const busyDelete = await removeScan();
+  if (busyDelete.status !== 409)
+    throw new Error("Active preview did not block scan deletion");
+  await privatePreviewRef.set({ status: "ready", updatedAt: new Date() });
+  await adminBucket
+    .file(`transformation-previews/${uid}/${successSession.scanId}/fixture.jpg`)
+    .save("local fixture", { contentType: "image/jpeg" });
+  const scanDelete = await removeScan();
+  if (!scanDelete.ok)
+    throw new Error(`Individual scan deletion failed: ${scanDelete.status}`);
+  for (const prefix of [
+    `scans/${uid}/${successSession.scanId}/`,
+    `transformation-previews/${uid}/${successSession.scanId}/`,
+  ]) {
+    const [remaining] = await adminBucket.getFiles({ prefix });
+    if (remaining.length)
+      throw new Error("Individual scan deletion left private media behind");
+  }
+  if (
+    (await privatePreviewRef.get()).exists ||
+    (await adminDb.doc(`users/${uid}/scans/${successSession.scanId}`).get())
+      .exists
+  )
+    throw new Error("Individual scan deletion left private records behind");
+
   // Verify the real callable used by Settings deletes every account surface.
   // This runs last because a successful deletion invalidates the test identity.
   await adminDb
@@ -413,6 +456,7 @@ async function main() {
     duplicateSubmitIdempotent: true,
     refundVerified: true,
     accountDeletionVerified: true,
+    individualScanMediaDeletionVerified: true,
   });
   // Ensure `emulators:exec` sees a clean exit (avoid being SIGTERM'd during shutdown).
   process.exit(0);
