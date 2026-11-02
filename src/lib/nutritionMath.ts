@@ -106,9 +106,12 @@ function hasAnyPerServingMacro(item: FoodItem): boolean {
 export function availableServingUnits(item: FoodItem): ServingUnit[] {
   const units: ServingUnit[] = [];
   const hasPer100Field = Object.prototype.hasOwnProperty.call(item, "per_100g");
-  const hasPer100 = hasPer100Field
-    ? Boolean(item.per_100g)
-    : Boolean(item.basePer100g && typeof item.basePer100g === "object");
+  const hasPer100 =
+    item.source === "User recipe" && !item.per_100g
+      ? false
+      : hasPer100Field
+        ? Boolean(item.per_100g)
+        : Boolean(item.basePer100g && typeof item.basePer100g === "object");
   if (hasAnyPerServingMacro(item) || estimateServingWeight(item)) {
     units.push("serving");
   }
@@ -213,6 +216,21 @@ export function calculateSelection(
   qty: number,
   unit: ServingUnit
 ): SelectionResult {
+  // Also protect older saved recipes whose zero basePer100g placeholder was
+  // previously mistaken for a real prepared-food weight conversion.
+  if (
+    item.source === "User recipe" &&
+    !item.per_100g &&
+    (unit === "g" || unit === "oz")
+  ) {
+    return {
+      grams: null,
+      calories: null,
+      protein: null,
+      carbs: null,
+      fat: null,
+    };
+  }
   const grams = gramsForSelection(item, qty, unit);
   // Guardrail: if upstream items are missing per-serving macros, treat as unknown (nulls),
   // never throw during render.

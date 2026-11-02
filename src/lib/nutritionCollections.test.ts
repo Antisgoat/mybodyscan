@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { availableServingUnits, calculateSelection } from "@/lib/nutritionMath";
 import {
   buildCustomFoodItem,
   buildRecipeItem,
@@ -54,6 +55,13 @@ describe("private food builders", () => {
     expect(recipe.source).toBe("User recipe");
     expect(recipe.per_serving.kcal).toBe(200);
     expect(recipe.per_serving.protein_g).toBe(10);
+    expect(recipe.per_100g).toBeNull();
+    expect(availableServingUnits(recipe)).toEqual(["serving"]);
+    expect(calculateSelection(recipe, 100, "g").calories).toBeNull();
+    expect(calculateSelection(recipe, 2, "serving").calories).toBe(400);
+    const { per_100g: _missing, ...legacyRecipe } = recipe;
+    expect(availableServingUnits(legacyRecipe)).toEqual(["serving"]);
+    expect(calculateSelection(legacyRecipe, 2, "oz").calories).toBeNull();
   });
 
   it("fails closed when a custom food label was not verified", async () => {
