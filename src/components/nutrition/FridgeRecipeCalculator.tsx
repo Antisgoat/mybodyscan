@@ -29,6 +29,11 @@ type Row = {
   portion?: MeasuredIngredient | false;
 };
 
+function newRecipeId() {
+  // Document identity, not a credential; support older iOS WebViews too.
+  return `recipe-${typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+}
+
 function recipeRows(meal: FridgeMeal): Row[] {
   const seen = new Set<string>();
   return [
@@ -50,6 +55,7 @@ export function FridgeRecipeCalculator({
   servings: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [recipeId] = useState(newRecipeId);
   const { user } = useAuthUser();
   const demo = useDemoMode();
   return (
@@ -75,6 +81,7 @@ export function FridgeRecipeCalculator({
           <RecipeEditor
             key={`${user.uid}:${meal.title}`}
             uid={user.uid}
+            recipeId={recipeId}
             meal={meal}
             initialServings={servings}
           />
@@ -88,10 +95,12 @@ function RecipeEditor({
   uid,
   meal,
   initialServings,
+  recipeId,
 }: {
   uid: string;
   meal: FridgeMeal;
   initialServings: number;
+  recipeId: string;
 }) {
   const [rows, setRows] = useState<Row[]>(() => recipeRows(meal));
   const [servings, setServings] = useState(String(initialServings));
@@ -103,16 +112,6 @@ function RecipeEditor({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  // This is a document identity, not a credential. Keep older supported iOS
-  // WebViews working when randomUUID is unavailable.
-  const [recipeId] = useState(
-    () =>
-      `recipe-${
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-          ? crypto.randomUUID()
-          : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-      }`
-  );
   const saveLock = useRef(false);
   const ingredients = useMemo(
     () => rows.flatMap((row) => (row.portion ? [row.portion] : [])),
@@ -148,27 +147,44 @@ function RecipeEditor({
   const validProtein =
     proteinGoal.trim() !== "" && Number.isFinite(protein) && protein > 0;
   const save = async () => {
-    if (saveLock.current || !complete || !nutrition.value || !reviewed) return;
+    if (
+      saveLock.current ||
+      editing !== null ||
+      !complete ||
+      !nutrition.value ||
+      !reviewed
+    )
+      return;
     saveLock.current = true;
     setSaving(true);
     setSaveError(null);
+    let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      await saveRecipe(
-        {
-          id: recipeId,
-          name: meal.title,
-          servings: Number(servings),
-          ingredients,
-          allergens,
-        },
-        uid
-      );
+      await Promise.race([
+        saveRecipe(
+          {
+            id: recipeId,
+            name: meal.title,
+            servings: Number(servings),
+            ingredients,
+            allergens,
+          },
+          uid
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("save_confirmation_timeout")),
+            20_000
+          );
+        }),
+      ]);
       setSaved(true);
     } catch {
       setSaveError(
-        "Could not save the recipe. Your portions are still here. Check your connection and retry."
+        "Could not confirm the save. Your portions are still here. Check your connection and retry; the same recipe record will be reused."
       );
     } finally {
+      clearTimeout(timer);
       saveLock.current = false;
       setSaving(false);
     }
@@ -225,6 +241,8 @@ function RecipeEditor({
                   className="min-h-11"
                   onClick={() => {
                     setEditing(index);
+                    setReviewed(false);
+                    setSaved(false);
                     setSaveError(null);
                   }}
                   aria-label={`Measure ${row.name}`}
@@ -411,7 +429,7 @@ function RecipeEditor({
           <Checkbox
             className="mt-1"
             checked={reviewed}
-            disabled={!complete || !nutrition.value}
+            disabled={editing !== null || !complete || !nutrition.value}
             onCheckedChange={(checked) => {
               setReviewed(checked === true);
               setSaved(false);
@@ -429,7 +447,14 @@ function RecipeEditor({
       <Button
         type="button"
         className="min-h-12 w-full"
-        disabled={saving || saved || !reviewed || !complete || !nutrition.value}
+        disabled={
+          saving ||
+          saved ||
+          editing !== null ||
+          !reviewed ||
+          !complete ||
+          !nutrition.value
+        }
         onClick={() => void save()}
       >
         {saving

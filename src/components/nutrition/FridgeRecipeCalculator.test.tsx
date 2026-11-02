@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -72,7 +73,10 @@ beforeEach(() => {
   mocks.search.mockResolvedValue({ status: "ok", results: [food] });
   mocks.save.mockResolvedValue("saved-recipe");
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("fridge idea to measured recipe", () => {
   it("requires every ingredient to be measured or explicitly omitted", async () => {
@@ -146,7 +150,7 @@ describe("fridge idea to measured recipe", () => {
     const save = screen.getByRole("button", { name: "Save to my recipes" });
     fireEvent.click(save);
     fireEvent.click(save);
-    await screen.findByText(/Could not save the recipe/);
+    await screen.findByText(/Could not confirm the save/);
     expect(mocks.save).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Save to my recipes" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
@@ -162,5 +166,45 @@ describe("fridge idea to measured recipe", () => {
         }) as HTMLButtonElement
       ).disabled
     ).toBe(true);
+  });
+
+  it("requires a fresh review while a portion is being edited", async () => {
+    render(app());
+    open();
+    await measure();
+    fireEvent.click(screen.getByRole("button", { name: "Not using Oil" }));
+    fireEvent.click(review());
+    fireEvent.click(screen.getByRole("button", { name: "Measure Spinach" }));
+    expect(review().getAttribute("data-state")).toBe("unchecked");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Save to my recipes",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(true);
+  });
+
+  it("unlocks an unconfirmed save after the deadline without losing portions", async () => {
+    render(app());
+    open();
+    await measure();
+    fireEvent.click(screen.getByRole("button", { name: "Not using Oil" }));
+    fireEvent.click(review());
+    mocks.save.mockReturnValue(new Promise(() => {}));
+    vi.useFakeTimers();
+    fireEvent.click(screen.getByRole("button", { name: "Save to my recipes" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_001);
+    });
+    expect(screen.getByText(/Could not confirm the save/)).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Save to my recipes",
+        }) as HTMLButtonElement
+      ).disabled
+    ).toBe(false);
+    expect(screen.getByText(/Spinach, raw · 1 serving/)).toBeTruthy();
   });
 });
