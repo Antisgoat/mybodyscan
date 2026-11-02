@@ -36,6 +36,7 @@ import {
   usesNativePhotoPicker,
 } from "@/lib/nativePhoto";
 import type { FridgeAnalysis, FridgeMealSuggestions } from "@/lib/fridgeMeals";
+import { FridgeRecipeCalculator } from "@/components/nutrition/FridgeRecipeCalculator";
 
 function ingredientKey(value: string): string {
   return value.trim().toLocaleLowerCase("en-US");
@@ -660,7 +661,7 @@ export default function FridgeMeals() {
                   {meal.optional.length ? (
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Optional staples
+                        Optional additions
                       </p>
                       <p className="mt-1 text-sm">{meal.optional.join(", ")}</p>
                     </div>
@@ -687,6 +688,7 @@ export default function FridgeMeals() {
                   <p className="text-xs leading-5 text-muted-foreground">
                     {meal.safetyNote}
                   </p>
+                  <FridgeRecipeCalculator meal={meal} servings={servings} />
                 </CardContent>
               </Card>
             ))}

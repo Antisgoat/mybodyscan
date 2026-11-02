@@ -37,7 +37,7 @@
     "android:assets": "npx @capacitor/assets generate --android",
     "verify:native": "node scripts/verify-native-bundle.mjs",
     "verify:native-bundle": "node scripts/verify-native-bundle.mjs",
-    "postinstall": "npm run ios:ensure-public",
+    "postinstall": "node scripts/ensure-minimatch-compat.cjs && npm run ios:ensure-public",
     "ensure:native-firebase-config": "node scripts/ensure-native-firebase-config.mjs",
     "prebuild:native": "node scripts/ensure-native-firebase-config.mjs",
     "prebuild:native:release": "node scripts/ensure-native-firebase-config.mjs",
@@ -218,6 +218,10 @@
     "wait-on": "^7.2.0"
   },
   "overrides": {
+    "minimatch": "11.0.4",
+    "glob": "14.0.3",
+    "follow-redirects": "1.16.2",
+    "joi": "17.13.9",
     "@hono/node-server": "2.1.5",
     "qs": "6.16.1",
     "simple-swizzle": "0.2.2",

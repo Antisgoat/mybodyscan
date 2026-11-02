@@ -50,8 +50,8 @@ function parseNumber(value: string): number {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
-function macroSummary(item: FoodItem) {
-  const serving = calculateSelection(item, 1, "serving");
+function macroSummary(item: FoodItem, qty = 1, unit: ServingUnit = "serving") {
+  const serving = calculateSelection(item, qty, unit);
   return `${Math.round(serving.calories ?? 0)} kcal · P ${Math.round(
     serving.protein ?? 0
   )} g · C ${Math.round(serving.carbs ?? 0)} g · F ${Math.round(
@@ -555,7 +555,11 @@ export default function FoodBuilder() {
                     <p className="font-medium">{ingredient.item.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {ingredient.qty} {ingredient.unit} ·{" "}
-                      {macroSummary(ingredient.item)}
+                      {macroSummary(
+                        ingredient.item,
+                        ingredient.qty,
+                        ingredient.unit
+                      )}
                     </p>
                   </div>
                   <Button
