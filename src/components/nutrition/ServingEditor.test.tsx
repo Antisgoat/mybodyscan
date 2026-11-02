@@ -17,6 +17,23 @@ const beef: FoodItem = {
   per_100g: { kcal: 230, protein_g: 28, carbs_g: 0, fat_g: 12 },
 };
 afterEach(cleanup);
+it("blocks incomplete food records rather than logging missing macros as zero", () => {
+  const confirm = vi.fn();
+  render(
+    <ServingEditor
+      item={{ ...beef, per_serving: { ...beef.per_serving, fat_g: null } }}
+      onConfirm={confirm}
+    />
+  );
+  expect(
+    (screen.getByRole("button", { name: "Add to diary" }) as HTMLButtonElement)
+      .disabled
+  ).toBe(true);
+  expect(screen.getByText(/Complete nutrition is unavailable/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Add to diary" }));
+  expect(confirm).not.toHaveBeenCalled();
+});
+
 it("opens plain whole foods directly in grams, preserving explicit saved-entry defaults", () => {
   const item = {
     ...beef,

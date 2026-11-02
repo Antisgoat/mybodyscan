@@ -36,8 +36,11 @@ interface ServingEditorProps {
 const UNIT_LABELS: Record<ServingUnit, string> = {
   serving: "Serving",
   g: "Grams (g)",
+  kg: "Kilograms (kg)",
   oz: "Ounces (oz)",
+  lb: "Pounds (lb)",
   ml: "Milliliters (ml)",
+  l: "Liters (L)",
   cups: "Cups",
   slices: "Slices",
   pieces: "Pieces",
@@ -89,7 +92,7 @@ export function ServingEditor({
     result.protein,
     result.carbs,
     result.fat,
-  ].some((value) => value != null && Number.isFinite(value));
+  ].every((value) => value != null && Number.isFinite(value) && value >= 0);
 
   const submit = () => {
     if (busy || !validQuantity || !hasNutrition) return;
@@ -189,8 +192,8 @@ export function ServingEditor({
       )}
       {!hasNutrition && (
         <p role="alert" className="text-sm text-destructive">
-          Nutrition is unavailable for this portion. Choose another unit or
-          food.
+          Complete nutrition is unavailable for this portion. Choose another
+          record or add the current label values in My Foods.
         </p>
       )}
       <details className="text-sm">

@@ -198,6 +198,7 @@ export interface ScanDocument {
 }
 
 export interface NutritionItemSnapshot {
+  servings?: Array<{ id: string; label: string; grams: number; isDefault?: boolean }>;
   id?: string;
   name: string;
   brand?: string | null;

@@ -20,6 +20,7 @@ function round(value: number, decimals = 0) {
 }
 
 function toNumber(value: unknown): number | null {
+  if (value == null || typeof value === "boolean" || (typeof value === "string" && !value.trim())) return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 }
@@ -78,11 +79,11 @@ function convertToGrams(
     case "ml":
     case "milliliter":
     case "milliliters":
-      return quantity;
     case "l":
     case "liter":
     case "liters":
-      return quantity * 1000;
+      // Volume does not establish weight without a source-backed density.
+      return null;
     default:
       return null;
   }
