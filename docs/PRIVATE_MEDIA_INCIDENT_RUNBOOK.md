@@ -30,6 +30,16 @@ certification of compliance. Review it with privacy counsel before launch.
    recovery and member-remediation decisions. Reopen only the affected features
    once their security and basic workflows have been checked.
 
+## Approved history and recovery policy
+
+Keep active members' private scan history for first-to-latest comparison until
+they delete a scan/account. The owner approved keeping and disclosing the existing
+seven-day Cloud Storage soft-delete recovery window on November 2, 2026. Recovery
+copies are not available in the app; never restore deleted-account photos into
+normal use. Do not publish progress photos/testimonials without a separate,
+explicit member marketing permission. A general scan-processing consent is not
+marketing permission. No public testimonial automation was added.
+
 Official guidance:
 https://www.ftc.gov/business-guidance/resources/complying-ftcs-health-breach-notification-rule-0
 https://www.ftc.gov/business-guidance/resources/mobile-health-app-developers-ftc-best-practices

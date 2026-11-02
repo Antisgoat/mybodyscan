@@ -2,7 +2,7 @@
 
 **Effective date: July 27, 2026**
 
-Last updated: September 8, 2026 (account deletion and adult eligibility).
+Last updated: November 2, 2026 (private scan history, deletion recovery, and marketing permission).
 
 MyBodyScan is operated by ADLR Labs ("MyBodyScan," "we," "us," or "our"). This Privacy Policy explains what information we collect, why we use it, how it is shared, and the choices available to you.
 
@@ -52,6 +52,10 @@ We do not sell personal information. We disclose information only as needed to:
 Service providers receive only the information reasonably needed for their role and are subject to their own terms and privacy obligations.
 
 ## Retention and Deletion
+
+Body-scan photos and generated previews are kept privately with your active account so you can compare your first scan with later scans and follow your journey. You can delete individual scans or your account. We do not publish your body photos as testimonials or use them in marketing without your separate, explicit permission.
+
+When account deletion completes, your live account history and owned photo objects are removed from the app and active storage. Google Cloud Storage keeps a restricted recovery copy of deleted photo objects for seven days under our soft-delete setting, after which those copies expire under the provider's controls. These recovery copies are not accessible through the app and are not used for marketing or ordinary account access. We do not restore deleted-account photos into normal use. Other providers' limited security or legally required retention may still apply as described in this policy.
 
 We retain information while your account is active and as reasonably needed to provide the service, maintain transaction and security records, resolve disputes, and meet legal obligations. You can delete individual scans where the app provides that control. Account deletion is available in Settings and is designed to remove your authentication account, user data, and owned media, subject to limited records that must be retained by law or for legitimate fraud, billing, or security purposes.
 
