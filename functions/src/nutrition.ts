@@ -28,6 +28,7 @@ import type {
 import { requireProEntitlement } from "./lib/proEntitlements.js";
 import { normalizeNutritionDate as normalizeDate } from "./lib/nutritionDate.js";
 import { computeCalories } from "./lib/nutritionCalories.js";
+import { validateMeal, safeNutritionNumber } from "./lib/nutritionMealValidation.js";
 
 const express = expressModule as any;
 const db = getFirestore();
@@ -47,24 +48,10 @@ function defaultTotals(): DailyLogDocument["totals"] {
   return { calories: 0, protein: 0, carbs: 0, fat: 0, alcohol: 0 };
 }
 
-function validateMeal(meal: MealRecord) {
-  if (!meal.name || meal.name.trim().length === 0) {
-    throw new HttpsError("invalid-argument", "Meal name required");
-  }
-  if (meal.name.length > 140) {
-    throw new HttpsError("invalid-argument", "Meal name too long");
-  }
-  const macros = [meal.protein, meal.carbs, meal.fat, meal.alcohol];
-  if (macros.some((n) => n !== undefined && n < 0)) {
-    throw new HttpsError("invalid-argument", "Macros must be non-negative");
-  }
-}
-
 function sanitizeServing(raw: any): MealServingSelection | null {
   if (!raw || typeof raw !== "object") return null;
   const numberOrNull = (value: any): number | null => {
-    const num = Number(value);
-    return Number.isFinite(num) ? num : null;
+    return safeNutritionNumber(value);
   };
   const unitOrNull = (value: any): string | null =>
     typeof value === "string" && value.trim().length
@@ -82,8 +69,8 @@ function sanitizeServing(raw: any): MealServingSelection | null {
 function sanitizeNutrients(raw: any) {
   if (!raw || typeof raw !== "object") return null;
   const numberOrNull = (value: any): number | null => {
-    const num = Number(value);
-    return Number.isFinite(num) ? Number(num.toFixed(2)) : null;
+    const num = safeNutritionNumber(value);
+    return num === null ? null : Number(num.toFixed(2));
   };
   return {
     kcal: numberOrNull(raw.kcal),
@@ -107,6 +94,9 @@ function sanitizeItem(raw: any): NutritionItemSnapshot | null {
     serving: sanitizeServing(raw.serving),
     per_serving: sanitizeNutrients(raw.per_serving),
     per_100g: sanitizeNutrients(raw.per_100g),
+    servings: Array.isArray(raw.servings) ? raw.servings.slice(0, 30)
+      .filter((s: any) => s && typeof s.id === "string" && typeof s.label === "string" && safeNutritionNumber(s.grams) !== null && s.grams > 0 && s.grams <= 1000000)
+      .map((s: any) => ({ id: s.id.slice(0, 120), label: s.label.slice(0, 140), grams: s.grams, isDefault: s.isDefault === true })) : undefined,
     fdcId: Number.isFinite(Number(raw.fdcId)) ? Number(raw.fdcId) : undefined,
     gtin: typeof raw.gtin === "string" ? raw.gtin.slice(0, 40) : undefined,
   };
@@ -132,11 +122,11 @@ async function upsertMeal(uid: string, day: string, meal: MealRecord) {
     }
     totals = meals.reduce(
       (acc, item) => ({
-        calories: round(acc.calories + (item.calories || 0), 0),
-        protein: round(acc.protein + (item.protein || 0), 1),
-        carbs: round(acc.carbs + (item.carbs || 0), 1),
-        fat: round(acc.fat + (item.fat || 0), 1),
-        alcohol: round(acc.alcohol + (item.alcohol || 0), 1),
+        calories: round(acc.calories + (safeNutritionNumber(item.calories) ?? 0), 0),
+        protein: round(acc.protein + (safeNutritionNumber(item.protein) ?? 0), 1),
+        carbs: round(acc.carbs + (safeNutritionNumber(item.carbs) ?? 0), 1),
+        fat: round(acc.fat + (safeNutritionNumber(item.fat) ?? 0), 1),
+        alcohol: round(acc.alcohol + (safeNutritionNumber(item.alcohol) ?? 0), 1),
       }),
       defaultTotals()
     );
@@ -165,11 +155,11 @@ async function removeMeal(uid: string, day: string, mealId: string) {
     const meals = (data.meals || []).filter((m) => m.id !== mealId);
     totals = meals.reduce(
       (acc, item) => ({
-        calories: round(acc.calories + (item.calories || 0), 0),
-        protein: round(acc.protein + (item.protein || 0), 1),
-        carbs: round(acc.carbs + (item.carbs || 0), 1),
-        fat: round(acc.fat + (item.fat || 0), 1),
-        alcohol: round(acc.alcohol + (item.alcohol || 0), 1),
+        calories: round(acc.calories + (safeNutritionNumber(item.calories) ?? 0), 0),
+        protein: round(acc.protein + (safeNutritionNumber(item.protein) ?? 0), 1),
+        carbs: round(acc.carbs + (safeNutritionNumber(item.carbs) ?? 0), 1),
+        fat: round(acc.fat + (safeNutritionNumber(item.fat) ?? 0), 1),
+        alcohol: round(acc.alcohol + (safeNutritionNumber(item.alcohol) ?? 0), 1),
       }),
       defaultTotals()
     );

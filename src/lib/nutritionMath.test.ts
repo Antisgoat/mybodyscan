@@ -3,9 +3,121 @@ import {
   availableServingUnits,
   calculateSelection,
   estimateServingWeight,
+  snapshotFromItem,
+  normalizedFromSnapshot,
 } from "@/lib/nutritionMath";
+import { toRichFoodItem } from "@/lib/nutrition/toFoodItem";
+
+const sample = () =>
+  toRichFoodItem({
+    id: "sample",
+    name: "Food",
+    serving: 100,
+    unit: "g",
+    calories: 200,
+    protein: 20,
+    carbs: 10,
+    fat: 9,
+  });
 
 describe("nutritionMath guardrails", () => {
+  it.each(["1/2 cup", "½ cup", "0.5 cup", "half cup"])(
+    "handles fraction label %s",
+    (label) => {
+      const item = sample();
+      item.servings = [{ id: "cup", label, grams: 40, isDefault: true }];
+      expect(calculateSelection(item, 1, "cups").grams).toBe(80);
+    }
+  );
+
+  it.each(["1 1/2 cup", "1½ cup", "1.5 cups"])(
+    "handles mixed fraction label %s",
+    (label) => {
+      const item = sample();
+      item.servings = [{ id: "cup", label, grams: 120 }];
+      expect(calculateSelection(item, 1, "cups").grams).toBe(80);
+    }
+  );
+
+  it("rejects zero-denominator household measures", () => {
+    const item = sample();
+    item.servings = [{ id: "cup", label: "1/0 cup", grams: 40 }];
+    expect(availableServingUnits(item)).not.toContain("cups");
+  });
+
+  it("keeps metric and imperial mass calculations equivalent", () => {
+    const item = sample();
+    const expected = calculateSelection(item, 453.59237, "g");
+    expect(calculateSelection(item, 1, "lb")).toEqual(expected);
+    expect(calculateSelection(item, 16, "oz")).toEqual(expected);
+    expect(calculateSelection(item, 0.45359237, "kg")).toEqual(expected);
+  });
+
+  it("preserves source portion weights and nutrition through a saved snapshot", () => {
+    const item = sample();
+    item.servings = [{ id: "cup", label: "½ cup", grams: 40, isDefault: true }];
+    const restored = normalizedFromSnapshot(snapshotFromItem(item));
+    expect(calculateSelection(restored, 2, "cups")).toEqual(
+      calculateSelection(item, 2, "cups")
+    );
+    expect(restored.servings).toEqual(item.servings);
+  });
+
+  it("does not invent 100g for legacy snapshots with unknown portion weight", () => {
+    const item = normalizedFromSnapshot({
+      name: "Old serving",
+      source: "USDA",
+      serving: { qty: 1, unit: "serving" },
+      per_serving: { kcal: 70, protein_g: 6, carbs_g: 0, fat_g: 5 },
+    });
+    expect(estimateServingWeight(item)).toBeNull();
+    expect(availableServingUnits(item)).toEqual(["serving"]);
+    expect(calculateSelection(item, 2, "serving").calories).toBe(140);
+  });
+
+  it("keeps a labeled large egg at 70 calories per serving", () => {
+    const item = sample();
+    item.serving = { qty: 50, unit: "g", text: "1 large egg" };
+    item.per_serving = { kcal: 70, protein_g: 6, carbs_g: 0, fat_g: 5 };
+    item.per_100g = { kcal: 143, protein_g: 12.6, carbs_g: 0.7, fat_g: 9.5 };
+    expect(calculateSelection(item, 1, "serving").calories).toBe(70);
+    expect(calculateSelection(item, 100, "g").calories).toBe(143);
+  });
+
+  it.each([0, -1, NaN, Infinity])("rejects invalid quantity %s", (qty) => {
+    expect(calculateSelection(sample(), qty, "g").calories).toBeNull();
+  });
+
+  it("preserves unknown nutrients and refuses coerced strings", () => {
+    const item = toRichFoodItem({
+      name: "Incomplete",
+      serving: 1,
+      unit: "piece",
+      calories: 100,
+      protein: null,
+    });
+    expect(item.per_serving.protein_g).toBeNull();
+    expect(availableServingUnits(item)).not.toContain("g");
+    expect(calculateSelection(item, 1, "serving").protein).toBeNull();
+    item.per_serving.protein_g = "12" as unknown as number;
+    expect(calculateSelection(item, 1, "serving").protein).toBeNull();
+  });
+
+  it("supports labeled liters without inventing mass", () => {
+    const item = toRichFoodItem({
+      name: "Drink",
+      serving: 0.25,
+      unit: "l",
+      calories: 120,
+      protein: 2,
+      carbs: 28,
+      fat: 0,
+    });
+    expect(calculateSelection(item, 0.125, "l")).toEqual(
+      calculateSelection(item, 125, "ml")
+    );
+    expect(calculateSelection(item, 1, "serving").grams).toBeNull();
+  });
   it("does not throw when per_serving is missing (regression for iOS 'r.kcal' crash)", () => {
     const unsafeItem: any = {
       id: "x",

@@ -4,20 +4,57 @@ import type { MealEntry, MealItemSnapshot } from "@/lib/nutritionBackend";
 export const SERVING_UNITS = [
   "serving",
   "g",
+  "kg",
   "oz",
+  "lb",
   "ml",
+  "l",
   "cups",
   "slices",
   "pieces",
 ] as const;
 export type ServingUnit = (typeof SERVING_UNITS)[number];
 
-const GRAMS_PER_OUNCE = 28.3495;
+const GRAMS_PER_OUNCE = 28.349523125;
+const GRAMS_PER_POUND = 453.59237;
+
+function nutrient(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
+
+function per100For(item: FoodItem) {
+  if (Object.prototype.hasOwnProperty.call(item, "per_100g"))
+    return item.per_100g ?? null;
+  if (item.source === "User recipe" || !item.basePer100g) return null;
+  return {
+    kcal: nutrient(item.basePer100g.kcal),
+    protein_g: nutrient(item.basePer100g.protein),
+    carbs_g: nutrient(item.basePer100g.carbs),
+    fat_g: nutrient(item.basePer100g.fat),
+  };
+}
+
+function hasNutrients(value: FoodItem["per_100g"]) {
+  return (
+    !!value &&
+    [value.kcal, value.protein_g, value.carbs_g, value.fat_g].some(
+      (n) => nutrient(n) !== null
+    )
+  );
+}
 
 function round(value: number | null | undefined, places = 2) {
-  if (value == null) return null;
+  if (nutrient(value) === null) return null;
   const factor = 10 ** places;
-  return Math.round(value * factor) / factor;
+  const result = Math.round(value! * factor) / factor;
+  return Number.isFinite(result) ? result : null;
+}
+
+function scaled(value: unknown, factor: number, places = 2) {
+  const valid = nutrient(value);
+  return valid === null ? null : round(valid * factor, places);
 }
 
 export function gramsToOunces(grams?: number | null) {
@@ -40,11 +77,13 @@ export function kcalFromMacros(macros: {
 
 function normalizeUnit(unit: string | null | undefined) {
   if (!unit) return null;
-  const clean = unit.toLowerCase();
-  if (clean.includes("gram")) return "g";
-  if (clean === "g") return "g";
-  if (clean.includes("ounce") || clean === "oz") return "oz";
-  if (clean.includes("milliliter") || clean === "ml") return "ml";
+  const clean = unit.trim().toLowerCase();
+  if (/^(kg|kilograms?)$/.test(clean)) return "kg";
+  if (/^(g|grams?)$/.test(clean)) return "g";
+  if (/^(oz|ounces?)$/.test(clean)) return "oz";
+  if (/^(lbs?|pounds?)$/.test(clean)) return "lb";
+  if (/^(ml|millilit(?:er|re)s?)$/.test(clean)) return "ml";
+  if (/^(l|lit(?:er|re)s?)$/.test(clean)) return "l";
   if (clean.includes("cup")) return "cups";
   if (clean.includes("slice")) return "slices";
   if (clean.includes("piece")) return "pieces";
@@ -59,15 +98,39 @@ function defaultServingOption(item: FoodItem) {
   return null;
 }
 
-function labelAmount(label: string): number {
-  const decimal = label.match(/(\d+(?:\.\d+)?)/);
-  if (decimal) {
-    const value = Number(decimal[1]);
-    if (Number.isFinite(value) && value > 0) return value;
+function labelAmount(label: string): number | null {
+  const fractions: Record<string, string> = {
+    "½": "1/2",
+    "¼": "1/4",
+    "¾": "3/4",
+    "⅓": "1/3",
+    "⅔": "2/3",
+    "⅛": "1/8",
+    "⅜": "3/8",
+    "⅝": "5/8",
+    "⅞": "7/8",
+  };
+  const text = label
+    .trim()
+    .replace(/[½¼¾⅓⅔⅛⅜⅝⅞]/g, (char) => ` ${fractions[char]}`)
+    .replace(/⁄/g, "/")
+    .trim();
+  const mixed = text.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)/);
+  const fraction = text.match(/^(\d+)\s*\/\s*(\d+)/);
+  if (mixed || fraction) {
+    const parts = mixed ?? fraction!;
+    const denominator = Number(parts[mixed ? 3 : 2]);
+    const value =
+      denominator > 0
+        ? (mixed ? Number(parts[1]) : 0) +
+          Number(parts[mixed ? 2 : 1]) / denominator
+        : 0;
+    return value > 0 && Number.isFinite(value) ? value : null;
   }
-  if (/\bhalf\b/i.test(label) || /(?:^|\s)½(?:\s|$)/.test(label)) return 0.5;
-  if (/(?:^|\s)¼(?:\s|$)/.test(label)) return 0.25;
-  if (/(?:^|\s)¾(?:\s|$)/.test(label)) return 0.75;
+  const decimal = text.match(/^(\d+(?:\.\d+)?)/);
+  if (decimal) return Number(decimal[1]) > 0 ? Number(decimal[1]) : null;
+  if (/^half\b/i.test(text)) return 0.5;
+  if (/^quarter\b/i.test(text)) return 0.25;
   return 1;
 }
 
@@ -84,10 +147,18 @@ function servingOptionForUnit(item: FoodItem, unit: ServingUnit) {
   const option = item.servings?.find((candidate) =>
     matcher.test(candidate.label)
   );
-  if (!option?.grams) return null;
+  if (
+    !option ||
+    !option.grams ||
+    !Number.isFinite(option.grams) ||
+    option.grams <= 0
+  )
+    return null;
+  const amount = labelAmount(option.label);
+  if (!amount) return null;
   return {
     ...option,
-    gramsPerUnit: option.grams / labelAmount(option.label),
+    gramsPerUnit: option.grams / amount,
   };
 }
 
@@ -98,74 +169,62 @@ function hasAnyPerServingMacro(item: FoodItem): boolean {
     item.per_serving?.carbs_g,
     item.per_serving?.fat_g,
   ];
-  return values.some(
-    (value) => value != null && Number.isFinite(Number(value))
-  );
+  return values.some((value) => nutrient(value) !== null);
 }
 
 export function availableServingUnits(item: FoodItem): ServingUnit[] {
   const units: ServingUnit[] = [];
-  const hasPer100Field = Object.prototype.hasOwnProperty.call(item, "per_100g");
-  const hasPer100 =
-    item.source === "User recipe" && !item.per_100g
-      ? false
-      : hasPer100Field
-        ? Boolean(item.per_100g)
-        : Boolean(item.basePer100g && typeof item.basePer100g === "object");
+  const hasPer100 = hasNutrients(per100For(item));
   if (hasAnyPerServingMacro(item) || estimateServingWeight(item)) {
     units.push("serving");
   }
-  if (hasPer100) units.push("g", "oz");
+  if (hasPer100) units.push("g", "oz", "kg", "lb");
   if (
-    normalizeUnit(item.serving?.unit) === "ml" &&
+    ["ml", "l"].includes(normalizeUnit(item.serving?.unit) ?? "") &&
     Number(item.serving?.qty) > 0 &&
     hasAnyPerServingMacro(item)
   ) {
-    units.push("ml");
+    units.push("ml", "l");
   }
   (["cups", "slices", "pieces"] as const).forEach((unit) => {
-    if (servingOptionForUnit(item, unit)) units.push(unit);
+    if (hasPer100 && servingOptionForUnit(item, unit)) units.push(unit);
   });
   return units.length ? units : ["serving"];
 }
 
 export function estimateServingWeight(item: FoodItem): number | null {
-  const defaultServing = defaultServingOption(item);
-  if (defaultServing?.grams) {
-    return round(defaultServing.grams, 2);
-  }
   const servingUnit = normalizeUnit(
     item.serving?.unit || item.serving?.text || null
   );
   const servingQty =
     typeof item.serving?.qty === "number" ? item.serving.qty : null;
-  if (servingQty && servingUnit === "g") {
+  if (
+    servingQty &&
+    Number.isFinite(servingQty) &&
+    servingQty > 0 &&
+    servingUnit === "g"
+  ) {
     return servingQty;
   }
-  if (servingQty && servingUnit === "oz") {
+  if (
+    servingQty &&
+    Number.isFinite(servingQty) &&
+    servingQty > 0 &&
+    servingUnit === "oz"
+  ) {
     return servingQty * GRAMS_PER_OUNCE;
   }
-  // Guardrail: some upstream nutrition sources have incomplete macro blocks.
-  // This function must NEVER throw (it is called during render).
-  const perServing = (item as any)?.per_serving ?? null;
-  const per100 = (item as any)?.per_100g ?? null;
-  if (!per100) return null;
-  const ratios: number[] = [];
-  if (perServing?.protein_g && per100.protein_g) {
-    ratios.push((perServing.protein_g / per100.protein_g) * 100);
-  }
-  if (perServing?.carbs_g && per100.carbs_g) {
-    ratios.push((perServing.carbs_g / per100.carbs_g) * 100);
-  }
-  if (perServing?.fat_g && per100.fat_g) {
-    ratios.push((perServing.fat_g / per100.fat_g) * 100);
-  }
-  if (perServing?.kcal && per100.kcal) {
-    ratios.push((perServing.kcal / per100.kcal) * 100);
-  }
-  if (!ratios.length) return null;
-  const grams = ratios.reduce((sum, value) => sum + value, 0) / ratios.length;
-  return round(grams, 2);
+  if (servingQty && servingQty > 0 && servingUnit === "kg")
+    return round(servingQty * 1000);
+  if (servingQty && servingQty > 0 && servingUnit === "lb")
+    return round(servingQty * GRAMS_PER_POUND);
+  // Neither liquid volume nor rounded nutrient ratios establishes mass.
+  if (servingUnit === "ml" || servingUnit === "l" || !per100For(item))
+    return null;
+  const defaultServing = defaultServingOption(item);
+  return defaultServing && defaultServing.grams > 0
+    ? round(defaultServing.grams, 2)
+    : null;
 }
 
 function gramsForSelection(
@@ -176,9 +235,14 @@ function gramsForSelection(
   switch (unit) {
     case "g":
       return qty;
+    case "kg":
+      return qty * 1000;
     case "oz":
       return qty * GRAMS_PER_OUNCE;
+    case "lb":
+      return qty * GRAMS_PER_POUND;
     case "ml":
+    case "l":
       return null;
     case "serving": {
       // A labeled liquid serving has valid per-serving nutrients but no known
@@ -216,12 +280,10 @@ export function calculateSelection(
   qty: number,
   unit: ServingUnit
 ): SelectionResult {
-  // Also protect older saved recipes whose zero basePer100g placeholder was
-  // previously mistaken for a real prepared-food weight conversion.
   if (
-    item.source === "User recipe" &&
-    !item.per_100g &&
-    (unit === "g" || unit === "oz")
+    !Number.isFinite(qty) ||
+    qty <= 0 ||
+    !availableServingUnits(item).includes(unit)
   ) {
     return {
       grams: null,
@@ -232,61 +294,49 @@ export function calculateSelection(
     };
   }
   const grams = gramsForSelection(item, qty, unit);
-  // Guardrail: if upstream items are missing per-serving macros, treat as unknown (nulls),
-  // never throw during render.
-  const perServing = (item as any)?.per_serving ?? null;
-  const hasPer100Field = Object.prototype.hasOwnProperty.call(item, "per_100g");
-  const per100 = hasPer100Field
-    ? ((item as any)?.per_100g ?? null)
-    : item.basePer100g
-      ? {
-          kcal: item.basePer100g.kcal,
-          protein_g: item.basePer100g.protein,
-          carbs_g: item.basePer100g.carbs,
-          fat_g: item.basePer100g.fat,
-        }
-      : null;
+  const perServing = item.per_serving;
+  const per100 = per100For(item);
+
+  // Source serving values win over rounding or differing energy factors in
+  // per-100g records (e.g. a labeled large egg is one serving, not 100 g).
+  if (unit === "serving" && hasAnyPerServingMacro(item)) {
+    return {
+      grams: round(grams),
+      calories: scaled(perServing?.kcal, qty, 0),
+      protein: scaled(perServing?.protein_g, qty),
+      carbs: scaled(perServing?.carbs_g, qty),
+      fat: scaled(perServing?.fat_g, qty),
+    };
+  }
 
   if (grams != null && per100) {
     const factor = grams / 100;
     return {
       grams: round(grams, 2),
-      calories: per100.kcal != null ? round(per100.kcal * factor, 0) : null,
-      protein:
-        per100.protein_g != null ? round(per100.protein_g * factor, 2) : null,
-      carbs: per100.carbs_g != null ? round(per100.carbs_g * factor, 2) : null,
-      fat: per100.fat_g != null ? round(per100.fat_g * factor, 2) : null,
+      calories: scaled(per100.kcal, factor, 0),
+      protein: scaled(per100.protein_g, factor),
+      carbs: scaled(per100.carbs_g, factor),
+      fat: scaled(per100.fat_g, factor),
     };
   }
 
   const normalizedServingUnit = normalizeUnit(item.serving?.unit);
-  const servingQty = Number(item.serving?.qty);
+  const servingQty =
+    Number(item.serving?.qty) * (normalizedServingUnit === "l" ? 1000 : 1);
   const servingsFactor =
-    unit === "ml" &&
-    normalizedServingUnit === "ml" &&
+    (unit === "ml" || unit === "l") &&
+    (normalizedServingUnit === "ml" || normalizedServingUnit === "l") &&
     Number.isFinite(servingQty) &&
     servingQty > 0
-      ? qty / servingQty
+      ? (qty * (unit === "l" ? 1000 : 1)) / servingQty
       : qty;
 
   return {
     grams: grams != null ? round(grams, 2) : null,
-    calories:
-      perServing?.kcal != null
-        ? round(perServing.kcal * servingsFactor, 0)
-        : null,
-    protein:
-      perServing?.protein_g != null
-        ? round(perServing.protein_g * servingsFactor, 2)
-        : null,
-    carbs:
-      perServing?.carbs_g != null
-        ? round(perServing.carbs_g * servingsFactor, 2)
-        : null,
-    fat:
-      perServing?.fat_g != null
-        ? round(perServing.fat_g * servingsFactor, 2)
-        : null,
+    calories: scaled(perServing?.kcal, servingsFactor, 0),
+    protein: scaled(perServing?.protein_g, servingsFactor),
+    carbs: scaled(perServing?.carbs_g, servingsFactor),
+    fat: scaled(perServing?.fat_g, servingsFactor),
   };
 }
 
@@ -302,7 +352,11 @@ export function snapshotFromItem(item: FoodItem): MealItemSnapshot {
       text: item.serving.text,
     },
     per_serving: { ...item.per_serving },
-    per_100g: item.per_100g ? { ...item.per_100g } : null,
+    per_100g: per100For(item) ? { ...per100For(item)! } : null,
+    servings: item.servings
+      .filter((s) => Number.isFinite(s.grams) && s.grams > 0)
+      .slice(0, 30)
+      .map((s) => ({ ...s })),
     fdcId: item.fdcId ?? null,
     gtin: item.gtin ?? null,
   };
@@ -329,7 +383,10 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): FoodItem {
           fat: snapshot.per_100g.fat_g ?? 0,
         }
       : { kcal: 0, protein: 0, carbs: 0, fat: 0 },
-    servings: [{ id: "100g", label: "100 g", grams: 100, isDefault: true }],
+    servings:
+      snapshot.servings
+        ?.filter((s) => Number.isFinite(s.grams) && s.grams > 0)
+        .map((s) => ({ ...s })) ?? [],
     serving: {
       qty: snapshot.serving?.qty ?? null,
       unit: snapshot.serving?.unit ?? null,
@@ -348,7 +405,7 @@ export function normalizedFromSnapshot(snapshot: MealItemSnapshot): FoodItem {
           carbs_g: snapshot.per_100g.carbs_g ?? null,
           fat_g: snapshot.per_100g.fat_g ?? null,
         }
-      : undefined,
+      : null,
     gtin: snapshot.gtin ?? undefined,
     fdcId: snapshot.fdcId ?? undefined,
   };

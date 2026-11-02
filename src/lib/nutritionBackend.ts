@@ -14,6 +14,7 @@ export interface MealServingSelection {
 }
 
 export interface MealItemSnapshot {
+  servings?: import("./nutrition/types").ServingOption[];
   id?: string;
   name: string;
   brand?: string | null;
