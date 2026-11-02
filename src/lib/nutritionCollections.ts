@@ -370,6 +370,9 @@ export function buildRecipeItem(input: {
     name,
     brand: null,
     source: "User recipe",
+    // Cooking changes water weight. Ingredient weights cannot establish a
+    // prepared recipe's per-100g nutrition without its final measured yield.
+    per_100g: null,
     basePer100g: { kcal: 0, protein: 0, carbs: 0, fat: 0 },
     servings: [],
     serving: {
