@@ -33,6 +33,12 @@ changed none. The separate metadata-only apply inspected 31 objects and correcte
 that one setting, with zero conflicts or truncation. It changed no token or image.
 Build 51 contains client changes. A local emulator integration verifies individual
 scan deletion, active-preview rejection, and removal of both media/record prefixes.
+Build 52 adds the owner's approved public/in-app policy disclosures: active private
+journey history, separate testimonial permission, and seven-day private recovery.
+The live bucket audit found no public bucket IAM binding, no object versioning,
+and a 604800-second soft-delete window. Public-access prevention is inherited and
+uniform bucket access is disabled; these findings do not certify every object ACL
+or inherited project permission. No cloud retention setting was changed.
 
 ## Important limits and rollout
 
