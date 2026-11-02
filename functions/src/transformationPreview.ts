@@ -225,6 +225,10 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
     const previewRef = db.doc(`users/${uid}/transformationPreviews/${scanId}`);
     const requestId = randomUUID();
     const claim = await db.runTransaction(async (transaction) => {
+      const currentScan = await transaction.get(db.doc(`users/${uid}/scans/${scanId}`));
+      if (!currentScan.exists || currentScan.data()?.deletionRequestedAt || !isValidScan(currentScan.data()!)) {
+        throw new HttpsError("failed-precondition", "This scan is unavailable or being deleted.");
+      }
       const existing = await transaction.get(previewRef);
       const existingData = existing.data() as
         Record<string, unknown> | undefined;
@@ -325,7 +329,7 @@ export const requestTransformationPreview = onCallWithOptionalAppCheck(
           resumable: false,
           contentType: "image/jpeg",
           metadata: {
-            cacheControl: "private, max-age=3600",
+            cacheControl: "private, no-store, max-age=0",
             metadata: { ownerUid: uid, scanId, model: MODEL },
           },
         });

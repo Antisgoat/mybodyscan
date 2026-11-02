@@ -174,7 +174,7 @@ describe("uploadPreparedPhoto", () => {
     expect(task.cancel).toHaveBeenCalled();
   });
 
-  it("returns download URLs and avoids forbidden REST upload targets", async () => {
+  it("returns only private paths even when a legacy caller requests a download URL", async () => {
     const callbacks: UploadTaskCallbacks = {};
     const task = buildTask(callbacks);
     uploadBytesResumableMock.mockReturnValue(task);
@@ -199,9 +199,10 @@ describe("uploadPreparedPhoto", () => {
       path: "scans/u/s/front.jpg",
       storagePath: "scans/u/s/front.jpg",
       size: 2,
-      downloadURL: "https://storage.example/scans/u/s/front.jpg",
+      downloadURL: undefined,
     });
     expect(uploadBytesResumableMock).toHaveBeenCalled();
+    expect(getDownloadURLMock).not.toHaveBeenCalled();
     const refArg = refMock.mock.calls[0]?.[1];
     expect(refArg).toBe("scans/u/s/front.jpg");
     expect(uploadBytesResumableMock.mock.calls[0]?.[2]).toMatchObject({

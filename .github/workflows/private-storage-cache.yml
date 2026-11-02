@@ -39,3 +39,5 @@ jobs:
           else
             node scripts/private-storage-cache.mjs
           fi
+      - name: Read-only bucket security and retention posture
+        run: node scripts/private-storage-posture.mjs

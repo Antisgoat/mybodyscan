@@ -1,4 +1,4 @@
-import { getDownloadURL, ref, uploadBytesResumable, type UploadTask } from "firebase/storage";
+import { ref, uploadBytesResumable, type UploadTask } from "firebase/storage";
 import type { FirebaseStorage, UploadTaskSnapshot } from "firebase/storage";
 import {
   classifyUploadRetryability,
@@ -120,7 +120,7 @@ export async function uploadPreparedPhoto(params: UploadPreparedPhotoParams): Pr
         path: storagePath,
         file: params.file,
         metadata,
-        includeDownloadURL: params.includeDownloadURL ?? true,
+        includeDownloadURL: params.includeDownloadURL ?? false,
         stallTimeoutMs,
         overallTimeoutMs,
         signal: params.signal,
@@ -233,16 +233,9 @@ async function runResumableUploadAttempt(params: {
       if (settled) return;
       settled = true;
       cleanup();
-      if (!params.includeDownloadURL) {
-        resolve({ storagePath: params.path });
-        return;
-      }
-      try {
-        const url = await getDownloadURL(storageRef);
-        resolve({ storagePath: params.path, downloadURL: url });
-      } catch {
-        resolve({ storagePath: params.path });
-      }
+      // Scan photos are private. Even legacy callers requesting a URL receive
+      // only a path; rendering uses authenticated, session-local blob reads.
+      resolve({ storagePath: params.path });
     };
 
     const cancelTask = () => {

@@ -100,7 +100,7 @@ export async function uploadViaStorage(params: {
       pose: parsedPath.pose as ScanPose,
       file: params.file,
       contentType: SCAN_UPLOAD_CONTENT_TYPE,
-      includeDownloadURL: params.includeDownloadURL ?? true,
+      includeDownloadURL: params.includeDownloadURL ?? false,
       signal: params.signal,
       stallTimeoutMs: params.stallTimeoutMs,
       overallTimeoutMs: params.overallTimeoutMs,
@@ -134,7 +134,7 @@ export async function uploadViaStorage(params: {
     if (debugUploads) {
       log("info", "complete", {
         elapsedMs,
-        downloadURL: result.downloadURL,
+        privatePathOnly: true,
       });
     }
     return {

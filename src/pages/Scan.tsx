@@ -1716,7 +1716,6 @@ export default function ScanPage() {
                               <div className="font-medium">{pose}</div>
                               <div className="text-muted-foreground break-all">
                                 path={path ?? "—"}
-                                {meta.downloadURL ? ` · url=${meta.downloadURL}` : ""}
                                 {pct ? ` · progress=${pct}%` : ""}
                               </div>
                             </li>
