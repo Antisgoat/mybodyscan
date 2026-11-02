@@ -16,17 +16,13 @@ import {
 } from "@/lib/nativePhoto";
 import { callCallable } from "@/lib/backend/callBackend";
 import { addMeal } from "@/lib/nutritionBackend";
-
-type Estimate = {
-  name: string;
-  protein: number;
-  carbs: number;
-  fat: number;
-  grams: number;
-  notes: string;
-  requestId: string;
-  confidence: number;
-};
+import { FoodMacroSummary } from "@/components/nutrition/FoodSearchRow";
+import {
+  MEAL_PHOTO_PORTIONS,
+  mealPhotoPortion,
+  readMealPhotoEstimate,
+  type MealPhotoEstimate as Estimate,
+} from "@/lib/mealPhotoReview";
 
 export default function MealPhoto() {
   const demo = useDemoMode();
@@ -41,6 +37,9 @@ export default function MealPhoto() {
   const [foodHint, setFoodHint] = useState("");
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [reviewed, setReviewed] = useState(false);
+  const [portionPercent, setPortionPercent] = useState(100);
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
   const valid =
@@ -49,9 +48,13 @@ export default function MealPhoto() {
     [estimate.protein, estimate.carbs, estimate.fat].every(
       (n) => Number.isFinite(n) && n >= 0 && n <= 500
     );
-  const calories = estimate
-    ? Math.round(estimate.protein * 4 + estimate.carbs * 4 + estimate.fat * 9)
-    : 0;
+  const portion = estimate ? mealPhotoPortion(estimate, portionPercent) : null;
+  const calories = portion?.calories ?? 0;
+
+  function editEstimate(next: Estimate) {
+    setEstimate(next);
+    setReviewed(false);
+  }
 
   async function analyze(file?: File | string) {
     if (!file || !allowed || !consent || lock.current) return;
@@ -59,6 +62,9 @@ export default function MealPhoto() {
     setBusy(true);
     setEstimate(null);
     setSaved(false);
+    setReviewed(false);
+    setPortionPercent(100);
+    setPhotoPreview(null);
     saveDate.current = null;
     setMessage("");
     try {
@@ -69,6 +75,8 @@ export default function MealPhoto() {
           ? await dataUrlToImageFile(file, `meal-${Date.now()}.jpg`)
           : file;
       const image = await prepareGymPhoto(preparedFile);
+      // A downsampled preview stays only in this screen's memory, never storage.
+      setPhotoPreview(image);
       const result = await callCallable<
         { image: string; foodHint?: string; processingConsent: boolean },
         Estimate
@@ -77,7 +85,7 @@ export default function MealPhoto() {
         foodHint: foodHint.trim() || undefined,
         processingConsent: true,
       });
-      setEstimate(result);
+      setEstimate(readMealPhotoEstimate(result));
     } catch (error) {
       const code = String((error as any)?.code ?? "");
       setMessage(
@@ -111,7 +119,16 @@ export default function MealPhoto() {
   }
 
   async function save() {
-    if (!allowed || !valid || !estimate || saved || lock.current) return;
+    if (
+      !allowed ||
+      !valid ||
+      !reviewed ||
+      !estimate ||
+      !portion ||
+      saved ||
+      lock.current
+    )
+      return;
     lock.current = true;
     setBusy(true);
     setMessage("");
@@ -121,14 +138,17 @@ export default function MealPhoto() {
     try {
       await addMeal(saveDate.current, {
         id: `photo-${estimate.requestId}`,
-        name: estimate.name.trim(),
+        name:
+          portionPercent === 100
+            ? estimate.name.trim()
+            : `${estimate.name.trim().slice(0, 110)} · ${portionPercent}% portion`,
         mealType,
-        protein: estimate.protein,
-        carbs: estimate.carbs,
-        fat: estimate.fat,
+        protein: portion.protein,
+        carbs: portion.carbs,
+        fat: portion.fat,
         calories,
         entrySource: "photo-estimate",
-        notes: "Photo estimate reviewed by member; not a weighed measurement.",
+        notes: `Photo estimate reviewed by member; ${portionPercent}% of pictured meal. Not a weighed measurement.`,
       });
       setSaved(true);
       setMessage("Meal saved to today's diary.");
@@ -255,6 +275,13 @@ export default function MealPhoto() {
             Working… please keep this page open.
           </p>
         )}
+        {photoPreview && (
+          <img
+            src={photoPreview}
+            alt="Your selected meal photo for comparison"
+            className="max-h-64 w-full rounded-2xl object-contain bg-muted"
+          />
+        )}
       </section>
       {estimate && (
         <section className="space-y-4 rounded-3xl border bg-card p-5">
@@ -265,9 +292,14 @@ export default function MealPhoto() {
             below for what you actually ate.
           </p>
           <p className="text-xs font-medium text-muted-foreground">
-            Food identification confidence:{" "}
-            {Math.round(estimate.confidence * 100)}%. Review every item before
-            saving.
+            {estimate.confidence < 0.78
+              ? "Extra review needed: the food or portion is uncertain."
+              : "Review needed: photo estimates can miss ingredients and portions."}
+          </p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Wrong food? Don't just rename it—the nutrition would still describe
+            the original guess. Use food search to choose the correct food, or
+            try a clearer photo with a short hint.
           </p>
           <p className="text-sm leading-6">{estimate.notes}</p>
           <label className="block space-y-2 text-sm">
@@ -277,7 +309,7 @@ export default function MealPhoto() {
               value={estimate.name}
               disabled={busy || saved}
               onChange={(e) =>
-                setEstimate({ ...estimate, name: e.target.value })
+                editEstimate({ ...estimate, name: e.target.value })
               }
             />
           </label>
@@ -294,7 +326,7 @@ export default function MealPhoto() {
                   disabled={busy || saved}
                   value={Number.isNaN(estimate[key]) ? "" : estimate[key]}
                   onChange={(e) =>
-                    setEstimate({
+                    editEstimate({
                       ...estimate,
                       [key]:
                         e.target.value === "" ? NaN : Number(e.target.value),
@@ -304,12 +336,57 @@ export default function MealPhoto() {
               </label>
             ))}
           </div>
-          <p className="text-2xl font-semibold">
-            {Number.isFinite(calories) ? calories : "—"}{" "}
-            <span className="text-sm font-normal text-muted-foreground">
-              estimated kcal · calculated from macros
+          <div className="space-y-2 text-sm">
+            <label htmlFor="meal-photo-portion">
+              How much of the pictured meal did you eat?
+            </label>
+            <select
+              id="meal-photo-portion"
+              aria-describedby="meal-photo-portion-help"
+              className="block h-11 w-full rounded-xl border bg-background px-3"
+              value={portionPercent}
+              disabled={busy || saved}
+              onChange={(e) => {
+                setPortionPercent(Number(e.target.value));
+                setReviewed(false);
+              }}
+            >
+              {MEAL_PHOTO_PORTIONS.map((percent) => (
+                <option key={percent} value={percent}>
+                  {percent}%
+                  {percent === 100
+                    ? " · All of it"
+                    : percent === 50
+                      ? " · Half"
+                      : percent === 25
+                        ? " · A quarter"
+                        : ""}
+                </option>
+              ))}
+            </select>
+            <span
+              id="meal-photo-portion-help"
+              className="block text-xs text-muted-foreground"
+            >
+              The editable macros above describe the entire photo. This choice
+              scales your logged portion locally; it does not request another
+              estimate.
             </span>
-          </p>
+          </div>
+          <div className="space-y-2" aria-live="polite">
+            <h3 className="text-sm font-semibold">
+              Your portion · {portionPercent}% of the photo
+            </h3>
+            <FoodMacroSummary
+              calories={calories}
+              protein={portion?.protein}
+              carbs={portion?.carbs}
+              fat={portion?.fat}
+            />
+            <p className="text-xs text-muted-foreground">
+              Estimated calories calculated from reviewed macros.
+            </p>
+          </div>
           <label className="block space-y-2 text-sm">
             Add to
             <select
@@ -329,9 +406,22 @@ export default function MealPhoto() {
             Photos cannot verify allergens or food safety. Check ingredients and
             labels yourself. This is a tracking estimate, not medical advice.
           </p>
+          <label className="flex items-start gap-3 text-sm leading-6">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0"
+              checked={reviewed}
+              disabled={busy || saved}
+              onChange={(e) => setReviewed(e.target.checked)}
+            />
+            <span>
+              The identified food matches my photo, and I reviewed the portion,
+              ingredients, oils, and sauces.
+            </span>
+          </label>
           <Button
             className="w-full"
-            disabled={!valid || !allowed || busy || saved}
+            disabled={!valid || !reviewed || !allowed || busy || saved}
             onClick={() => void save()}
           >
             {saved ? "Saved" : "Confirm and log meal"}
