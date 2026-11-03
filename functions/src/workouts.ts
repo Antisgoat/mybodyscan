@@ -26,6 +26,7 @@ import { structuredJsonChat } from "./openai/client.js";
 import { modelForFeature } from "./openai/models.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { GYM_EQUIPMENT_IDS } from "./gymEquipmentCatalog.js";
+import { gymPlanExercises, planMatchesGym } from "./lib/gymPlanConstraints.js";
 
 const db = getFirestore();
 type BodyFeel = "great" | "ok" | "tired" | "sore";
@@ -66,6 +67,7 @@ export type DailyWorkoutAdjustment = {
 };
 
 interface PlanPrefs {
+  equipmentInventory?: string[];
   focus?: "back" | "legs" | "core" | "full";
   equipment?: "none" | "dumbbells" | "bands" | "gym";
   daysPerWeek?: number;
@@ -1170,6 +1172,12 @@ function buildPlanPrompt(prefs: PlanPrefs): string {
   return [
     `Goal focus: ${focus}`,
     `Equipment: ${equipment}`,
+    ...(prefs.equipmentInventory?.length
+      ? [
+          `Authoritative confirmed gym inventory: ${prefs.equipmentInventory.join(", ")}.`,
+          `Use ONLY these exact exercise names (no substitutions or alternatives): ${gymPlanExercises(prefs.equipmentInventory).join("; ")}. Select a balanced subset for each day, not the entire list.`,
+        ]
+      : []),
     `Days per week: ${daysPerWeek}`,
     `Injuries/notes: ${injuries}`,
     "Each day should include a title (Mon-Sun) and exercises with name, sets (number), and reps (string).",
@@ -1238,10 +1246,57 @@ async function resolvePlanDays(
 ): Promise<{ days: WorkoutDay[]; source: string }> {
   const requestedDaysPerWeek = Math.max(2, Math.min(prefs.daysPerWeek || 4, 7));
   const aiPlan = await generateAiPlan(prefs);
-  if (aiPlan && aiPlan.length) {
+  if (
+    aiPlan &&
+    aiPlan.length &&
+    (!prefs.equipmentInventory?.length ||
+      planMatchesGym(aiPlan, prefs.equipmentInventory))
+  ) {
     return {
       days: withActiveRecoveryDay(aiPlan, requestedDaysPerWeek),
       source: "openai",
+    };
+  }
+  if (prefs.equipmentInventory?.length) {
+    // Fail closed on invented equipment, without paying for another model call.
+    const candidates = gymPlanExercises(prefs.equipmentInventory);
+    const pick = (options: string[]) =>
+      options.find((name) => candidates.includes(name))!;
+    const strength = [
+      pick(["Leg Press", "Dumbbell Goblet Squat", "Bodyweight Squat"]),
+      pick(["Machine Chest Press", "Dumbbell Floor Press", "Push-Up"]),
+      pick([
+        "Seated Machine Row",
+        "Standing Cable Row",
+        "Standing Bent-Over Dumbbell Row",
+        "Resistance Band Row",
+        "Bird Dog",
+      ]),
+      pick([
+        "Dumbbell Romanian Deadlift",
+        "Barbell Romanian Deadlift",
+        "Glute Bridge",
+      ]),
+      "Dead Bug",
+    ];
+    const days = Array.from(
+      { length: Math.min(requestedDaysPerWeek, 6) },
+      (_, index) => ({
+        day: VALID_CATALOG_DAYS[index],
+        exercises: Array.from(
+          { length: Math.min(5, strength.length) },
+          (_, slot) => ({
+            id: randomUUID(),
+            name: strength[(index * 3 + slot) % strength.length],
+            sets: 3,
+            reps: "8-12 @ 2-3 RIR",
+          })
+        ),
+      })
+    );
+    return {
+      days: withActiveRecoveryDay(days, requestedDaysPerWeek),
+      source: "confirmed_inventory_fallback",
     };
   }
   return {
@@ -1251,6 +1306,18 @@ async function resolvePlanDays(
 }
 
 async function persistPlan(uid: string, prefs: PlanPrefs) {
+  const gym = await db.doc(`users/${uid}/preferences/gymEquipment`).get();
+  const inventory = gym.data()?.inventory;
+  if (Array.isArray(inventory) && inventory.length) {
+    prefs = {
+      ...prefs,
+      equipmentInventory: inventory.filter(
+        (id): id is string =>
+          typeof id === "string" &&
+          (GYM_EQUIPMENT_IDS as readonly string[]).includes(id)
+      ),
+    };
+  }
   const { days, source } = await resolvePlanDays(prefs);
   const planId = randomUUID();
   const plan: WorkoutPlan = {

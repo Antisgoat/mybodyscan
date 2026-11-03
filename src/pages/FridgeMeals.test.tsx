@@ -93,6 +93,20 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it("defaults to confirmed ingredients only, without assuming pantry staples", () => {
+  render(app());
+  expect(
+    screen
+      .getByRole("button", { name: "Only what I have" })
+      .getAttribute("aria-pressed")
+  ).toBe("true");
+  expect(
+    screen
+      .getByRole("button", { name: "Basic staples" })
+      .getAttribute("aria-pressed")
+  ).toBe("false");
+});
+
 describe("Fridge Scan member workflow", () => {
   it("copies selected files before resetting the live file input and requires explicit confirmation", async () => {
     render(app());
@@ -145,7 +159,7 @@ describe("Fridge Scan member workflow", () => {
         allergies: ["egg"],
         allergyNotes: "Check every label",
         processingConsent: true,
-        shoppingMode: "staples",
+        shoppingMode: "exact",
       })
     );
     expect(

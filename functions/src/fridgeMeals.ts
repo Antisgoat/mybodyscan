@@ -217,7 +217,9 @@ export function validateFridgeMealInventory(
     const normalized = name
       .toLocaleLowerCase("en-US")
       .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\b(large|small|fresh|plain|whole|raw|cooked)\b/g, "")
+      // Preparation and composition are meaningful: raw rice is not cooked
+      // rice, and whole milk is not interchangeable with other milk.
+      .replace(/\b(large|small|fresh)\b/g, "")
       .replace(/\s+/g, " ")
       .trim();
     return normalized
@@ -476,7 +478,7 @@ export const suggestFridgeMeals = onCallWithOptionalAppCheck(
         request.data?.shoppingMode
       )
         ? request.data.shoppingMode
-        : "staples",
+        : "exact",
     };
     const shoppingGuidance =
       preferences.shoppingMode === "exact"
