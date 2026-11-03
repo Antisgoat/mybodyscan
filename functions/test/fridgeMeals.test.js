@@ -99,6 +99,22 @@ test("meal inventory rejects food that the member never confirmed", () => {
     () => validateFridgeMealInventory({ meals: [meal] }, ["eggs"]),
     /missing_fridge_meals/
   );
+  for (const [confirmed, suggested] of [
+    ["raw rice", "cooked rice"],
+    ["cooked chicken", "raw chicken"],
+    ["egg whites", "whole eggs"],
+    ["milk", "whole milk"],
+  ]) {
+    assert.throws(
+      () =>
+        validateFridgeMealInventory(
+          threeMeals({ uses: [suggested], optional: [] }),
+          [confirmed],
+          "exact"
+        ),
+      /unconfirmed_fridge_ingredient/
+    );
+  }
 });
 
 test("fridge analysis normalizes and deduplicates visible ingredients", () => {

@@ -59,7 +59,7 @@ export default function FridgeMeals() {
   const [servings, setServings] = useState(2);
   const [shoppingMode, setShoppingMode] = useState<
     "exact" | "staples" | "flexible"
-  >("staples");
+  >("exact");
   const [analyzing, setAnalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [suggestions, setSuggestions] = useState<FridgeMealSuggestions | null>(
