@@ -26,7 +26,11 @@ import { structuredJsonChat } from "./openai/client.js";
 import { modelForFeature } from "./openai/models.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { GYM_EQUIPMENT_IDS } from "./gymEquipmentCatalog.js";
-import { gymPlanExercises, planMatchesGym } from "./lib/gymPlanConstraints.js";
+import {
+  gymPlanExercises,
+  gymStarterDays,
+  planMatchesGym,
+} from "./lib/gymPlanConstraints.js";
 
 const db = getFirestore();
 type BodyFeel = "great" | "ok" | "tired" | "sore";
@@ -1258,6 +1262,12 @@ async function resolvePlanDays(
     };
   }
   if (prefs.equipmentInventory?.length) {
+    if (prefs.injuries?.length) {
+      throw new HttpsError(
+        "failed-precondition",
+        "We could not verify a plan for your equipment and injury restrictions. Your existing plan has not been replaced. Please retry or seek qualified guidance."
+      );
+    }
     // Fail closed on invented equipment, without paying for another model call.
     const candidates = gymPlanExercises(prefs.equipmentInventory);
     const pick = (options: string[]) =>
@@ -1279,23 +1289,44 @@ async function resolvePlanDays(
       ]),
       "Dead Bug",
     ];
-    const days = Array.from(
-      { length: Math.min(requestedDaysPerWeek, 6) },
-      (_, index) => ({
-        day: VALID_CATALOG_DAYS[index],
-        exercises: Array.from(
-          { length: Math.min(5, strength.length) },
-          (_, slot) => ({
-            id: randomUUID(),
-            name: strength[(index * 3 + slot) % strength.length],
-            sets: 3,
-            reps: "8-12 @ 2-3 RIR",
-          })
-        ),
+    const cardio = pick([
+      "Stationary Bike",
+      "Elliptical",
+      "Treadmill Walk",
+      "Easy Walk",
+    ]);
+    const days = gymStarterDays(requestedDaysPerWeek).map(
+      ({ day, lifting }, index) => ({
+        day,
+        exercises: lifting
+          ? Array.from({ length: Math.min(5, strength.length) }, (_, slot) => ({
+              id: randomUUID(),
+              name: strength[(index * 3 + slot) % strength.length],
+              sets: 2,
+              reps: /Dead Bug|Bird Dog/.test(
+                strength[(index * 3 + slot) % strength.length]
+              )
+                ? "6-10 controlled reps/side"
+                : "8-12 @ 2-3 RIR",
+            }))
+          : [
+              {
+                id: randomUUID(),
+                name: cardio,
+                sets: 1,
+                reps: "15-30 min · easy conversational pace",
+              },
+              {
+                id: randomUUID(),
+                name: "Gentle Mobility",
+                sets: 1,
+                reps: "5-10 min · pain-free range",
+              },
+            ],
       })
     );
     return {
-      days: withActiveRecoveryDay(days, requestedDaysPerWeek),
+      days,
       source: "confirmed_inventory_fallback",
     };
   }

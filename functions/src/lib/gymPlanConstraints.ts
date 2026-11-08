@@ -1,3 +1,23 @@
+/** Space full-body starter lifting days; extra requested days are recovery. */
+export function gymStarterDays(
+  requested: number
+): { day: string; lifting: boolean }[] {
+  const count = Number.isInteger(requested)
+    ? Math.max(2, Math.min(7, requested))
+    : 3;
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const indices =
+    count === 2
+      ? [0, 3]
+      : count === 3
+        ? [0, 2, 4]
+        : Array.from({ length: count }, (_, i) => i);
+  return indices.map((index) => ({
+    day: days[index],
+    lifting: count === 2 || (index % 2 === 0 && index < 5),
+  }));
+}
+
 /** Explicit candidates: broad `gym` labels must never override a saved inventory. */
 export function gymPlanExercises(inventory: readonly string[]): string[] {
   const items = new Set(inventory);
