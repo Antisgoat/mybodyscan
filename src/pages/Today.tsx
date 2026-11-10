@@ -16,6 +16,8 @@ import { DemoWriteButton } from "@/components/DemoWriteGuard";
 import { useAuthUser } from "@/auth/mbs-auth";
 import { CheckCircle2, Circle } from "lucide-react";
 import { deriveDailyMomentum } from "@/lib/momentum";
+import { localDateKey } from "@/lib/time";
+import { todayNextAction } from "@/lib/todayNextAction";
 
 export default function Today() {
   const navigate = useNavigate();
@@ -23,10 +25,10 @@ export default function Today() {
   const demo = useDemoMode();
   const { user } = useAuthUser();
   const { plan: coachPlan } = useUserProfile();
-  const todayISO = new Date().toISOString().slice(0, 10);
-  // Health connectors are not live yet; always surface the "coming soon" banner
-  // so users aren't misled into thinking data is syncing.
-  const healthConfigured = false;
+  const todayISO = localDateKey();
+  const [ready, setReady] = useState(demo);
+  const [mealLoaded, setMealLoaded] = useState(demo);
+  const [hasPlan, setHasPlan] = useState(demo);
   const [mealTotals, setMealTotals] = useState<{
     calories: number;
     protein?: number;
@@ -42,32 +44,45 @@ export default function Today() {
   );
 
   useEffect(() => {
+    if (!demo && user?.uid) track("member_today_open");
+  }, [demo, user?.uid]);
+
+  useEffect(() => {
     if (demo) {
+      setReady(true);
+      setMealLoaded(true);
+      setHasPlan(true);
       setMealTotals(DEMO_NUTRITION_LOG.totals);
       setWorkout(DEMO_WORKOUT_PROGRESS);
       return;
     }
 
     let cancelled = false;
+    setReady(false);
+    setMealLoaded(false);
+    setHasPlan(false);
 
     const load = async () => {
-      try {
-        const log = await getDailyLog(todayISO);
-        if (!cancelled) {
-          setMealTotals(log?.totals ?? { calories: 0 });
-        }
-      } catch (error) {
-        console.warn("today.loadDailyLog", error);
-        if (!cancelled) {
-          setMealTotals({ calories: 0 });
-        }
+      const [mealResult, planResult] = await Promise.allSettled([
+        getDailyLog(todayISO),
+        getPlan(),
+      ]);
+      if (cancelled) return;
+      if (mealResult.status === "fulfilled") {
+        setMealTotals(mealResult.value?.totals ?? { calories: 0 });
+        setMealLoaded(true);
+      } else {
+        console.warn("today.loadDailyLog", mealResult.reason);
+        setMealTotals({ calories: 0 });
       }
 
       try {
-        const plan = await getPlan();
+        if (planResult.status === "rejected") throw planResult.reason;
+        const plan = planResult.value;
         const planDays: WorkoutDay[] = Array.isArray(plan?.days)
           ? plan.days
           : [];
+        setHasPlan(planDays.some((day) => day.exercises.length > 0));
         if (!plan || planDays.length === 0) {
           if (!cancelled) {
             setWorkout({ done: 0, total: 0 });
@@ -95,9 +110,13 @@ export default function Today() {
           const snap = await getDoc(
             doc(db, `users/${uid}/workoutPlans/${plan.id}/progress/${todayISO}`)
           );
-          const done = snap.exists()
-            ? ((snap.data()?.completed as string[])?.length ?? 0)
-            : 0;
+          const rawCompleted = snap.data()?.completed;
+          const completedIds = new Set(
+            Array.isArray(rawCompleted) ? rawCompleted : []
+          );
+          const done = planDays[idx].exercises.filter((exercise) =>
+            completedIds.has(exercise.id)
+          ).length;
           if (!cancelled) {
             setWorkout({ done, total: planDays[idx].exercises.length });
           }
@@ -115,7 +134,9 @@ export default function Today() {
       }
     };
 
-    void load();
+    void load().finally(() => {
+      if (!cancelled) setReady(true);
+    });
 
     return () => {
       cancelled = true;
@@ -155,6 +176,13 @@ export default function Today() {
     workoutDone: workout.done,
     workoutTotal: workout.total,
   });
+  const nextAction = todayNextAction({
+    hasWorkout: workout.done < workout.total,
+    hasPlan,
+    workoutDone: workout.done,
+    mealLogged: mealTotals.calories > 0,
+    mealLoaded,
+  });
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -169,17 +197,34 @@ export default function Today() {
         <h1 className="text-2xl font-semibold text-foreground">
           {t("today.title")}
         </h1>
-        {!healthConfigured && (
-          <Card>
-            <CardContent className="space-y-2 py-4">
-              <p className="text-sm font-medium">Health data unavailable</p>
-              <p className="text-sm text-muted-foreground">
-                Health connectors are coming soon. For now, steps and vitals
-                won’t appear here.
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Your next step</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {ready ? (
+              <Button
+                className="w-full"
+                onClick={() => navigate(nextAction.path)}
+              >
+                {nextAction.label}
+              </Button>
+            ) : (
+              <p role="status" className="text-sm text-muted-foreground">
+                Checking today’s plan…
               </p>
-            </CardContent>
-          </Card>
-        )}
+            )}
+            {ready && hasPlan && nextAction.path !== "/weekly-review" && (
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => navigate("/weekly-review")}
+              >
+                Weekly check-in
+              </Button>
+            )}
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

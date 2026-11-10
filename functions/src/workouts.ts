@@ -26,6 +26,7 @@ import { structuredJsonChat } from "./openai/client.js";
 import { modelForFeature } from "./openai/models.js";
 import { openAiSecretParam } from "./openai/keys.js";
 import { GYM_EQUIPMENT_IDS } from "./gymEquipmentCatalog.js";
+import { shiftWorkoutSchedule } from "./lib/shiftWorkoutSchedule.js";
 import {
   gymPlanExercises,
   gymStarterDays,
@@ -1824,7 +1825,8 @@ type UpdateWorkoutPlanOp =
     }
   | {
       type: "shift_schedule";
-      days: 1;
+      days: 1 | -1;
+      expectedDays?: string[];
     };
 
 function assertIndex(name: string, value: any, maxExclusive: number) {
@@ -1931,47 +1933,40 @@ async function handleUpdateWorkoutPlan(req: Request, res: Response) {
     }
     days[op.dayIndex] = { ...days[op.dayIndex]!, day: dayName };
   } else if (op.type === "shift_schedule") {
-    if (op.days !== 1) {
-      throw new HttpsError(
-        "invalid-argument",
-        "Schedule can only move one day at a time."
-      );
-    }
-    const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    for (let index = 0; index < days.length; index += 1) {
-      const current = weekdays.indexOf(String(days[index]?.day ?? ""));
-      if (current < 0) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Plan has an invalid workout day."
-        );
-      }
-      days[index] = {
-        ...days[index]!,
-        day: weekdays[(current + 1) % 7]!,
-      };
-    }
-    if (
-      typeof plan.startDate === "string" &&
-      /^\d{4}-\d{2}-\d{2}$/.test(plan.startDate)
-    ) {
-      const start = new Date(`${plan.startDate}T00:00:00.000Z`);
-      start.setUTCDate(start.getUTCDate() + 1);
-      shiftedStartDate = start.toISOString().slice(0, 10);
-    }
+    const shifted = shiftWorkoutSchedule(
+      days,
+      plan.startDate,
+      op.days,
+      op.expectedDays
+    );
+    days.splice(0, days.length, ...shifted.days);
+    shiftedStartDate = shifted.startDate;
   } else {
     throw new HttpsError("invalid-argument", "Unknown op type.");
   }
 
   const now = Timestamp.now();
-  await planRef.set(
-    scrubUndefined({
-      days,
-      startDate: shiftedStartDate,
-      updatedAt: now,
-    }),
-    { merge: true }
-  );
+  const changes = scrubUndefined({
+    days,
+    startDate: shiftedStartDate,
+    updatedAt: now,
+  });
+  if (op.type === "shift_schedule" && snap.updateTime) {
+    // Do not overwrite another device's edits between the read and write.
+    try {
+      await planRef.update(changes, { lastUpdateTime: snap.updateTime });
+    } catch (error) {
+      if ((error as { code?: number })?.code === 9) {
+        throw new HttpsError(
+          "failed-precondition",
+          "Your schedule changed. Refresh before moving it again."
+        );
+      }
+      throw error;
+    }
+  } else {
+    await planRef.set(changes, { merge: true });
+  }
   res.json({ ok: true });
 }
 

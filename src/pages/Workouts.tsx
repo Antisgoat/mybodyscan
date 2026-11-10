@@ -58,6 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { VoiceWorkoutLogger } from "@/features/workouts/VoiceWorkoutLogger";
+import { normalizeGymEquipment, type GymEquipmentId } from "@/lib/gymEquipment";
 
 const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -134,6 +135,8 @@ export default function Workouts() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activationPending, setActivationPending] = useState(false);
   const [shiftingSchedule, setShiftingSchedule] = useState(false);
+  const [undoShiftPlanId, setUndoShiftPlanId] = useState<string | null>(null);
+  const [focusWorkoutKey, setFocusWorkoutKey] = useState<string | null>(null);
   const [showPlanStartHint, setShowPlanStartHint] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -153,6 +156,11 @@ export default function Workouts() {
     exercise: WorkoutExercise;
   } | null>(null);
   const [swapping, setSwapping] = useState(false);
+  const [swapInventory, setSwapInventory] = useState<{
+    target: NonNullable<typeof swapTarget>;
+    uid: string;
+    items: GymEquipmentId[] | null;
+  } | null>(null);
   const { health: systemHealth, error: healthError } = useSystemHealth();
   const { workoutsConfigured, workoutAdjustConfigured } = demo
     ? { workoutsConfigured: true, workoutAdjustConfigured: true }
@@ -169,36 +177,79 @@ export default function Workouts() {
   const todayISO = localDateKey();
   const today = plan?.days.find((d) => d.day === todayName);
   const todayExercises = Array.isArray(today?.exercises) ? today.exercises : [];
-  const completedCount = completed.length;
+  const workoutKey = `${userUid ?? "demo"}:${plan?.id ?? "none"}:${todayISO}:${todayExercises.map((exercise) => exercise.id).join(",")}`;
+  const focused = focusWorkoutKey === workoutKey;
+  const visibleExercises = focused
+    ? todayExercises.slice(0, 3)
+    : todayExercises;
+  const completedCount = todayExercises.filter((exercise) =>
+    completed.includes(exercise.id)
+  ).length;
   const totalCount = todayExercises.length;
+  const currentSwapInventory =
+    swapInventory?.target === swapTarget && swapInventory?.uid === userUid
+      ? swapInventory
+      : null;
+  useEffect(() => {
+    if (!swapTarget || !userUid || demo) return;
+    let active = true;
+    void getDoc(doc(db, "users", userUid, "preferences", "gymEquipment"))
+      .then((snapshot) => {
+        if (active)
+          setSwapInventory({
+            target: swapTarget,
+            uid: userUid,
+            items: normalizeGymEquipment(snapshot.data()?.inventory),
+          });
+      })
+      .catch(() => {
+        if (active)
+          setSwapInventory({ target: swapTarget, uid: userUid, items: null });
+      });
+    return () => {
+      active = false;
+    };
+  }, [swapTarget, userUid, demo]);
   const swapSuggestions = useMemo(
     () =>
-      swapTarget?.exercise.name
-        ? suggestExerciseSwaps(swapTarget.exercise.name, 6)
+      swapTarget?.exercise.name && currentSwapInventory?.items
+        ? suggestExerciseSwaps(
+            swapTarget.exercise.name,
+            6,
+            currentSwapInventory.items
+          )
         : [],
-    [swapTarget]
+    [swapTarget, currentSwapInventory]
   );
   const restTimerActive = restRemaining > 0;
 
-  const shiftPlanOneDay = async () => {
+  const shiftPlanOneDay = async (days: 1 | -1) => {
     if (!plan || shiftingSchedule) return;
     setShiftingSchedule(true);
     try {
       await updateWorkoutPlanRemote({
         planId: plan.id,
-        op: { type: "shift_schedule", days: 1 },
+        op: {
+          type: "shift_schedule",
+          days,
+          expectedDays: plan.days.map((day) => day.day),
+        },
       });
       const shiftedDays = plan.days.map((day) => {
         const current = dayNames.indexOf(day.day);
         return current < 0
           ? day
-          : { ...day, day: dayNames[(current + 1) % 7]! };
+          : { ...day, day: dayNames[(current + days + 7) % 7]! };
       });
       setPlan({ ...plan, days: shiftedDays });
+      setUndoShiftPlanId(days === 1 ? plan.id : null);
+      setFocusWorkoutKey(null);
       toast({
-        title: "Plan moved forward one day",
-        description:
-          "Every upcoming workout shifted together; your exercise order stayed intact.",
+        title:
+          days === 1
+            ? "Plan moved forward one day"
+            : "Schedule moved back one day",
+        description: "Your exercise order and saved logs stayed intact.",
       });
     } catch (error) {
       toast({
@@ -559,7 +610,7 @@ export default function Workouts() {
     setElapsedSeconds(0);
     setRestRemaining(0);
     setSessionSummary(null);
-    track("workout_session_start", { planId: plan?.id ?? null });
+    if (!demo) track("workout_session_start");
   };
 
   const finishSession = () => {
@@ -571,7 +622,7 @@ export default function Workouts() {
     const volume = calculateWorkoutVolume(todayExercises, exerciseLogs, units);
     setSessionSummary({
       durationSeconds,
-      completedExercises: completed.length,
+      completedExercises: completedCount,
       totalExercises: totalCount,
       volume: volume.value,
       volumeUnit: volume.unit,
@@ -579,16 +630,16 @@ export default function Workouts() {
     });
     setSessionStartedAt(null);
     setRestRemaining(0);
-    track("workout_session_finish", {
-      planId: plan?.id ?? null,
-      durationSeconds,
-      completedExercises: completed.length,
-      totalExercises: totalCount,
-    });
+    if (!demo && completedCount > 0) track("workout_session_finish");
   };
 
   const completeSwap = async (replacementName: string) => {
-    if (!plan || !swapTarget) return;
+    if (
+      !plan ||
+      !swapTarget ||
+      !swapSuggestions.some((exercise) => exercise.name === replacementName)
+    )
+      return;
     setSwapping(true);
     try {
       await updateWorkoutPlanRemote({
@@ -656,7 +707,17 @@ export default function Workouts() {
       setCompleted(nextCompleted);
       setRatio(res.ratio);
       if (done) {
-        track("workout_mark_done", { exerciseId });
+        if (!demo) {
+          track("workout_mark_done");
+          if (
+            completedCount < totalCount &&
+            todayExercises.every((exercise) =>
+              nextCompleted.includes(exercise.id)
+            )
+          ) {
+            track("workout_day_completed");
+          }
+        }
         if (sessionStartedAt == null) {
           setSessionStartedAt(Date.now());
           setElapsedSeconds(0);
@@ -987,14 +1048,27 @@ export default function Workouts() {
               Customize plan
             </Button>
             <Button
-              onClick={shiftPlanOneDay}
+              onClick={() => void shiftPlanOneDay(1)}
               variant="outline"
               className="w-full"
-              disabled={demo || shiftingSchedule}
+              disabled={demo || shiftingSchedule || sessionStartedAt != null}
             >
               {shiftingSchedule
                 ? "Moving plan…"
                 : "I missed a day — move plan forward"}
+            </Button>
+            {undoShiftPlanId === plan?.id && (
+              <Button
+                variant="ghost"
+                className="w-full"
+                disabled={shiftingSchedule || sessionStartedAt != null}
+                onClick={() => void shiftPlanOneDay(-1)}
+              >
+                Undo last schedule move
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => nav("/settings/gym")}>
+              Switch gym or equipment
             </Button>
             <p className="text-xs leading-5 text-muted-foreground">
               Moves every workout forward one day without deleting progress.
@@ -1127,6 +1201,27 @@ export default function Workouts() {
         ) : null}
         {todayExercises.length > 0 ? (
           <div className="space-y-4">
+            {todayExercises.length > 3 && (
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  aria-pressed={focused}
+                  onClick={() =>
+                    setFocusWorkoutKey(focused ? null : workoutKey)
+                  }
+                >
+                  {focused
+                    ? "Show full workout"
+                    : "Short on time? Focus on the first 3"}
+                </Button>
+                {focused && (
+                  <p className="text-sm text-muted-foreground">
+                    Showing the first three exercises in plan order. The rest of
+                    your workout and its logs are unchanged.
+                  </p>
+                )}
+              </div>
+            )}
             {today?.coachGuidance ? (
               <Alert className="border-primary/30 bg-primary/5">
                 <AlertTitle>Today’s coach adjustment</AlertTitle>
@@ -1148,7 +1243,7 @@ export default function Workouts() {
                 });
               }}
             />
-            {todayExercises.map((ex) => {
+            {visibleExercises.map((ex) => {
               const serverLog = exerciseLogs?.[ex.id] ?? null;
               const localLog = getLocalLog(ex.id);
               const lastLog = recentExerciseLogs?.[ex.id] ?? null;
@@ -1472,7 +1567,19 @@ export default function Workouts() {
               same broad movement pattern. The exercise slot keeps its ID, so
               your prior log history stays connected.
             </p>
-            {swapSuggestions.length ? (
+            {userUid && !currentSwapInventory ? (
+              <p role="status" className="text-sm text-muted-foreground">
+                Checking your gym equipment…
+              </p>
+            ) : currentSwapInventory?.items === null ? (
+              <Alert>
+                <AlertTitle>Gym equipment unavailable</AlertTitle>
+                <AlertDescription>
+                  Close this dialog and try again to check what equipment you
+                  have.
+                </AlertDescription>
+              </Alert>
+            ) : swapSuggestions.length ? (
               <div className="grid gap-2">
                 {swapSuggestions.map((suggestion) => (
                   <Button
@@ -1498,10 +1605,16 @@ export default function Workouts() {
               <Alert>
                 <AlertTitle>No automatic match</AlertTitle>
                 <AlertDescription>
-                  Use Customize plan to pick from the full exercise library, or
-                  ask Coach for a pain-free alternative.
+                  Confirm your equipment in Gym setup, or use Customize plan to
+                  review alternatives.
                 </AlertDescription>
               </Alert>
+            )}
+            {currentSwapInventory?.items?.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No gym checklist is saved. Check the equipment listed before
+                swapping.
+              </p>
             )}
             <p className="text-xs text-muted-foreground">
               Stop any movement that causes sharp, severe, or worsening pain.

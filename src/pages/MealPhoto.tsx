@@ -301,6 +301,11 @@ export default function MealPhoto() {
             the original guess. Use food search to choose the correct food, or
             try a clearer photo with a short hint.
           </p>
+          {!busy && !saved && (
+            <Button variant="outline" asChild>
+              <Link to="/meals/search">Find the correct food</Link>
+            </Button>
+          )}
           <p className="text-sm leading-6">{estimate.notes}</p>
           <label className="block space-y-2 text-sm">
             Meal name

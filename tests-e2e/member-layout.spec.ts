@@ -29,6 +29,7 @@ test("food diary, search, kitchen helper, and gym setup fit the member viewport"
 
   for (const [route, heading] of [
     ["/home", "Your progress, at a glance"],
+    ["/today", "Your next step"],
     ["/meals", "Food diary"],
     ["/meals/search", "Search Foods"],
     ["/meals/photo", "Snap. Review. Log."],
@@ -76,6 +77,18 @@ test("food diary, search, kitchen helper, and gym setup fit the member viewport"
         path: testInfo.outputPath("home.png"),
         fullPage: true,
       });
+    }
+    if (route === "/today") {
+      await expect(
+        page.getByRole("button", { name: "Continue today’s workout" })
+      ).toBeVisible();
+      await page
+        .getByRole("button", { name: "Weekly check-in", exact: true })
+        .click();
+      await expect(page).toHaveURL(/\/weekly-review$/);
+      await expect(
+        page.getByText("Read-only preview", { exact: true })
+      ).toBeVisible();
     }
     if (route === "/meals/photo") {
       await expect(
