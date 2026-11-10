@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { acceptPolicyGate } from "./helpers/policy";
 
-test("food diary, search, and kitchen helper fit the member viewport", async ({
+test("food diary, search, kitchen helper, and gym setup fit the member viewport", async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -32,6 +32,7 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
     ["/meals", "Food diary"],
     ["/meals/search", "Search Foods"],
     ["/meals/photo", "Snap. Review. Log."],
+    ["/settings/gym", "What’s in your gym?"],
     ["/meals/fridge", "What can you make right now?"],
   ]) {
     await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -88,6 +89,20 @@ test("food diary, search, and kitchen helper fit the member viewport", async ({
         path: testInfo.outputPath("meal-photo.png"),
         fullPage: true,
       });
+    }
+    if (route === "/settings/gym") {
+      await expect(
+        page.getByText("Sign in to scan your gym or save equipment to a plan.")
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: /Record gym walkthrough/ })
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: /Add gym photos/ })
+      ).toBeDisabled();
+      await expect(
+        page.getByRole("button", { name: "Save and personalize my plan" })
+      ).toBeDisabled();
     }
   }
   await expect(
