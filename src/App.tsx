@@ -58,9 +58,6 @@ import CoachOnboarding from "./pages/CoachOnboarding";
 import CoachTracker from "./pages/CoachTracker";
 import SettingsHealth from "./pages/SettingsHealth";
 import SettingsUnits from "./pages/SettingsUnits";
-import GymSetup from "./pages/GymSetup";
-import FridgeMeals from "./pages/FridgeMeals";
-import MealPhoto from "./pages/MealPhoto";
 import DebugPlan from "./pages/DebugPlan";
 import DebugHealth from "./pages/DebugHealth";
 import { isNative } from "@/lib/platform";
@@ -113,6 +110,9 @@ const Plans = lazy(() => import("./pages/Plans"));
 const Paywall = lazy(() => import("./pages/Paywall"));
 const Coach = lazy(() => import("./pages/Coach"));
 const Meals = lazy(() => import("./pages/Meals"));
+const GymSetup = lazy(() => import("./pages/GymSetup"));
+const FridgeMeals = lazy(() => import("./pages/FridgeMeals"));
+const MealPhoto = lazy(() => import("./pages/MealPhoto"));
 const MealPlan = lazy(() => import("./pages/MealPlan"));
 const ScanResult = lazy(() => import("./pages/ScanResult"));
 const ScanComparePage = lazy(() => import("./pages/ScanCompare"));
@@ -731,7 +731,9 @@ const App = () => (
                 <PersonalizationGate>
                   <AuthedLayout>
                     <RouteBoundary>
-                      <MealPhoto />
+                      <PageSuspense>
+                        <MealPhoto />
+                      </PageSuspense>
                     </RouteBoundary>
                   </AuthedLayout>
                 </PersonalizationGate>
@@ -750,7 +752,9 @@ const App = () => (
                 <PersonalizationGate>
                   <AuthedLayout>
                     <RouteBoundary>
-                      <FridgeMeals />
+                      <PageSuspense>
+                        <FridgeMeals />
+                      </PageSuspense>
                     </RouteBoundary>
                   </AuthedLayout>
                 </PersonalizationGate>
@@ -1109,7 +1113,9 @@ const App = () => (
               <ProtectedRoute>
                 <AuthedLayout>
                   <RouteBoundary>
-                    <GymSetup />
+                    <PageSuspense>
+                      <GymSetup />
+                    </PageSuspense>
                   </RouteBoundary>
                 </AuthedLayout>
               </ProtectedRoute>

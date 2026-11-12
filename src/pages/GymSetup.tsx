@@ -58,6 +58,7 @@ function sourceFor(
 
 export default function GymSetup() {
   const { user } = useAuthUser();
+  const canSaveOrAnalyze = Boolean(user?.uid);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const photoInputRef = useRef<HTMLInputElement | null>(null);
@@ -240,6 +241,7 @@ export default function GymSetup() {
   };
 
   const handlePhotos = async (files: FileList | null) => {
+    if (!canSaveOrAnalyze) return;
     const selectedFiles = Array.from(files ?? []).slice(0, 6);
     if (!selectedFiles.length) return;
     setAnalyzing(true);
@@ -261,7 +263,7 @@ export default function GymSetup() {
   };
 
   const handleVideo = async (file: File | null) => {
-    if (!file) return;
+    if (!file || !canSaveOrAnalyze) return;
     setAnalyzing(true);
     try {
       const frames = await sampleGymVideo(file, 5);
@@ -278,6 +280,7 @@ export default function GymSetup() {
   };
 
   const handleNativePhoto = async (source: "camera" | "library") => {
+    if (!canSaveOrAnalyze) return;
     try {
       const frame =
         source === "camera"
@@ -428,13 +431,21 @@ export default function GymSetup() {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!canSaveOrAnalyze && (
+              <Alert>
+                <AlertTitle>Preview the equipment checklist</AlertTitle>
+                <AlertDescription>
+                  Sign in to scan your gym or save equipment to a plan.
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <Button
                 type="button"
                 variant="outline"
                 className="min-h-20 justify-start gap-3 whitespace-normal text-left"
                 onClick={() => videoInputRef.current?.click()}
-                disabled={analyzing}
+                disabled={analyzing || !canSaveOrAnalyze}
               >
                 <Video className="h-5 w-5 shrink-0" />
                 <span>
@@ -454,7 +465,7 @@ export default function GymSetup() {
                   if (usesNativePhotoPicker()) void handleNativePhoto("camera");
                   else photoInputRef.current?.click();
                 }}
-                disabled={analyzing}
+                disabled={analyzing || !canSaveOrAnalyze}
               >
                 <Camera className="h-5 w-5 shrink-0" />
                 <span>
@@ -476,7 +487,7 @@ export default function GymSetup() {
                   variant="ghost"
                   className="w-full"
                   onClick={() => void handleNativePhoto("library")}
-                  disabled={analyzing}
+                  disabled={analyzing || !canSaveOrAnalyze}
                 >
                   Choose a gym photo from library
                 </Button>
@@ -485,7 +496,7 @@ export default function GymSetup() {
                   variant="ghost"
                   className="w-full"
                   onClick={() => videoLibraryInputRef.current?.click()}
-                  disabled={analyzing}
+                  disabled={analyzing || !canSaveOrAnalyze}
                 >
                   Choose a saved walkthrough video
                 </Button>
@@ -498,6 +509,7 @@ export default function GymSetup() {
               accept="video/*"
               capture="environment"
               aria-label="Record or choose a gym walkthrough video"
+              disabled={!canSaveOrAnalyze || analyzing}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0] ?? null;
                 event.currentTarget.value = "";
@@ -510,6 +522,7 @@ export default function GymSetup() {
               type="file"
               accept="video/*"
               aria-label="Choose a saved gym walkthrough video"
+              disabled={!canSaveOrAnalyze || analyzing}
               onChange={(event) => {
                 const file = event.currentTarget.files?.[0] ?? null;
                 event.currentTarget.value = "";
@@ -523,6 +536,7 @@ export default function GymSetup() {
               accept="image/*"
               multiple
               aria-label="Choose gym photos"
+              disabled={!canSaveOrAnalyze || analyzing}
               onChange={(event) => {
                 const files = event.currentTarget.files;
                 void handlePhotos(files);
@@ -727,7 +741,12 @@ export default function GymSetup() {
           <Button
             className="min-h-12 w-full"
             onClick={handleSave}
-            disabled={saving || analyzing || selectedList.length === 0}
+            disabled={
+              !canSaveOrAnalyze ||
+              saving ||
+              analyzing ||
+              selectedList.length === 0
+            }
           >
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {saving ? "Saving gym setup…" : "Save and personalize my plan"}
