@@ -168,7 +168,9 @@ const Home = () => {
     ? lastScan.createdAt.toLocaleDateString()
     : "—";
   const bf =
-    summary.bodyFatPercent != null ? `${summary.bodyFatPercent.toFixed(1)}%` : "—";
+    summary.bodyFatPercent != null
+      ? `${summary.bodyFatPercent.toFixed(1)}%`
+      : "—";
   const weight = summary.weightText;
   const bmi = summary.bmiText;
   const showOnboardingNudge =
@@ -348,6 +350,9 @@ const Home = () => {
         <p className="relative mt-3 max-w-lg text-sm leading-relaxed text-slate-300 sm:text-base">
           Your training, meals, and progress. One clear next step.
         </p>
+        <Button className="relative mt-5" onClick={() => navigate("/today")}>
+          See today’s next step
+        </Button>
       </header>
       {subscriberFeaturesAvailable && (
         <nav
@@ -459,7 +464,9 @@ const Home = () => {
                       <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">
                         {bf}
                       </p>
-                      <p className="text-xs text-muted-foreground">Est. body fat</p>
+                      <p className="text-xs text-muted-foreground">
+                        Est. body fat
+                      </p>
                     </div>
                     <div>
                       <p className="whitespace-nowrap text-lg font-semibold tabular-nums sm:text-2xl">
@@ -483,6 +490,13 @@ const Home = () => {
                       {statusMeta?.helperText ?? "Check History for progress."}
                     </p>
                   </div>
+                )}
+                {done && (
+                  <p className="text-xs text-muted-foreground">
+                    Photo-based body-fat estimates can vary with lighting and
+                    pose. Compare trends across scans taken under similar
+                    conditions, not small changes from one scan.
+                  </p>
                 )}
                 <div className="flex flex-wrap gap-2 pt-2">
                   {done ? (

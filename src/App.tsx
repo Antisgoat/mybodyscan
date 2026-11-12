@@ -336,18 +336,13 @@ const App = () => (
         <Route
           path="/today"
           element={
-            <FeatureGate
-              name="health"
-              fallback={<Navigate to="/home" replace />}
-            >
-              <ProtectedRoute>
-                <AuthedLayout>
-                  <RouteBoundary>
-                    <Today />
-                  </RouteBoundary>
-                </AuthedLayout>
-              </ProtectedRoute>
-            </FeatureGate>
+            <ProtectedRoute>
+              <AuthedLayout>
+                <RouteBoundary>
+                  <Today />
+                </RouteBoundary>
+              </AuthedLayout>
+            </ProtectedRoute>
           }
         />
         <Route

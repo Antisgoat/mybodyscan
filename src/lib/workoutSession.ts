@@ -5,6 +5,10 @@ import {
 } from "@/data/exercises";
 import { lbToKg, kgToLb, type DisplayUnits } from "@/lib/units";
 import { parseLoad } from "@/lib/workoutsProgression";
+import {
+  exerciseAllowedByGymInventory,
+  type GymEquipmentId,
+} from "@/lib/gymEquipment";
 
 const PATTERN_KEYWORDS: Array<[MovementPattern, RegExp]> = [
   ["vertical_pull", /\b(pull[\s-]?up|pulldown|vertical pull)\b/i],
@@ -35,14 +39,19 @@ export function inferMovementPattern(name: string): MovementPattern | null {
   );
 }
 
-export function suggestExerciseSwaps(name: string, limit = 5): Exercise[] {
+export function suggestExerciseSwaps(
+  name: string,
+  limit = 5,
+  inventory?: readonly GymEquipmentId[]
+): Exercise[] {
   const pattern = inferMovementPattern(name);
   if (!pattern) return [];
   const normalized = normalizeName(name);
   return EXERCISES.filter(
     (exercise) =>
       exercise.movementPattern === pattern &&
-      normalizeName(exercise.name) !== normalized
+      normalizeName(exercise.name) !== normalized &&
+      (!inventory || exerciseAllowedByGymInventory(exercise, inventory))
   )
     .sort((left, right) => {
       const leftFriendly = left.tags.some((tag) => tag.endsWith("_friendly"));

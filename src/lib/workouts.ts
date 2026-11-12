@@ -124,7 +124,8 @@ export type UpdateWorkoutPlanOp =
     }
   | {
       type: "shift_schedule";
-      days: 1;
+      days: 1 | -1;
+      expectedDays?: string[];
     };
 
 function normalizeWorkoutExercise(value: unknown): WorkoutExercise | null {
@@ -411,6 +412,7 @@ export async function activateCustomPlan(params: {
   const res = await callFn<{ planId?: string }>("/applyCustomPlan", params);
   const planId = typeof res?.planId === "string" ? res.planId : "";
   if (!planId) throw new Error("workouts_apply_invalid_response");
+  track("workout_plan_saved");
   return { planId };
 }
 
@@ -475,6 +477,7 @@ export async function activateCatalogPlan(
           ? (metaSnap.data()?.activePlanId as string | undefined)
           : undefined;
         if (planSnap.exists() && activePlanId === planId) {
+          track("workout_plan_saved");
           return { planId };
         }
         // Exponential-ish backoff (fast first, then slower).
@@ -487,6 +490,7 @@ export async function activateCatalogPlan(
         doc(db, `users/${uid}/workoutPlans/${planId}`)
       );
       if (fallbackPlanSnap.exists()) {
+        track("workout_plan_saved");
         return { planId };
       }
       throw new Error("workouts_apply_pending");

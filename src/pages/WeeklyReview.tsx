@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useDemoMode } from "@/components/DemoModeProvider";
 import { getPlan } from "@/lib/workouts";
+import { track } from "@/lib/analytics";
+import { nextScheduledWorkout } from "@/lib/nextScheduledWorkout";
 import {
   requestWeeklyRecommendation,
   resolveWeeklyReview,
@@ -28,15 +30,6 @@ import {
   type WeeklyReviewInputs,
   type WeeklyReviewTrend,
 } from "@/lib/weeklyReview";
-
-const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-function localDateKey(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function delta(value: number, suffix = "") {
   if (!value) return `No change${suffix}`;
@@ -53,7 +46,7 @@ export default function WeeklyReview() {
   const demo = useDemoMode();
   const { toast } = useToast();
   const [latest, setLatest] = useState<WeeklyReviewDocument | null>(null);
-  const [dayId, setDayId] = useState(dayNames[new Date().getDay()]);
+  const [scheduledDays, setScheduledDays] = useState<string[]>([]);
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,18 +79,21 @@ export default function WeeklyReview() {
   }, [user?.uid]);
 
   useEffect(() => {
+    setScheduledDays([]);
     if (demo) {
       setLoadingPlan(false);
       return;
     }
+    setLoadingPlan(true);
     let active = true;
     void getPlan()
       .then((plan) => {
         if (!active) return;
-        const today = dayNames[new Date().getDay()];
-        const chosen =
-          plan.days.find((day) => day.day === today) ?? plan.days[0] ?? null;
-        if (chosen?.day) setDayId(chosen.day);
+        setScheduledDays(
+          plan.days
+            .filter((day) => day.exercises.length > 0)
+            .map((day) => day.day)
+        );
       })
       .catch(() => {
         if (active) setError("Create a workout plan before applying a review.");
@@ -108,7 +104,7 @@ export default function WeeklyReview() {
     return () => {
       active = false;
     };
-  }, [demo]);
+  }, [demo, user?.uid]);
 
   const updateRating = (
     key: "hunger" | "energy" | "sleep" | "soreness" | "stress",
@@ -118,17 +114,18 @@ export default function WeeklyReview() {
   };
 
   const submit = async () => {
-    if (loadingPlan) return;
+    const target = nextScheduledWorkout(scheduledDays);
+    if (loadingPlan || !target) return;
     setBusy(true);
     setError(null);
     try {
       const inputs: WeeklyReviewInputs = {
         ...form,
-        localDate: localDateKey(),
-        dayId,
+        ...target,
       };
       const review = await requestWeeklyRecommendation(inputs);
       setLatest(review);
+      if (!demo) track("weekly_review_ready");
       toast({
         title: "Review ready",
         description: "Nothing changes until you accept it.",
@@ -150,6 +147,7 @@ export default function WeeklyReview() {
     setError(null);
     try {
       await resolveWeeklyReview(latest.id, action);
+      if (!demo && action === "accept") track("weekly_review_accepted");
       setLatest((current) =>
         current
           ? {
@@ -349,7 +347,12 @@ export default function WeeklyReview() {
             <Button
               className="sm:col-span-2"
               onClick={submit}
-              disabled={busy || loadingPlan || demo}
+              disabled={
+                busy ||
+                loadingPlan ||
+                demo ||
+                !nextScheduledWorkout(scheduledDays)
+              }
             >
               {demo
                 ? "Sign up to create a recommendation"
@@ -357,6 +360,14 @@ export default function WeeklyReview() {
                   ? "Reviewing…"
                   : "Create recommendation"}
             </Button>
+            {!demo && !loadingPlan && !scheduledDays.length && (
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                <Link className="underline" to="/programs">
+                  Choose a workout plan
+                </Link>{" "}
+                before creating a weekly recommendation.
+              </p>
+            )}
           </CardContent>
         </Card>
 
