@@ -55,9 +55,14 @@ export async function prepareGymPhoto(file: File): Promise<string> {
   }
 }
 
-function waitForEvent(target: EventTarget, event: string): Promise<void> {
+export function waitForMediaEvent(
+  target: EventTarget,
+  event: string,
+  timeoutMs = 15_000
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
+      clearTimeout(timer);
       target.removeEventListener(event, handleReady);
       target.removeEventListener("error", handleError);
     };
@@ -69,6 +74,10 @@ function waitForEvent(target: EventTarget, event: string): Promise<void> {
       cleanup();
       reject(new Error("video_processing_failed"));
     };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("video_processing_timeout"));
+    }, timeoutMs);
     target.addEventListener(event, handleReady, { once: true });
     target.addEventListener("error", handleError, { once: true });
   });
@@ -76,7 +85,7 @@ function waitForEvent(target: EventTarget, event: string): Promise<void> {
 
 async function seek(video: HTMLVideoElement, time: number): Promise<void> {
   if (Math.abs(video.currentTime - time) < 0.05) return;
-  const ready = waitForEvent(video, "seeked");
+  const ready = waitForMediaEvent(video, "seeked");
   video.currentTime = time;
   await ready;
 }
@@ -91,9 +100,11 @@ export async function sampleGymVideo(
   video.muted = true;
   video.playsInline = true;
   video.preload = "metadata";
-  video.src = url;
   try {
-    await waitForEvent(video, "loadedmetadata");
+    // Register before assigning src: cached metadata may arrive immediately.
+    const metadataReady = waitForMediaEvent(video, "loadedmetadata");
+    video.src = url;
+    await metadataReady;
     if (!Number.isFinite(video.duration) || video.duration <= 0) {
       throw new Error("video_duration_unavailable");
     }
