@@ -7,9 +7,11 @@ describe("gym video processing waits", () => {
   it("resolves when metadata or a seek finishes and clears its timeout", async () => {
     vi.useFakeTimers();
     const target = new EventTarget();
-    const ready = waitForMediaEvent(target, "seeked");
-    target.dispatchEvent(new Event("seeked"));
-    await ready;
+    for (const event of ["seeked", "load", "loadedmetadata"]) {
+      const ready = waitForMediaEvent(target, event);
+      target.dispatchEvent(new Event(event));
+      await ready;
+    }
     expect(vi.getTimerCount()).toBe(0);
   });
   it("rejects stalled decoding instead of leaving the screen busy indefinitely", async () => {

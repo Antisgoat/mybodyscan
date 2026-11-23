@@ -40,11 +40,9 @@ export async function prepareGymPhoto(file: File): Promise<string> {
   const url = URL.createObjectURL(file);
   const image = new Image();
   try {
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve();
-      image.onerror = () => reject(new Error("image_processing_unavailable"));
-      image.src = url;
-    });
+    const imageReady = waitForMediaEvent(image, "load");
+    image.src = url;
+    await imageReady;
     return canvasDataUrl(
       image,
       image.naturalWidth || image.width,
