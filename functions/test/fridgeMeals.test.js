@@ -10,6 +10,7 @@ import {
   validateFridgeMealSuggestions,
   validateFridgeMealInventory,
   requireFridgeProcessingConsent,
+  FRIDGE_MEAL_PROMPT,
 } from "../lib/fridgeMeals.js";
 
 test("kitchen processing requires explicit permission", () => {
@@ -95,10 +96,16 @@ test("meal inventory rejects food that the member never confirmed", () => {
       ),
     /allergen_conflict/
   );
-  assert.throws(
-    () => validateFridgeMealInventory({ meals: [meal] }, ["eggs"]),
-    /missing_fridge_meals/
+  assert.equal(
+    validateFridgeMealInventory({ meals: [meal] }, ["eggs"]).meals.length,
+    1
   );
+  for (const meals of [[], [meal, meal, meal, meal], [meal, {}]]) {
+    assert.throws(
+      () => validateFridgeMealInventory({ meals }, ["eggs"]),
+      /missing_fridge_meals/
+    );
+  }
   for (const [confirmed, suggested] of [
     ["raw rice", "cooked rice"],
     ["cooked chicken", "raw chicken"],
@@ -115,6 +122,15 @@ test("meal inventory rejects food that the member never confirmed", () => {
       /unconfirmed_fridge_ingredient/
     );
   }
+});
+
+test("recipe instructions prioritize feasibility over filling a quota", () => {
+  assert.match(FRIDGE_MEAL_PROMPT, /one to three/);
+  assert.match(
+    FRIDGE_MEAL_PROMPT,
+    /Never suggest running a steamer or boiling food without water/
+  );
+  assert.match(FRIDGE_MEAL_PROMPT, /Do not rely on specialty appliances/);
 });
 
 test("fridge analysis normalizes and deduplicates visible ingredients", () => {
