@@ -223,7 +223,8 @@
     "glob": "14.0.3",
     "follow-redirects": "1.16.2",
     "joi": "17.13.9",
-    "@hono/node-server": "2.1.5",
+    "@hono/node-server": "2.1.6",
+    "hono": "4.13.16",
     "qs": "6.16.1",
     "simple-swizzle": "0.2.2",
     "@firebase/app": "0.13.2",
@@ -239,7 +240,7 @@
     "@firebase/storage": "0.13.14",
     "@grpc/grpc-js": "1.14.5",
     "get-uri": {
-      "basic-ftp": "6.2.3"
+      "basic-ftp": "6.2.4"
     },
     "uuid": "$uuid",
     "postcss-selector-parser": "7.1.7",
